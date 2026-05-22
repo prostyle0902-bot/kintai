@@ -321,7 +321,7 @@
     // =============================================
     // ★ GAS公開後にここのURLを書き換えてください ★
     // =============================================
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwjRyHkHVaJq6lmw-lhQunNK2_Ea_ohhuFHiiztWX1_ezcwpNMkiU1Nv7Ft0tMkcmo2/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwFtFMQftG-5Zi3cYomVqwiPIsPtjBO9Ls7LjYBLa8T23AO72qY3vEWNb-rUkhqcQcK/exec';
 
     // 社員マスタ（PIN：4桁）
     const employees = [
@@ -413,7 +413,7 @@
       showScreen('screen-done');
 
       // Googleスプレッドシートへ送信
-      if (GAS_URL !== 'https://script.google.com/macros/s/AKfycbwjRyHkHVaJq6lmw-lhQunNK2_Ea_ohhuFHiiztWX1_ezcwpNMkiU1Nv7Ft0tMkcmo2/exec') {
+      if (GAS_URL !== 'YOUR_GAS_WEB_APP_URL') {
         const d = new Date();
         const dateStr = d.getFullYear() + '/' +
           String(d.getMonth() + 1).padStart(2, '0') + '/' +
