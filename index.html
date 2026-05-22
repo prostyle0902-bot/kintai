@@ -341,7 +341,11 @@
           <button id="apply-in-btn" onclick="selectApplyType('出勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#E1F5EE;color:#0F6E56;font-size:14px;font-weight:600;cursor:pointer;">出勤</button>
           <button id="apply-out-btn" onclick="selectApplyType('退勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#f9f9f7;color:var(--text-secondary);font-size:14px;cursor:pointer;">退勤</button>
         </div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">備考（任意）</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">希望時刻</div>
+        <select id="apply-time" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;margin-bottom:1rem;background:var(--surface);">
+          <option value="">-- 選択してください --</option>
+        </select>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">理由 <span style="color:#a32d2d;font-size:11px;">必須</span></div>
         <textarea id="apply-note" placeholder="例：現場直行のため打刻できませんでした" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:13px;height:80px;resize:none;margin-bottom:1.25rem;"></textarea>
         <button onclick="submitApply()" style="width:100%;padding:12px;border:none;border-radius:var(--radius-md);background:#1a1a18;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:0.5rem;">申請を送信</button>
         <button onclick="showPunch()" style="width:100%;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;">キャンセル</button>
@@ -551,13 +555,25 @@
     let applyType = '出勤';
 
     function showApply() {
-      // 今日の日付をデフォルトにセット
       const d = new Date();
       const y = d.getFullYear();
       const m = String(d.getMonth()+1).padStart(2,'0');
       const day = String(d.getDate()).padStart(2,'0');
       document.getElementById('apply-date').value = y + '-' + m + '-' + day;
       document.getElementById('apply-note').value = '';
+      // 時刻セレクトを生成（06:00〜23:45、15分単位）
+      const sel = document.getElementById('apply-time');
+      sel.innerHTML = '<option value="">-- 選択してください --</option>';
+      for (let h = 6; h <= 23; h++) {
+        for (let min = 0; min < 60; min += 15) {
+          const hh = String(h).padStart(2,'0');
+          const mm = String(min).padStart(2,'0');
+          const opt = document.createElement('option');
+          opt.value = hh + ':' + mm;
+          opt.textContent = hh + ':' + mm;
+          sel.appendChild(opt);
+        }
+      }
       selectApplyType('出勤');
       showScreen('screen-apply');
     }
@@ -577,8 +593,11 @@
 
     function submitApply() {
       const dateVal = document.getElementById('apply-date').value;
+      const timeVal = document.getElementById('apply-time').value;
       const note = document.getElementById('apply-note').value;
       if (!dateVal) { alert('申請日を選択してください'); return; }
+      if (!timeVal) { alert('希望時刻を選択してください'); return; }
+      if (!note.trim()) { alert('理由を入力してください'); return; }
 
       const dateStr = dateVal.replace(/-/g, '/');
       fetch(GAS_URL, {
@@ -591,6 +610,7 @@
           dept: currentEmp.dept,
           date: dateStr,
           type: applyType,
+          time: timeVal,
           note: note,
         }),
       })
