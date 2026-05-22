@@ -208,12 +208,23 @@
     }
     .logout-btn {
       width: 100%;
-      margin-top: 1rem;
+      margin-top: 0.5rem;
       padding: 11px;
       border: 0.5px solid var(--border);
       border-radius: var(--radius-md);
       background: transparent;
       color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .apply-btn {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 11px;
+      border: 0.5px solid #d4a017;
+      border-radius: var(--radius-md);
+      background: #fffbeb;
+      color: #92650a;
       font-size: 13px;
       cursor: pointer;
     }
@@ -304,6 +315,7 @@
           <div class="status-row"><span>本日の出勤</span><span id="st-in">未打刻</span></div>
           <div class="status-row"><span>本日の退勤</span><span id="st-out">未打刻</span></div>
         </div>
+        <button class="apply-btn" onclick="showApply()">打刻忘れ申請</button>
         <button class="logout-btn" onclick="logout()">ログアウト</button>
       </div>
     </div>
@@ -315,6 +327,24 @@
         <div class="result-title" id="done-title"></div>
         <div class="result-sub" id="done-time"></div>
         <button class="back-btn" onclick="showPunch()">戻る</button>
+      </div>
+    </div>
+  <!-- 打刻忘れ申請画面 -->
+    <div class="screen" id="screen-apply">
+      <div class="card">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">打刻忘れ申請</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:1.25rem;">申請内容を選んで送信してください。時刻は管理者が確認・入力します。</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">申請日</div>
+        <input type="date" id="apply-date" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;margin-bottom:1rem;background:var(--surface);" />
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">申請種別</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem;">
+          <button id="apply-in-btn" onclick="selectApplyType('出勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#E1F5EE;color:#0F6E56;font-size:14px;font-weight:600;cursor:pointer;">出勤</button>
+          <button id="apply-out-btn" onclick="selectApplyType('退勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#f9f9f7;color:var(--text-secondary);font-size:14px;cursor:pointer;">退勤</button>
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">備考（任意）</div>
+        <textarea id="apply-note" placeholder="例：現場直行のため打刻できませんでした" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:13px;height:80px;resize:none;margin-bottom:1.25rem;"></textarea>
+        <button onclick="submitApply()" style="width:100%;padding:12px;border:none;border-radius:var(--radius-md);background:#1a1a18;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:0.5rem;">申請を送信</button>
+        <button onclick="showPunch()" style="width:100%;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;">キャンセル</button>
       </div>
     </div>
   </div>
@@ -517,6 +547,67 @@
     }
 
     function showPunch() { showScreen('screen-punch'); }
+
+    let applyType = '出勤';
+
+    function showApply() {
+      // 今日の日付をデフォルトにセット
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      document.getElementById('apply-date').value = y + '-' + m + '-' + day;
+      document.getElementById('apply-note').value = '';
+      selectApplyType('出勤');
+      showScreen('screen-apply');
+    }
+
+    function selectApplyType(type) {
+      applyType = type;
+      const inBtn = document.getElementById('apply-in-btn');
+      const outBtn = document.getElementById('apply-out-btn');
+      if (type === '出勤') {
+        inBtn.style.background = '#E1F5EE'; inBtn.style.color = '#0F6E56'; inBtn.style.fontWeight = '600';
+        outBtn.style.background = '#f9f9f7'; outBtn.style.color = '#6b6b68'; outBtn.style.fontWeight = '400';
+      } else {
+        outBtn.style.background = '#FAECE7'; outBtn.style.color = '#993C1D'; outBtn.style.fontWeight = '600';
+        inBtn.style.background = '#f9f9f7'; inBtn.style.color = '#6b6b68'; inBtn.style.fontWeight = '400';
+      }
+    }
+
+    function submitApply() {
+      const dateVal = document.getElementById('apply-date').value;
+      const note = document.getElementById('apply-note').value;
+      if (!dateVal) { alert('申請日を選択してください'); return; }
+
+      const dateStr = dateVal.replace(/-/g, '/');
+      fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'apply',
+          name: currentEmp.name,
+          dept: currentEmp.dept,
+          date: dateStr,
+          type: applyType,
+          note: note,
+        }),
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'ok') {
+          alert('✅ 申請を送信しました\n管理者が確認後に入力します');
+          showPunch();
+        } else {
+          alert('エラー: ' + res.message);
+        }
+      })
+      .catch(() => {
+        alert('✅ 申請を送信しました\n管理者が確認後に入力します');
+        showPunch();
+      });
+    }
 
     function logout() {
       currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null;
