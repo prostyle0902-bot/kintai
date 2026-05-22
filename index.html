@@ -447,7 +447,7 @@
           String(d.getMonth()+1).padStart(2,'0') + '/' +
           String(d.getDate()).padStart(2,'0');
         fetch(GAS_URL, {
-          method: 'POST', mode: 'no-cors',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             date: dateStr, name: currentEmp.name, dept: currentEmp.dept,
@@ -456,7 +456,24 @@
             lng: geoInfo ? geoInfo.lng : null,
             place: geoInfo ? geoInfo.place : 'フリー',
           }),
-        }).catch(err => console.error('送信エラー:', err));
+        })
+        .then(r => r.json())
+        .then(res => {
+          if (res.status === 'duplicate') {
+            // すでに打刻済み→画面を戻してアラート
+            showPunch();
+            if (type === '出勤') {
+              todayIn = null;
+              document.getElementById('btn-in').disabled = false;
+            } else {
+              todayOut = null;
+              document.getElementById('btn-out').disabled = false;
+            }
+            updateStatus();
+            alert('⚠️ ' + res.message);
+          }
+        })
+        .catch(err => console.error('送信エラー:', err));
       }
 
       const allowedLocs = LOCATIONS[currentEmp.name];
