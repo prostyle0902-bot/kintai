@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Prostyle 勤怠</title>
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -118,6 +118,7 @@
       align-items: center;
       justify-content: center;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .pin-btn:active {
       transform: scale(0.94);
@@ -180,6 +181,7 @@
       justify-content: center;
       gap: 6px;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .punch-btn svg { width: 24px; height: 24px; }
     .punch-btn.in  { background: #E1F5EE; color: #0F6E56; }
@@ -389,7 +391,11 @@
     }
 
     function getTimeStr() {
-      return new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const now = new Date();
+      const minutes = Math.floor(now.getMinutes() / 15) * 15;
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(minutes).padStart(2, '0');
+      return h + ':' + m;
     }
 
     function updateStatus() {
