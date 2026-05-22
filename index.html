@@ -404,39 +404,98 @@
     }
 
     function punch(type) {
-      const t = getTimeStr();
-      if (type === '出勤') {
-        todayIn = t;
-        document.getElementById('btn-in').disabled = true;
-      } else {
-        todayOut = t;
-        document.getElementById('btn-out').disabled = true;
-      }
-      updateStatus();
-      document.getElementById('done-title').textContent = type + 'を記録しました';
-      document.getElementById('done-time').textContent = '記録時刻: ' + t;
-      document.getElementById('done-icon').textContent = type === '出勤' ? '✅' : '🏁';
-      showScreen('screen-done');
+      const LOCATIONS = {
+        '平野 健雄': [{ lat: 35.8582, lng: 140.5679, name: '本社', radius: 300 }],
+        '安藤 正樹': [{ lat: 35.8582, lng: 140.5679, name: '本社', radius: 300 }],
+        '伏田 幸枝': [{ lat: 35.8582, lng: 140.5679, name: '本社', radius: 300 }],
+        '小林 俊樹': [{ lat: 35.8582, lng: 140.5679, name: '本社', radius: 300 }],
+        '石毛 貴英': [{ lat: 35.8582, lng: 140.5679, name: '本社', radius: 300 }],
+        '石毛 拓海': [{ lat: 35.8996, lng: 140.6404, name: '神栖横丁', radius: 300 }],
+        '花見 朗子': null,
+        '土屋 芳広': [{ lat: 35.8996, lng: 140.6404, name: '神栖横丁', radius: 300 }],
+        '及川 晶雄': [{ lat: 35.9831, lng: 140.6368, name: '鹿嶋事業所', radius: 300 }],
+        '宮川 玲奈': [{ lat: 35.8996, lng: 140.6404, name: '神栖横丁', radius: 300 }],
+        'ハルシャニ': [{ lat: 35.8996, lng: 140.6404, name: '神栖横丁', radius: 300 }],
+        'ナディシャ':  [{ lat: 35.8996, lng: 140.6404, name: '神栖横丁', radius: 300 }],
+      };
 
-      // Googleスプレッドシートへ送信
-      if (true) {
+      function calcDist(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 +
+                  Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      }
+
+      function doPunch(geoInfo) {
+        const t = getTimeStr();
+        if (type === '出勤') {
+          todayIn = t;
+          document.getElementById('btn-in').disabled = true;
+        } else {
+          todayOut = t;
+          document.getElementById('btn-out').disabled = true;
+        }
+        updateStatus();
+        document.getElementById('done-title').textContent = type + 'を記録しました';
+        document.getElementById('done-time').textContent = '記録時刻: ' + t;
+        document.getElementById('done-icon').textContent = type === '出勤' ? '✅' : '🏁';
+        showScreen('screen-done');
         const d = new Date();
         const dateStr = d.getFullYear() + '/' +
-          String(d.getMonth() + 1).padStart(2, '0') + '/' +
-          String(d.getDate()).padStart(2, '0');
+          String(d.getMonth()+1).padStart(2,'0') + '/' +
+          String(d.getDate()).padStart(2,'0');
         fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'no-cors',
+          method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            date: dateStr,
-            name: currentEmp.name,
-            dept: currentEmp.dept,
-            type: type,
-            time: t,
+            date: dateStr, name: currentEmp.name, dept: currentEmp.dept,
+            type: type, time: t,
+            lat: geoInfo ? geoInfo.lat : null,
+            lng: geoInfo ? geoInfo.lng : null,
+            place: geoInfo ? geoInfo.place : 'フリー',
           }),
         }).catch(err => console.error('送信エラー:', err));
       }
+
+      const allowedLocs = LOCATIONS[currentEmp.name];
+      if (allowedLocs === null) { doPunch(null); return; }
+
+      document.getElementById('btn-in').disabled = true;
+      document.getElementById('btn-out').disabled = true;
+
+      if (!navigator.geolocation) {
+        alert('このブラウザは位置情報に対応していません');
+        document.getElementById('btn-in').disabled = false;
+        document.getElementById('btn-out').disabled = false;
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          let nearest = null, minDist = Infinity;
+          for (const loc of allowedLocs) {
+            const dist = calcDist(lat, lng, loc.lat, loc.lng);
+            if (dist < minDist) { minDist = dist; nearest = loc; }
+            if (dist <= loc.radius) {
+              doPunch({ lat, lng, place: loc.name, dist: Math.round(dist) });
+              return;
+            }
+          }
+          document.getElementById('btn-in').disabled = false;
+          document.getElementById('btn-out').disabled = false;
+          alert('打刻できる場所にいません\n最寄り拠点「' + nearest.name + '」まで約' + Math.round(minDist) + 'mです');
+        },
+        () => {
+          document.getElementById('btn-in').disabled = false;
+          document.getElementById('btn-out').disabled = false;
+          alert('位置情報を取得できませんでした\n設定でアクセスを許可してください');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
     }
 
     function showPunch() { showScreen('screen-punch'); }
