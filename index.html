@@ -412,6 +412,34 @@
         document.getElementById('btn-out').disabled = false;
         updateStatus();
         showScreen('screen-punch');
+
+        // ログイン時にスプレッドシートから今日の打刻状況を取得
+        const d = new Date();
+        const dateStr = d.getFullYear() + '/' +
+          String(d.getMonth()+1).padStart(2,'0') + '/' +
+          String(d.getDate()).padStart(2,'0');
+        fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: dateStr }),
+        })
+        .then(r => r.json())
+        .then(res => {
+          if (res.status === 'ok') {
+            if (res.inTime) {
+              todayIn = res.inTime;
+              document.getElementById('btn-in').disabled = true;
+            }
+            if (res.outTime) {
+              todayOut = res.outTime;
+              document.getElementById('btn-out').disabled = true;
+            }
+            updateStatus();
+          }
+        })
+        .catch(() => {}); // エラーは無視
+
       } else {
         document.getElementById('pin-error').textContent = 'PINコードが違います';
         pinBuffer = '';
