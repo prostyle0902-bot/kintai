@@ -448,7 +448,8 @@
           String(d.getDate()).padStart(2,'0');
         fetch(GAS_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors',
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
             date: dateStr, name: currentEmp.name, dept: currentEmp.dept,
             type: type, time: t,
