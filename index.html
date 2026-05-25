@@ -455,12 +455,19 @@
       document.getElementById(id).classList.add('active');
     }
 
-    function getTimeStr() {
+    function getTimeStr(type) {
       const now = new Date();
-      const minutes = Math.floor(now.getMinutes() / 15) * 15;
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(minutes).padStart(2, '0');
-      return h + ':' + m;
+      let h = now.getHours();
+      let m = now.getMinutes();
+      if (type === '出勤') {
+        // 出勤は切り上げ（例：8:05 → 8:15）
+        m = Math.ceil(m / 15) * 15;
+        if (m === 60) { m = 0; h += 1; }
+      } else {
+        // 退勤は切り捨て（例：17:47 → 17:45）
+        m = Math.floor(m / 15) * 15;
+      }
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
     }
 
     function updateStatus() {
@@ -494,7 +501,7 @@
       }
 
       function doPunch(geoInfo) {
-        const t = getTimeStr();
+        const t = getTimeStr(type);
         if (type === '出勤') {
           todayIn = t;
           document.getElementById('btn-in').disabled = true;
