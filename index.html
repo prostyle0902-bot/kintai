@@ -382,6 +382,7 @@
     let currentEmp = null;
     let todayIn = null;
     let todayOut = null;
+    let prevDayNoOut = false;
 
     function pinInput(n) {
       if (pinBuffer.length >= 4) return;
@@ -438,6 +439,8 @@
               todayOut = res.outTime;
               document.getElementById('btn-out').disabled = true;
             }
+            // 前日退勤未打刻フラグ
+            prevDayNoOut = res.prevDayNoOut || false;
             updateStatus();
           }
         })
@@ -547,6 +550,22 @@
           }
         })
         .catch(err => console.error('送信エラー:', err));
+      }
+
+      // ① 退勤ボタン：出勤未打刻チェック
+      if (type === '退勤' && !todayIn) {
+        if (!confirm('⚠️ 出勤が記録されていません。\nこのまま退勤申請しますか？\n（打刻忘れ申請画面に移動します）')) {
+          return;
+        }
+        showApply();
+        return;
+      }
+
+      // ② 出勤ボタン：前日退勤未打刻チェック
+      if (type === '出勤' && prevDayNoOut) {
+        alert('⚠️ 前日の退勤が記録されていません。\n打刻忘れ申請をしてください。');
+        showApply();
+        return;
       }
 
       const allowedLocs = LOCATIONS[currentEmp.name];
@@ -668,7 +687,7 @@
     }
 
     function logout() {
-      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null;
+      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null; prevDayNoOut = false;
       updateDots();
       document.getElementById('pin-error').textContent = '';
       showScreen('screen-pin');
