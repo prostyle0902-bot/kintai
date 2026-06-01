@@ -1,712 +1,767 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Prostyle 勤怠</title>
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <link rel="icon" type="image/png" href="data:image/png;base64,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" />
-  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAA2XUlEQVR4nO3dd3hUxf7H8U+SDRJCQghNil2BC+oFu14Ve0HF3gFpVlQURESUZheliCKoKAoC+sNCsyEgWFBRQRRpiqCIQEgIpJLsbn5/QBAhCVvO7Nndeb+e5z43JGdnxoUn38/OzJmT0KhFWyGiytweAABEqQS3B2ATj9sDiFMUeQAIXlW/OwkHDiMAhI9iDwDmVfS7llAQBgJA8Cj4ABAd9vx9TCAIAgEgMBR9AIh+u/+uJgzsAwGgYhR8AIhtzA7sAwHg3yj8ABCfyn+/EwR2IgBQ9AHAJiwT7GRzAKDwA4DdrJ4VsDEAUPgBALuzMgjYEgAo+gCAfbFqeSDeAwCFHwAQirifFUh0ewAGUfwBAOGK21oSjzMAcfuXBQBwRVzOBsRTAKDwAwBMiqsgEA8BgMIPAIikuAgCsb4HgOIPAHBLTNegWJ0BiOk3HQAQN2J2NiAWZwAo/gCAaBNztSnWAkDMvcEAAGvEVI2KlSWAmHpTAQDWipklgViYAaD4AwBiTdTXrmgPAFH/BgIAUImormHRugQQ1W8aAAABitolgWicAaD4AwDiTdTVtmgLAFH3BgEA4JCoqnHRFACi6o0BAMCAqKl10RIAouYNAQDAsKioedEQAKLijQAAIIJcr31uBwDX3wAAAFziag10MwBQ/AEAtnOtFroVACj+AADs4EpNdCMAUPwBAPi3iNfGSAcAij8AABWLaI2MZACg+AMAULWI1cpIBQCKPwAAgYlIzYxEAKD4AwAQHOO103QAoPgDABAaozXU7YOAAACAC0wGAD79AwAQHmO11FQAoPgDAOAMIzXVRACg+AMA4CzHayt7AAAAsJDTAYBP/wAAmOFojXUyAFD8AQAwy7Fa61QAoPgDABAZjtRc9gAAAGAhJwIAn/4BAIissGtvuAGA4g8AgDvCqsEsAQAAYKFwAgCf/gEAcFfItZgZAAAALBRqAODTPwAA0SGkmswMAAAAFgolAPDpHwCA6BJ0bQ42AFD8AQCITkHVaJYAAACwUDABgE//AABEt4BrNTMAAABYiAAAAICFAg0ATP8DABAbAqrZzAAAAGChQAIAn/4BAIgt+6zdzAAAAGChfQUAPv0DABCbqqzhzAAAAGAhAgAAABaqKgAw/Q8AQGyrtJYzAwAAgIUqCwB8+gcAID5UWNOZAQAAwEIEAAAALEQAAADAQhUFANb/AQCIL3vVdmYAAACwEAEAAAAL7RkAmP4HACA+/avGMwMAAICFCAAAAFiIAAAAgIV2DwCs/wMAEN921XpmAAAAsBABAAAACxEAAACwEAEAAAALlQcANgACAGCHMokZAAAArEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEKJ4hZAAABsU8YMAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABYiAAAAYCECAAAAFiIAAABgIQIAAAAWIgAAAGAhAgAAABbyuD0AhObAJg3UuGF9x9td+MMv8vp8AV9fv25tHXZIE8fHsX7DZq3982/H24U9WjY/VCtWrQ3q3zNgEwJAjLrx6gt1Z7erHW/3yP9dpy25eQFff3ab4/XM4B6Oj+PlN6Zq4FMvOd4u7NDqyKaaMXmo8vMLNfeL7zXrs28194vvgvq3DcQ7AgAgaWCfm1Urvabj7Q5/cZLWrtvgeLuo2sAHblZCQoLS0lLV7sLT1e7C0+Xz+fXd4mX6dN63mjX3G61a/afbwwRcRQAAJF18/qlq2KCu4+2+PnkmASDCLj7/VB3fusVe309KStSJx7bUice2VL+enbV23QbNmvuNPp33rRYs/Fler9eF0QLuIQAAJpW5PQC7VKuWrH49uwR07UFN9le3DpeqW4dLlV9QpHlffq9PPvtWcz//Ttk5Ww2PFHAfAQAwyF/md3sIVunW4VId2KRB0K+rmZqii847VRedd6r8/jL9sGT5rtmB5avWGhgp4D4CAGBQWRlTAJFSr06G7r7l2rDbSUxM0HGt/qPjWv1Hfe/tpHXrN2nWZ99o1txvteC7n1RSUurAaAH3EQAAg6j/kfPIg7cprWYNx9tt0qi+Ot9wiTrfcIkKCos076tF+vSzbzVn/kJlZec63l8w/tvyCHXreKlGjJ6sX39f5+pYEHsIAIBBzABExjltTtAlF5xmvJ/UGilqe84panvOKSorK9Pin1bqk8++0fSPPtfva9cb7393XW68RP17d1NyskftLjhNYydM07AXJykvvzCi40Ds4iRAwCACgHmpNVL0RP87It5vQkKCWh/dTHd0vlLJnsh9lkpPS9UrIx7SIw/epuTkHf16PB7d2ukKff7By7r28nOVkJAQsfEgdhEAAIOo/+b16dFRjfav50rfXp9PN9/7uFb+9kdE+mt1ZFN9PGWkLjzn5Ap/Xq9OhoY+eo9mTB6q1kc3i8iYELsSGrVoy68ol518/FGaMu5Jt4cRN4I9zVCSvpvzupFzAM6+vLuWr1zjeLvYodVRTTV94lAlJrrzibf3gOc0ccrHEemrW4dL9fB9XeQJcLbB7y/TuEkz9OTw11VQWGR4dIhFzAAAJjEFYIzH49Ezg+92rfi/MHZKRIp/rfSaGvvcQxr0wC0BF39px90MXW68RHOnvaizTj/e4AgRqwgAgEF+PwHAlPvuvFH/aXqIK33P/OQLPTFsnPF+Wh/dTJ+8M1IXnF3xlH8gGjesp/EvDtTzT/dWncxaDo4OsY4AABjEJkAzTjy2pbp3df5hWIFYtGSF7u77rPG/25s7Xqb3xz+tJo2ceern5RedoXnTx+jKS850pD3EPgIAYBABwHlpNWtoxBO9XJn6//OvjerUfbCKi0uM9VErvaZee76/Bva5Oagp/0DUzkjTc0/ep9HPPqD0tFRH20bsIQAABlH+nfdov9t1QOPgj/sNV15egTrePlCbc3KN9XHMf5vrk3dG6rwzTzTWhyRdcsFpmvXu8xU+NAn2IAAABjED4KxLLjhNV7U7K+L9lpSUqvNdjxi73S8hIUG33HS53nvjKcem/PelSaP6euf1p9TzjhuUlEQpsBF/64BBBADn7N+gjp4acGfE+/X5/Lr9vqe0YOFPRtrPqJWmcS/014D7uzk+5b8vSUmJ6tX9Rk0Z96QaN3TnLAW4hwAAGET9d4bH49HoZx9QrfSaEe+7z6CR+mj2AiNtH9tqx5T/OW1OMNJ+oE44pqU+fe8FXXz+qa6OA5FFAAAMYgbAGQ/f18WV9eonho3TpHc+MdL2EYceoLfGPh41n7zT01I1ZmhfPTO4h2qkVHd7OIgAAgBgUFmZ3+0hxLx2F56ubh0ujXi/L7/xvp5/5f+Mtb9q9Z+6+PqeWvzTSmN9hOL6K8/Tx1Oe01EtDnN7KDCMAAAYxARAeJoedqCeGXx3xPt9Z/pcDXr6FeP9LF+5Rpfc0FMDnnwpqo7rPfTgxpo+cahu7XQFDxaKYwQAwCCWAEJXMzVFL4/op9QaKRHtd878herZb1jE/u78/jK9Mn6qzmx3u+bMXxiRPgORnOxR/95d9eZLgzlBME5FdsspYBkCQOiGPnqPDj+kSUT7/O33dXps6Gtq0riBkpISlZiQsOP/E3f8LykxUYlJiUpMTFBSYpKSkhKVsPOapMR/rktMLH9d0s5rE3dcu7ON8rYTk5L+1ceX3y5RnToZ+m/LIyL6312VNqccow/fHqFuPR7VkqW/uj0cOIgAABgUb/X/1JNa6a2xj7k9DGMOO6SJZr8/yu1hRJ3GDevp/fFDdP+g5zVl6my3hwOHsAQAGBRvMwC5W4N7zDLix377VdOIx3tqcN9b5UlKcns4cAABADCoLM4OAyYAoGv7dpo89jHVzcxweygIE0sAUWDFr2t1yz2PB/WaKy45M6xHhFam50PDlZ9fGPD1p53cSh2ubev4OGbPW6i33psV0mvzC6JnNzUzAIhHJx9/lD54e7g63jFQy1eucXs4CBEBIArkbNmmmbO+DOo1Rx9pZpPQJ3O/1pbcwH/Jp6enqoOBcaxeuz7o9yQalfnjKwDkFxTJ6/VG/MhaRJ/GDetp6oRndHuvJzXn8+/cHg5CwBIAYFC8zQBIUu62fLeHgChRMzVF414YoE7XX+z2UBACAgBgUBzWf+VuJQDgH0lJiXrsods1uO+tPFUwxvC3BRgUb5sAJfYBoGJd27fTayP78xyBGEIAAAyKyyUAAgAqcXab4/XW2MeUUSvN7aEgAAQAwKC4DABBbBKFfY75b3O9P2GIGjao6/ZQsA8EAMCgOKz/2sIeAOzDEYceoKlvPhPxo5wRHAIAYFBczgCwBIAANG5YT++NH6JWRzZ1eyioBDfzIu7USq+pasnB/dNOSjSThetk1gp6LE7yl5UpO2ero20SABCozNrpeuvVx3XjLQ/ru8XL3B4O9kAAiFHTPpyvFavWOt5uQWFxUNd/9e1PuqvPM46P49ff/wz5tWOfe0gnH3+Ug6MJ3eczX3K1/3XrN+nEczs72iYBAMGomZqiN196hBAQhQgAMWrp8tVauny128PQ2j//1to//3Z7GKhEaanX8TYJAAhWeQhof2t/LVz0i9vDwU7sAQDiWElpqeNtchAQQrEjBAzW8a1buD0U7MQMQBRa9vXbSk9LdXsYMeOHH5frkht6uT2MqOT1+hxvcwszAAhRcXGJEhIS3B4GdiIAAHGs1MsSAKLDspW/q1P3wVq3fpPbQ8FOLAEAcczEDEBefoH8cfaUQ5j14acL1O6G+yj+UYYZACCOmdgE6PeXaVtePse97sbr88lb6lNpaalKvT55vV6Vevf4c6lPpaVelXq9u/3cq9LSUpWUeuX1+lRSWrrze//8r2SPa8q/Lm9rz+t29bvze16vd9f15dd4S306/ZTWGjOsr/Gz+0eMnqwhz0+IyzMxYh0BAIhjPp/zMwDSjmWAQAJAWVmZfH6/fF6fvD6ffD6/fD7/jq93fc8n724/93p3fq/8+3te5/3nZz6fT6Xef9ryer3y+vzy7iyOPp9/V8H1esu/3nlt6Y4ivKMN744CvvPnuxfp8ut2/bmC78eiOZ9/p6s799X4Fwcps3a64+0XF5fonn5DNf2jzx1vG84gAABxzOf3G2n38o59lJSYKJ/fL7/PL5//n+Lu8/vk9frl9/tYKohyi39aqXY39tLElx7VgU0aONbuho3Z6nzXYC1Z+qtjbcJ5BAAgjpkqwJuycoy0i8j7fe16Xdr+Pk1+5VE1O/ygsNtbtGSFutz1iDZt3uLA6GASmwCBOGZqCQDxZVNWjq7q9IB++uW3sNqZMm2OrripD8U/RhAAgDhWWkoAQGBytmzT1V36hnRcr99fpseGvqYefZ9VSYnzh0/BDAIAEMdidYMa3JGXV6Druz2kb39YGvBr8guK1PnOwRo1dorBkcEEAgAQx0oM3AaI+FZYVKwOtw3QoiUr9nnt2nUbdMn1PfXpvG8jMDI4jQAAxDFmABCK/IIi3XDLw1XuCfjq2yVqe809WvnbHxEcGZzEXQBAHCs1cBKgU2ZMGqrEJD6DRKNO3QdrU1aOrr+5n6ZOeEaHHdLkXz9/Y/JMPfz4GHnZZBrTCABAHIvmGYCjWh4uT1KS28NABaol7ygNW3Lz1P62/po2cajq1cmQ1+dT/yfG6PVJM10eIZxA/AbimImjgGGXP9Zt1E23D9Rff2fp+m4PUfzjCDMAFvhx6Sr9vWHzXt/PqJWmk4470vH+snO2auGiXyr82akntVLN1BTH+0TFCABwwo9LV+mUC7pF9YwSgkcAsMDo197VtA/n7/X91kc304xJQx3v75cVv6vr3Y9W+LPZ749S8yPCP20MgTHxNEDYieIff1gCAOJYKb+0AVSCAADEMWYAAFSGJQDEnas6PRDU9e2vvkBPDbzL8XHc/cAzemf63ICunfTyozr9lNaOj6GklGNZAVSMGQBYLyWlupF2CwqLA742OdlMFmcTIIDKEABgvdQaZu5KKCgsCvjaJEMH4kTzQUAA3EUAgPVq1IiCGQCPqRkAlgAAVIwAAOulGgoAhUHNAJg5EY8lAACVYROgBW7peJkuPu9/e32/dka6kf7+0+xgvTSsb4U/a9ywnpE+w2FqCSC/IPAAkJxsKABwGyCAShAALND66GZqfXSziPVXNzNDF513asT6C1eNlP2MtBvcHgBDAaCEAACgYiwBwHo1jG0CjII9AGwCBFAJAgCsZ2IPgNfrVUlJ4BvwzO0BYBMggIoRAGC9GgbOAcjdlh/U9ab2AJSwCRBAJQgAsJ6JTYDbthUEdb3H0BIARwEDqAwBANarlV7T8Ta3BjkDUM3QSYAcBQygMtwFAKslJCQYCQDBLgF4PIaWAILYhxAvbrzlYX325Q9uD8OoYY/dq2suO8ftYSDGMQMAq6WnpRo5hjfYJQBzJwGyBwBAxQgAsJqpw5C2bssL6npTewDYBAigMgQAWK12RpqRdoNZAkhKSlRiYoKRcdi4BAAgMAQAWM3cDEDgAcDUp3+JJQAAlSMAwGqZhmYANmfnBnxtsqENgJK0nbsAAFSCAACrmVoCCCYAVKuWbGQMEicBAqgcAQBWq13LzBLA5pytAV+bbOgMAIklAACVIwDAasZmAHJyA762WrKZGQC/v0w+n99I2wBiHwcBRaH/nHRNRPppfXQzzZg01PF2P1+wWNd16+d4uyY0qF/HSLvZQcwAmFoC4A4AAFVhBgBWa9ywnuNtbt2WH9TUu6klAI4BBlAVAgCs1mh/5wNAMBsAJXPPAdjODACAKrAEAGtVr15NmbWd3wS4afOWoK43tQdg+/YSI+1GuzdfesTtIQAxgRkAWKthg7pG2l2/YXNQ17MHAIAbCACwVuOG9Y20u35DVlDX70cAAOAClgCiSKfrL9ZjD93u9jDCdtrJrfTX0pkR77fV6TcqK4j190b7m5kB+HtjdMwAcAoggKowAwBrmdgAKEnr/w4uAOy3XzUj47B1DwCAwBAAYC0TtwBKwS8BsAcAgBsIALDWQQfsb6TdYJcA9jN0FwABAEBVCACw1hGHHeh4m8XFJcrZsi2o15iaASgmAACoAgEAVsqolab6dWs73u6aP/8O+jX77WcoABRvN9IugPhAAICVmhr49C9Jv69dH/Rrqu+3n4GR7JiNAIDKEABgpaaHmwkAa/4IIQBUN3MXQDF3AQCoAgEAVjI1AxBSADA0A8BtgACqQgCAlZoZmgH4/Y/g9wCkMAMAwAUEAFgpumYADAUANgECqAIBANaplV5T9etlOt7u9u0lQZ8BIEnVqxvaBMgMAIAqEABgnWOObmak3ZW//Sm/vyzo19VIIQAAiDwCAKxzfOsWRtpdvmpNSK9LSanu7EB2KioqNtIugPhAAIB1Tji2pZF2l61cE9LrUgzNABQVsQcAQOV4HDCs4vF41PooM0sAy0MNAIb2ABRG+QyA3+eX1+1BSEpKTFRCQkJE+vL5/CpT8MtEgAkEAFjlqBaHGTt4Z1mISwA1TC0BRPldAIe0vsztIah504M1ccwjalDf+U2hFZm/YJF6938upM2igNMIAFFk3KQZGjdpRsT6a310M82YNNTxdj9fsFjXdevneLtOOOEYM9P/W3LztCkrJ6TX2hoA3HbScUfqtef7Kz0tNWJ9nnnqsZo7dZQGPv2KJr/7ScT6BSrCHgBY5YRjzGwA/GXF6pBfWzM1xcGR/KOwMLqXANx04Tkna+JLj0S0+JdLS0vVs4/00IQxg408kAoIFAEAVjF1B8APS1aE9DpPUpL2M3QQEDMAFetwbVu9NKyfsfc9UGeeeqw+fe8FnXX68a6OA/YiAMAarY5sqjqZtYy0vSjEAJBq6NO/FP2bAN2Qnpaqy9q2UWJiZDb97UudzFoa/+JADe57q5KT3V2RveSC0/TB28N1bKvmro4DkUMAgDUuOOdkY22HGgBMTf9LUn5BkbG2Y9W2vAJdeVMfdevxaEiPbjala/t2evf1p4ycULkvJx13pGZOHqbRzz6g/7Y8Qm+NfVxnt2FWwgYJjVq05Z6UKLRy4RSl1jBXHOLJied21rr1m/Z53bwZY3T4IU0c73/d+k068dzOIb22+REHafb7oxwekeT1enXQfy91vN1QtGh2iOrVqa0vvlksn8/v9nB28Xg8uum6trr39htUOyPN7eFIkjZl5ajbPY/p+8XLjfd1+CFN9GDPzjr/rJP2+pnX51Ovh0doytTZxscB9zADACscfkgTI8Vfkn74MfRf1mk1zWxCi6ZP/7fcdLkmvvyIvp87XoP73qrWho5iDpbX69XYCdN0ygVdNWbcuyotdf9Ugvr1MvXOuKd00XmnGuujbmaGnnj4Ds2eOqrC4i/t2Jsy/LF7dXuXK42NA+7jNkBY4cJzTjHWdqgbACUpPT2+A0C1asm64OwdSy/16mSoa/t26tq+ndau26D3Z3ym9z+Yp5W//RFy+y8N62u0WLohOdmjF5/po94DUvTWe7Mcazel+n66pdPl6t71qoBmFxMSEvRQry5Kqb6fho6a6Ng4ED0IALDCheeaCwDffP9zyK9NNzQDUFAYHQHg7NOPU1rNGnt9/6Am+6vHbdepx23Xaeny1Xpv5mea+sF8rd+Q5cIoo09SUqKefaSHliz9VctW/h52W9dcdo5639khpAOPenW/UcnJHj014o2wxoHoQwBA3Gu0fz39t+URRtreui1fPy/7LeTXm5oBKIiSGYDL2p6xz2taNj9ULZsfqn49O+ub75fqvZmfaeYnX2hLbp75AUapsrIy9XvsxbCL/1mnHad+vbqo+REHhdXO3bdcq2SPR48++2pY7SC6sAcAce/i881NEX/xzY8hPQK4XEYtM5vPomEJILN2us4944SAr09ISNBJxx2ppwbcqcXzJuj1UQN0Wds2xk5KDMSI0ZO1PcKPVfb7y9R7wHN6fdLMkNs4qsVhemvsYxo/elDYxb/c7V2u1MA+tzjSFqIDMwCIawkJCbrpurbG2v/i6x/Den3tWukOjeTftuUVGGk3GO2vvjDkw3Y8Ho/OaXOCzmlzggqLivXxnK/13szPNO/LRfJ6I7dZ77WJ0zXt48/1wtP3O1ZIq+Lz+XVvv6F6Z/rckF7fuGE99elxk664+AwjDzi6ueOlKiouZjkgThAAENfO+N8xOvjARsba/+LrxWG9PrO2mQCwNS/fSLuB8iQl6abrLnKkrRop1XX5RWfo8ovO0JbcPE3/aL7emzlPCxf94kj7+7J85Rq1vfYePdSri7rceImxfrw+n+68f4imf/R50K9NT0vVXTdfo67t2xk/4fDuW67V5uxcjZ0wzWg/MI8lAMQ1k7+w/964WavX/BVWG6buP8/LKzTSbqAuOv9/2r9BHcfbrZ2Rpo7XXaQ3Xxoc0aWB7dtL9PDjo9Xh9oHKztnqePulpV7deu8TIRX/TtdfrK8+Gqs7ul4VseONBz1wiy5r2yYifcEcAgDi1kEHNNSZpx1nrP25n38fdhumjiZ2ewbg5g6XGW3/g1lfuXKnw5z5C3XB1T1CPvmxIiUlpepy96P6aPaCkF6/OSdXaWl732lhUkJCgkY80VNtTjkmov3CWQQAxK1O119kZB203Ich/sLenamnwW3b5t4egHPanGD8sJ8p09w7oW79hixd3vF+vTE59E165YqLS3RT90GaM39hyG3M+PgLde/9tLw+X9jjCYbH49HLIx5UqyObRrRfOIcAgLiUUn0/XXfFecbazy8oCnv9PyEhQfXqZDgynj25tQkwISFBD9zT0WgfGzfl6Mtvwtt8Ga7SUq/6PjJKPfo+q+Li0O4SKCgsUvvb+mv+V4vCHo9bISC1RorGjx6kwwydsgmzCACIS9ddcZ7RZ73PnrdQJSWlYbWRUaumPB4z+3Bztji/Th2Iy9q20X+aHmK0j3emzwnr1ksnTZk2R+1u7KWNm3KCel1efqFuuPlhLVj4k2NjcSsEZNZO18SXHjGy5wNmEQAQd2qmpuie268z2seHs78Ku41G+9dzYCQVc+MQHU9Sknrf1d54P+9Mn2O8j2AsXb5aF1/fUyt+XRvQ9Vu35eu6rv303eJljo9lxsdfqNdDw1VWFtmA1KRRfU186RHVSq8Z0X4RHgIA4k73rlerbmaGsfZLSko19/Pvwm7HZADIyd1mrO3K3Nrpch10QEOjffy87DctXxVYoY2k9RuydFn73vrq2yVVXrclN0/XdHlQi39eWeV1dTJraWCfm1W9evC7+qdMm6OBT70c9OvC1ezwg/T6qAERuxMB4SMAIK7s36CObr7pMqN9zPn8O0dO2mvSqL4Do6lYzpbIBoCDDmionnfcaLwfNzf/7cu2vALdcMvDmvbh/Ap/npWdq6s69Qno6Oj6dTN1c8fLNPu9F3ROm8BPUyz3yvipGj56UtCvC9fxrVvoqQF3RrxfhIaDgKLUvQ8OU5InyWgfhxzUSPff1cHxdpevWqsRYyY73m5ldr8v+/67Oiil+n5G+5v8rjNPaDv4QDOflktLvRG/Re7J/t1D+rQaDJ/Pr/dnzjPaR7hKS726s88QJXmSdNG5/9v1/Y2bcnRNl7769fd1AbVTr26GJOngAxvp9VED9M33SzVk5Pig9gwMGTlBmRnp6ujQgUyBuvrSs7Vk6Sq9+ub0iPaL4BEAotTMWV8a76P10c2MBICszVsq/RRkUvOmB+vqS88x2kdWdq4j0/+SdOjBjR1pZ09Z2VuMtFuZq9qdpdNPaW28n3lffq+s7Fzj/YTL5/Ore++nlTLyYZ112nFavyFLV3d+UGv+WB9wG/Xr/fupfSce21JTxj2pX1b8rlfGT9X7H8wL6BkF/R57UXXqZPwrjETCgD43a9nKNY5ucoTzWAJAzPN4PGpQP1P9e3dVYqK5+/4l6Z1pcxzbZd30sAMdaWdPm7IiFwCaNKqvwX1vjUhf/zctujb/VaW01KtuPR7T/02drSs69gmq+Es7HpdckRbNDtHQR+/Rd7NfV58eHdWwQd0q2/H7y3T3A8/sc8+B0zxJSRo99AGj+1wQPmYAEHUSExOUUStNdTMzVCezlupk1lLdzAzVrZOhupm1VKdOhurUrqW6mbVUt05GRHcev/3+p460Uyu9prE9ABuzgrslLVQej0djhvaNyPu/fkOWPpgV/p0XkbR9e4nueXBoSK/d1/JQZu103X3Ltere9Wp98c1iTf/oc3346QLlbt377o/i4hJ17j5YMyYPU+OGkSvIdTMz9NKwvrqsfe+I35qIwBAAEBFpNWuoTmbGrqJdN7OWMssLe2aG6tappTo7C35mRrqSkqJvcmrxTysDvtVrX/575BGOtFORTREKAA/f10WtjorMKXAvvzE1ok8BLGfyJMmqHHFoYLNDSUmJanPKMWpzyjF6sn93zV+wWNM+nK+P53z9r8OgNm3eoo53DNTUCc+oZmqKqWHvpfXRzXTfXe315PDXI9YnAkcAgOP+0+xgTRgzeFdhr5uZoeTk2P+n9tpE5zY1nXLC0Y61tadIzABceM7J6tbhUuP9SFJeXoEmTvmowp+Zvt3d1EFNVUmtkaIWzYI/TMnj8eis047TWacdJ6/Xq4WLlumzL77X/AWLtHT5ai1fuUa39XxCr48aGNGA3b3r1Zr/1aJ93iKJyIu+j1mIeXUzM3TmqcfqqBaHqWGDunFR/DduytH7Hzi3sfHcM050rK09rVu/yVjbkvTflkdoxBO9jPaxuzfe/rDS2y5NTy27cbDNKSccHXaB9ng8Ovn4o9T33k768O0RWvb12xr51H2a+8X3enzYaw6NNDCJiQka+eR9xp58idDF/m9my1WrlqxaaalKT6+p9LTUf76uWWPv76WlqlZaTaWn7/gep3YF7pUJzk1BtzqqqZofcZAjbVXEZAA46ICGemP0QKXWiMw0cmmpV2MnTK30516v2QDQotnBWrbyd6N97KnjdW0dbzO1Rsquw7FGv/auWh/VTBeff6rj/VRm/wZ19MzgHup696MR6xP7RgBwWaUFfLeva6WlKn23wl3+84z0mqpWLdnt/4S4V1BYpAlvf+hIW4mJCXqoVxdH2qrMH+s2GGm3bmaGJr402Ogpi3t6ffLMKs/ZN70voEv7dpr+8RdhP/chUFdcfKbOMvQI693PIOj50HAdcdgBana4uSC6pwvOPlkXn3+qZnz8RcT6RNUIAC7yJCXp1+/ejcoNb/jHpHc+cezpend0uUonH3+UI21VxOvzacOmbMfbrZVeU+NHD9LBBzZyvO3K5OUX7vNAqbx8swcetTqyqWZOHqZxE2fox6WrtHFTtrblF8rr9crn84fdvsfjUc3UFP2n6cG6rG0bXX/l+Q6MumK/7RYACgqL1K3HY/pg8jClGXxo1p4eefA2zf9qkWtPq8S/EQBc5PX5tDErm3tlo1hpqVcvv/G+pB13MuTlF4bUTmJigu68+RojBy/t7o8/NzhSmHZXv25tTXr5UTVverCj7e7LqFen7PNI4215+cbH0aLZIXp60F3G+zFtz6WM1Wv+Uo8Hh+rVkQ9HbAz169ZWv15d1GfgyIj1icoRAFz2199ZBIAo9sZbH+xaU3/h6ft1yolHa+OmbG3M2qItuduUl1+ovPxC5RcUavv2UpWWlqrU61NZmV9lZVJK9f3UsEFdnXvmCRH5e161+k9H2zugcQO9NfYx4w/52dOmzVv0yhuVr/2X45NkYPz+Mv28bPVe3/94ztd6beJ0db7hkoiN5carztc70+bo2x+WRqxPVIwA4LK//s7S8eZPUUUICgqL9NyYt3b9edSrU3R2m+N18IGNIjoVHoyVv/3hWFvNjzhIb45x5znvz77wpgqLivd5nYnljni0eu1flT4f4pFnXtXJxx0VsRmehIQEDe57qy68pkfEH1uMf2Px2WV//Z3l9hBQiTHj3tPmnNxdf/76u5+1aMkK9wYUgFUOBYBL256u6ZOGulL8Fy1ZUel9/3ta95fZWx7jxQ8/Lq/0Z9u3l+iO3k8H9GwBpxzV4jC1jfDzCbA3AoDL/vqbX2DRKGfLNo0Z9+5e3x81dooLowncop/CO/Pd4/FocN9bNWpIH9VIqe7QqALn9Xp1X/8R8vsD+2T45/qNhkcUH774enGVP1/x61oNGvJKZAaz0/13d2ADtMt4913213pmAKLR8NGTKjx85qM5C/T72uAe7BIpW7flhz22l4c/qK7t2zk0ouCNfPn/tHxV4MctZ+ds1abNkX36YSz6MoBT+F6fNFNzHHrSZSAOP6SJrmp3dsT6w94IAC5bxwxA1Pnpl980btKMCn/m95dpwv85cyaA035YsiLsNdX7BzynOfMXOjSi4Kxa/ec+b/uryI8RftJdrFm6fLU2bAxsr8QDg56v9NRFpy1assKxZ2sgNAQAl7EHILr4/WXqM3BklbfSzfzkywiOKHDzvvwh7DaysnPV4faBemDwCyoq3u7AqALj9fnU86HhKi0N/mCf7xdXvr4NafpHnwd87V9/Zxk/Knj9hizd1ecZXXJDLy0Oc8kK4SEAuCwvryDke8vhvFffnKYfl66q8po//9oY8eerB2Kug9O349/6QOddeVfE/jsffWZslRvVqjJr3rcOjyZ+lJWVaVoQAUCS3pj8gb753vlb9AqLijVk5ASddtEtenfGXO4AiAIEgCjALEB0+HvjZg0ZOT6ga6NtFmDlb3/866hXJ6xe85cuveE+DR89yfHDhXY3/aPP9XIA9/xXZvnKNfpjHZsBK/LZlz9o7Z9/B/WasrIy3dd/hGN3Bfj9ZXrrvVn634U3a/joSSoujtzdBqgaASAKrGcfQFToO3hUwOufMz4O7lOVaYHeNhcsr8+nISMn6PKOvYMuJIFYtfpP9Xp4RNjtTHj7AwdGE39enTAtpNetXvOXXtp5AmY4Fiz8SRde00M9HxquTRF4TDWCQwCIAswABMfn82tLbp6jbb42cbpmffZNwNf/sW6jliz91dExhGrrtny9/f5so318v3i5zr3iLk165xPH2swvKFK3ux+t9ICaYIx/+0NH2okn3y9eHtau/udffltZ2bkhvXbNH+vVrcejuqrTA/p52W8hjwFmcRJgFDD9/PZYkZdXoE2bt2jT5i3K2u3/N2bl/OvP2Vu2yu8v01MD71L7qy8Iu99fVvyuwUPGBv26+QsW6eiWh4fdf7iGj56srdvMn4lfUFik+/qP0KzPvtGQQXerTmatkNvavr1Ene8c7Niyxba8Ag0fPVn9enZ2pL14MGjIy2G9Pr+gSE8/94aGDLo74NdsyyvQsBcn6bWJ00Pa0InIIgBEgXieAdi+vURZ2bnanJ27q7hvysrZq8hv2rwl6DXHvoOfV1pqDV3a9vSQx1dYVKzbez0Z0uNev1u0LOR+nbJw0S8aOyH09fNQfDzna/3w43INffQenXX68UG/3uv1qts9j+urAO5ND8ZL497TZW3bqGXzQx1tNxaNnTDNkbsjJr/7iTrfcIlaNDukyuu8Pp8mvP2hnnl+guOzczAnoVGLtmzFdNkJx7TUe+OfdnsYASssKt5R1DfnKit7izZn5yore+fXm3f7OjvX+B0OHo9Hrz73kM5uE3whkqR7+w3T2+9/GtJra2ek6ecvg79v3Snb8gp07hV3ujqD1PG6i9S/d1elVN8voOt9Pr/u6P2UsWfCN2lUX9MnPqv69TKNtB8Lfl72my65oVdIobYi57Q5Qa+PGlDpz+fMX6jBQ8Y6/iAqmEcAiAKNG9bTt5+Oc3UMW7fl7/qknp2Tq83ZW5WVvWXX93Yv7oE8pCWSaqRU19Q3n9nnp5Q9TXj7Q/UZ9HxYfc+fMUaHHdIkrDZC4fX51OG2AZr/1aKI972nQw9urJFP3adWRzat8rqysjL1fGh4yIErUC2bH6oJYwarft3aRvuJRr+vXa/LO/QOee2+IgkJCfr0vRfU/IiD/vX95avWavDTr2jeV+GfPwF3EACigCcpSasXve/oudjFxSXanJOrzTm5ysnZqs05W7U5O1ebc7buLPA7vs7K3qLsnG3yemN7va5xw3qa+dZw1auTEdD1879apA63DZDX5wur32cf6aHrrjgvrDaCteM2rec0+V3nNuSFy5OUpHvvuF533Xxthf+Oi4q3664+Q/ThpwsiMp5G+9fTqyMf1lEtDotIf9Hgi68X6+6+z2rjJud321/V7iyNeKKXpB3HLw95foImTvnI6O2hMI8AECUWzh5X5fPii4q3Kztnq7K3bFV2zlbl7Pb1jqJe/ucdn96j7VN6JBzbqrmmvPakqlVLrvK6Fb+u1aXteyvPgWfJ33DV+UFtkgqXz+dXr4eH6/+mmt31H6pjWzXXyCfv00EHNNz1vY2bcnRT94H66ZfI7gb3JCWpS/t26tX9RtVMTYlo35FUUlKqx4eN0yvjpxo7XMeTlKTPpo/WR7MXaMSYyRxeFicIAFHizm5Xq2bNGsrO2aotudt2FfScLTu+juSxrLGsa/t2Gtz31kp/vjknVxdf11N//uXMwTEnHXek3nn9KUfa2pfNObnq3nvIPp/s5rbUGika9MAtuv7K8/Tzst90U/dBAZ9Fb0LtjDTdcOX56nTDxVWG7Fjj9fk0Z/53euq5N7R85Rrj/SUne9jZH2cIAIg7417or3PPOHGv7xcUFunarv20aMkKx/pq0qi+vpll9uz00lKvxr/9oUaMnqzNOblG+3LSqSe10g8/Lo+a2ajExAQdc3RznXPGCTrz1GPVvOnB8iQluT2soC1fuUZvvf+p3p0+N6b+PSD6EAAQd2pnpOnTd1/Q/g3q7PpeQWGR2t86QN/+4OwZ5yb2b5QrKSnVezM/09BREzkrwoDq1aupRbND1bL5oTqwcQM1aVRfTRrVV2btdNVKT1N6Wqorz6v3+fwqLCpWUVGxNmzK0Ypf12r5qjVa+esfWr5qrdZviN/bhhFZBADEpXPPOFHjXugvacdti+1v7W/kASfSvvdvBCN3a55mz/9OH8/5WvO+/D5ij2ZFxWqkVFdyskfJHo88yUnGZgz8/jIVFRersGi7Y2fwA/vCQUCIS7M++0YffPqVzvjfMepw2wBjxV/acZJjoAGgsKhYuVvzlLs1X7lb87Rp8xat/O0PrVi1Vit+Xau1f/4tv59MHi0Ki4olMhjiFDMAiFv7N6ijgw9oqK+/+9loPwkJCUpKTFSSZ8cnxKSkRHk8SfL7y+Tz+eT1+uT1+eTz+SjuAKIGAQAAAAvxNEAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCBAAAACxEAAAAwEIEAAAALEQAAADAQgQAAAAsRAAAAMBCiZIS3B4EAACIqARmAAAAsBABAAAACxEAAACwEAEAAAALEQAAALAQAQAAAAuVBwBuBQQAwA4JEjMAAABYiQAAAICFCAAAAFiIAAAAgIV2DwBsBAQAIL7tqvXMAAAAYCECAAAAFiIAAABgoT0DAPsAAACIT/+q8cwAAABgIQIAAAAWqigAsAwAAEB82au2MwMAAICFCAAAAFiIAAAAgIUqCwDsAwAAID5UWNOZAQAAwEJVBQBmAQAAiG2V1nJmAAAAsBABAAAAC+0rALAMAABAbKqyhjMDAACAhQIJAMwCAAAQW/ZZu5kBAADAQoEGAGYBAACIDQHVbGYAAACwEAEAAAALBRMAWAYAACC6BVyrmQEAAMBCwQYAZgEAAIhOQdXoUGYACAEAAESXoGszSwAAAFgo1ADALAAAANEhpJrMDAAAABYKJwAwCwAAgLtCrsXMAAAAYKFwAwCzAAAAuCOsGuzEDAAhAACAyAq79rIEAACAhZwKAMwCAAAQGY7UXCdnAAgBAACY5VitdXoJgBAAAIAZjtZY9gAAAGAhEwGAWQAAAJzleG01NQNACAAAwBlGaqrJJQBCAAAA4TFWS9kDAACAhUwHAGYBAAAIjdEaGokZAEIAAADBMV47I7UEQAgAACAwEamZkdwDQAgAAKBqEauVkd4ESAgAAKBiEa2RbtwFQAgAAODfIl4b3boNkBAAAMAOrtREN88BIAQAAGznWi10+yAgQgAAwFau1kC3A4BECAAA2Mf12hcNAUCKgjcCAIAIiYqaFy0BQIqSNwQAAIOiptZFUwCQouiNAQDAYVFV46ItAEhR9gYBAOCAqKttHrcHUInyN6rM1VEAABCeqCv85aJxBmB3UfvGAQCwD1Fdw6I9AEhR/gYCAFCBqK9d0boEsCeWBAAAsSDqC3+5WJgB2F3MvLEAAOvEVI2KtQAgxdgbDACwQszVplhZAtgTSwIAgGgQc4W/XCzOAOwuZt94AEDMi+kaFKszALtjNgAAEEkxXfjLxUMAKEcQAACYFBeFv1w8BYByBAEAgJPiqvCXi/U9AFWJy78wAEBExW0ticcZgN0xGwAACEXcFv5y8R4Ayu3+F0kYAABUJO6L/u5sCQC7Y1YAALA7qwp/ORsDQDmCAADYzcrCX87mAFCO5QEAsIfVRX93BIB/Y1YAAOIThX8PBICK7fkPhUAAALGFgr8PBIDAsEwAANGPoh8EAkDwmB0AgOhAwQ8DASB8Ff0DJBQAgLMo9g4jAJhR1T9UwgEAVIwiH0H/D3VhkxHwJAZ+AAAAAElFTkSuQmCC" />
-  <meta name="theme-color" content="#1a2a4a" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Prostyle勤怠" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #f5f5f3;
-      --surface: #ffffff;
-      --border: rgba(0,0,0,0.1);
-      --border-md: rgba(0,0,0,0.18);
-      --text-primary: #1a1a18;
-      --text-secondary: #6b6b68;
-      --text-danger: #a32d2d;
-      --radius-md: 8px;
-      --radius-lg: 12px;
-    }
-
-    body {
-      font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-      background: var(--bg);
-      min-height: 100vh;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-    }
-
-    .app {
-      width: 100%;
-      max-width: 420px;
-      padding: 2rem 1.25rem 3rem;
-    }
-
-    /* ロゴ */
-    .logo {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-    .logo-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--text-primary);
-      letter-spacing: 0.06em;
-    }
-    .logo-sub {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 4px;
-    }
-
-    /* 画面切替 */
-    .screen { display: none; }
-    .screen.active { display: block; }
-
-    /* カード */
-    .card {
-      background: var(--surface);
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-    }
-
-    /* PIN入力 */
-    .pin-label {
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin-bottom: 1rem;
-      text-align: center;
-    }
-    .pin-display {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      margin-bottom: 1.5rem;
-    }
-    .pin-dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 1.5px solid var(--border-md);
-      background: transparent;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .pin-dot.filled {
-      background: var(--text-primary);
-      border-color: var(--text-primary);
-    }
-    .error-msg {
-      text-align: center;
-      font-size: 13px;
-      color: var(--text-danger);
-      height: 18px;
-      margin-bottom: 0.75rem;
-    }
-    .pin-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-    .pin-btn {
-      height: 60px;
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius-md);
-      background: #f9f9f7;
-      font-size: 22px;
-      font-weight: 500;
-      color: var(--text-primary);
-      cursor: pointer;
-      transition: all 0.1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-    .pin-btn:active {
-      transform: scale(0.94);
-      background: #ebebea;
-    }
-    .pin-btn.zero { grid-column: 2; }
-    .pin-btn.del { font-size: 18px; }
-
-    /* 打刻画面 */
-    .emp-name {
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-    .dept-badge {
-      display: inline-block;
-      font-size: 11px;
-      padding: 3px 12px;
-      border-radius: 20px;
-      margin-bottom: 1.5rem;
-      font-weight: 500;
-    }
-    .dept-業務課        { background: #E1F5EE; color: #0F6E56; }
-    .dept-飲食事業部    { background: #FAECE7; color: #993C1D; }
-    .dept-バックオフィス { background: #E6F1FB; color: #185FA5; }
-
-    .time-display {
-      font-size: 36px;
-      font-weight: 600;
-      color: var(--text-primary);
-      text-align: center;
-      margin-bottom: 4px;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.02em;
-    }
-    .date-display {
-      font-size: 13px;
-      color: var(--text-secondary);
-      text-align: center;
-      margin-bottom: 1.75rem;
-    }
-    .punch-btns {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-bottom: 1rem;
-    }
-    .punch-btn {
-      height: 80px;
-      border-radius: var(--radius-lg);
-      font-size: 17px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      transition: all 0.15s;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-    .punch-btn svg { width: 24px; height: 24px; }
-    .punch-btn.in  { background: #E1F5EE; color: #0F6E56; }
-    .punch-btn.in:active  { background: #9FE1CB; transform: scale(0.96); }
-    .punch-btn.out { background: #FAECE7; color: #993C1D; }
-    .punch-btn.out:active { background: #F5C4B3; transform: scale(0.96); }
-    .punch-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-    .status-box {
-      background: #f9f9f7;
-      border-radius: var(--radius-md);
-      padding: 12px 16px;
-      font-size: 13px;
-    }
-    .status-row {
-      display: flex;
-      justify-content: space-between;
-      color: var(--text-secondary);
-      padding: 4px 0;
-    }
-    .status-row span:last-child {
-      color: var(--text-primary);
-      font-weight: 500;
-    }
-    .logout-btn {
-      width: 100%;
-      margin-top: 0.5rem;
-      padding: 11px;
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius-md);
-      background: transparent;
-      color: var(--text-secondary);
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .apply-btn {
-      width: 100%;
-      margin-top: 1rem;
-      padding: 11px;
-      border: 0.5px solid #d4a017;
-      border-radius: var(--radius-md);
-      background: #fffbeb;
-      color: #92650a;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-    /* 完了画面 */
-    .result-card {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      border: 0.5px solid var(--border);
-      padding: 2.5rem 1.5rem;
-      text-align: center;
-    }
-    .result-icon { font-size: 52px; margin-bottom: 1rem; }
-    .result-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-    .result-sub {
-      font-size: 14px;
-      color: var(--text-secondary);
-      margin-bottom: 2rem;
-    }
-    .back-btn {
-      padding: 11px 28px;
-      border: 0.5px solid var(--border-md);
-      border-radius: var(--radius-md);
-      background: transparent;
-      color: var(--text-primary);
-      font-size: 14px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務課 現場管理カレンダー</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Kaku Gothic ProN','Hiragino Sans','Meiryo',sans-serif;background:#f5f5f0;color:#1a1a1a;font-size:16px}
+header{background:#1a1a1a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+header h1{font-size:18px;font-weight:500;letter-spacing:0.05em}
+.sync{font-size:13px;display:flex;align-items:center;gap:5px;opacity:0.8}
+.dot{width:7px;height:7px;border-radius:50%;background:#888;flex-shrink:0}
+.dot.ok{background:#7bc67e}.dot.err{background:#f28b82}.dot.loading{background:#ffb74d}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff;border-bottom:1px solid #e8e8e4}
+.nav-btn{background:none;border:1px solid #ccc;border-radius:6px;padding:7px 16px;cursor:pointer;font-size:15px;color:#333}
+.nav-btn:hover{background:#f0f0ec}
+.month{font-size:20px;font-weight:600}
+.holiday-counter{background:#fff;border-bottom:1px solid #e8e8e4;padding:8px 14px}
+.holiday-counter-title{font-size:13px;color:#aaa;font-weight:500;margin-bottom:4px}
+.holiday-counter-period{font-size:11px;color:#bbb;margin-bottom:5px}
+.holiday-chips{display:flex;flex-wrap:wrap;gap:5px}
+.holiday-chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;border:1px solid #e0e0e0;background:#fafafa}
+.holiday-chip .chip-name{color:#333;font-weight:500}
+.holiday-chip .chip-count{color:#fff;background:#e05555;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:600}
+.holiday-chip .chip-count.ok{background:#7bc67e}
+.legend{display:flex;gap:8px;padding:8px 14px;background:#fff;border-bottom:1px solid #e8e8e4;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:12px;color:#555}
+.legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.section-title{font-size:14px;font-weight:600;color:#666;padding:10px 14px 5px;letter-spacing:0.05em}
+.timeline-wrap{overflow-x:auto;padding:0 14px 4px;-webkit-overflow-scrolling:touch}
+.timeline-grid{min-width:900px;background:#fff;border-radius:8px;border:1px solid #e8e8e4;overflow:hidden}
+.tl-header{display:flex;border-bottom:1px solid #e8e8e4;background:#fafaf8}
+.tl-date-col{width:62px;min-width:62px;flex-shrink:0;font-size:11px;color:#aaa;padding:5px 0;border-right:1px solid #e8e8e4;text-align:center}
+.tl-hours{flex:1;display:flex}
+.tl-hour{flex:1;font-size:10px;color:#bbb;text-align:left;padding:5px 0 5px 3px;border-right:0.5px solid #efefef;min-width:0}
+.tl-hour:last-child{border-right:none}
+.tl-outsource-header{width:110px;min-width:110px;font-size:11px;color:#aaa;font-weight:500;padding:5px 6px;border-left:1px solid #e8e8e4;text-align:center}
+.tl-row{display:flex;border-bottom:0.5px solid #f0f0ec}
+.tl-row:last-child{border-bottom:none}
+.tl-row:hover{background:#fafaf8}
+.tl-row.today .tl-date{background:#dbeeff}
+.tl-date{width:62px;min-width:62px;flex-shrink:0;border-right:1px solid #e8e8e4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 0;cursor:pointer;user-select:none}
+.tl-date:hover{background:#f0f0f0}
+.dnum{font-size:14px;font-weight:600;color:#222}
+.dname{font-size:11px;color:#999}
+.holiday-jp-label{font-size:10px;color:#e05555;font-weight:600}
+.sun .dname,.sun .dnum{color:#e05555}
+.sat .dname,.sat .dnum{color:#4a90d9}
+.tl-right{flex:1;display:flex;flex-direction:column;min-width:0}
+.tl-bar-area{flex:1;position:relative;display:flex;align-items:center;min-height:32px}
+.tl-bar-area::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(to right,transparent,transparent calc((100% / 18) - 0.5px),#f0f0ec calc((100% / 18) - 0.5px),#f0f0ec calc(100% / 18));pointer-events:none}
+.ev-bar{position:absolute;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;padding:0 7px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2;transition:opacity 0.15s}
+.ev-bar:hover{opacity:0.8}
+.type-daily{background:#C0DD97;color:#27500A}
+.type-regular{background:#B5D4F4;color:#0C447C}
+.type-bird{background:#FAC775;color:#633806}
+.type-outsource{background:#F4C0D1;color:#72243E}
+.type-pending{background:#FF4444;color:#fff;font-weight:600}
+.type-delivery{background:#C9B1E8;color:#4A235A}
+.add-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:1px dashed #ccc;border-radius:4px;color:#bbb;font-size:12px;padding:2px 7px;cursor:pointer;z-index:3;white-space:nowrap}
+.add-btn:hover{color:#555;border-color:#aaa;background:#f5f5f0}
+.tl-holiday-row{display:flex;flex-wrap:wrap;gap:3px;padding:2px 6px 3px;border-top:0.5px solid #f8f0f0;min-height:0}
+.tl-holiday-row:empty{display:none}
+.holiday-tag{font-size:11px;padding:2px 7px;border-radius:3px;background:#fee2e2;color:#b91c1c;cursor:pointer;white-space:nowrap}
+.holiday-tag:hover{background:#fecaca}
+.free-tag{font-size:11px;padding:2px 7px;border-radius:3px;background:#e8f4fd;color:#1a5fa8;white-space:nowrap}
+.paid-tag{font-size:11px;padding:2px 7px;border-radius:3px;background:#d4edda;color:#1a6e31;cursor:pointer;white-space:nowrap}
+.paid-tag:hover{background:#c3e6cb}
+.tl-outsource-col{width:110px;min-width:110px;flex-shrink:0;border-left:1px solid #e8e8e4;padding:4px 6px;display:flex;flex-direction:column;gap:3px;justify-content:center}
+.outsource-item{font-size:10px;padding:2px 6px;border-radius:4px;background:#F4C0D1;color:#72243E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.outsource-item:hover{opacity:0.8}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:14px 14px 0 0;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;padding:20px 20px 32px}
+@media(min-width:520px){.overlay{align-items:center;padding:16px}.modal{border-radius:14px;max-height:88vh}}
+.modal-handle{width:36px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 16px}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:16px;color:#1a1a1a}
+.form-row{margin-bottom:12px}
+.form-row label{display:block;font-size:11px;color:#888;margin-bottom:5px;font-weight:500;letter-spacing:0.04em}
+.form-row input,.form-row select,.form-row textarea{width:100%;font-size:15px;padding:10px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#1a1a1a;-webkit-appearance:none;appearance:none}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:#4a90d9;box-shadow:0 0 0 3px rgba(74,144,217,0.12)}
+.form-row textarea{resize:vertical;min-height:52px}
+.time-row{display:flex;gap:8px;align-items:center}
+.time-row select{flex:1}
+.time-sep{font-size:14px;color:#999;flex-shrink:0}
+.staff-section-label{font-size:11px;color:#aaa;font-weight:500;margin:6px 0 4px;grid-column:1/-1}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px}
+.toggle-btn{display:flex;align-items:center;justify-content:center;padding:8px 6px;border-radius:7px;border:1.5px solid #e0e0e0;background:#fafafa;color:#555;font-size:13px;cursor:pointer;user-select:none;transition:all 0.15s;text-align:center}
+.toggle-btn:hover{border-color:#aaa;background:#f0f0ec}
+.toggle-btn.selected{border-color:#4a90d9;background:#e8f2fd;color:#1a5fa8;font-weight:500}
+.holiday-staff-btn{padding:8px 6px;border-radius:7px;border:1.5px solid #e0e0e0;background:#fafafa;color:#555;font-size:13px;cursor:pointer;text-align:center;transition:all 0.15s}
+.holiday-staff-btn.selected{border-color:#e05555;background:#fee2e2;color:#b91c1c;font-weight:500}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.btn{padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;border:none}
+.btn-primary{background:#1a1a1a;color:#fff}
+.btn-cancel{background:#f0f0ec;color:#555}
+.btn-delete{background:#fee2e2;color:#b91c1c;margin-right:auto}
+.loading-msg{text-align:center;padding:40px;color:#999;font-size:13px}
+.err-msg{text-align:center;padding:20px;color:#e05555;font-size:13px;line-height:1.8}
+@media(max-width:600px){
+  body{font-size:16px}
+  .month{font-size:20px;font-weight:700}
+  .nav-btn{font-size:15px;padding:8px 16px}
+  .section-title{font-size:15px;padding:12px 14px 6px}
+  .legend-item{font-size:13px}
+  .holiday-counter-title{font-size:14px}
+  .holiday-counter-period{font-size:12px}
+  .holiday-chip{font-size:13px;padding:5px 12px}
+  .holiday-chip .chip-count{font-size:12px;padding:2px 8px}
+  /* スマホではタイムラインを非表示、リスト表示に切り替え */
+  .timeline-wrap{display:none}
+  .tl-header{display:none}
+  .mobile-list{display:block}
+  .mobile-row{padding:10px 14px;border-bottom:1px solid #f0f0ec;background:#fff}
+  .mobile-row:hover{background:#fafaf8}
+  .mobile-date{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .mobile-dnum{font-size:16px;font-weight:700;color:#222;min-width:28px}
+  .mobile-dname{font-size:13px;color:#999}
+  .mobile-holiday-jp{font-size:12px;color:#e05555;font-weight:600}
+  .mobile-events{display:flex;flex-direction:column;gap:4px}
+  .mobile-ev{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:14px;cursor:pointer}
+  .mobile-ev-time{font-size:12px;color:#888;min-width:80px;flex-shrink:0}
+  .mobile-ev-name{flex:1;font-weight:500}
+  .mobile-ev-staff{font-size:12px;color:#666}
+  .mobile-outsource{margin-top:4px}
+  .mobile-outsource-item{display:inline-flex;padding:4px 8px;border-radius:6px;background:#F4C0D1;color:#72243E;font-size:13px;margin:2px 2px 2px 0;cursor:pointer}
+  .mobile-holiday-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .holiday-tag{font-size:13px;padding:3px 8px}
+  .free-tag{font-size:13px;padding:3px 8px}
+  .paid-tag{font-size:13px;padding:3px 8px}
+  .mobile-add-btn{display:inline-flex;align-items:center;padding:4px 10px;border-radius:6px;border:1px dashed #ccc;color:#aaa;font-size:13px;cursor:pointer;margin-top:4px}
+}
+@media(min-width:601px){
+  .mobile-list{display:none}
+}
+</style>
 </head>
 <body>
-  <div class="app">
-    <div class="logo">
-      <div class="logo-title">Prostyle 勤怠</div>
-      <div class="logo-sub">Prostyle株式会社</div>
-    </div>
 
-    <!-- PIN入力画面 -->
-    <div class="screen active" id="screen-pin">
-      <div class="card">
-        <div class="pin-label">PINコードを入力してください</div>
-        <div class="pin-display">
-          <div class="pin-dot" id="d0"></div>
-          <div class="pin-dot" id="d1"></div>
-          <div class="pin-dot" id="d2"></div>
-          <div class="pin-dot" id="d3"></div>
-        </div>
-        <div class="error-msg" id="pin-error"></div>
-        <div class="pin-grid">
-          <button class="pin-btn" onclick="pinInput('1')">1</button>
-          <button class="pin-btn" onclick="pinInput('2')">2</button>
-          <button class="pin-btn" onclick="pinInput('3')">3</button>
-          <button class="pin-btn" onclick="pinInput('4')">4</button>
-          <button class="pin-btn" onclick="pinInput('5')">5</button>
-          <button class="pin-btn" onclick="pinInput('6')">6</button>
-          <button class="pin-btn" onclick="pinInput('7')">7</button>
-          <button class="pin-btn" onclick="pinInput('8')">8</button>
-          <button class="pin-btn" onclick="pinInput('9')">9</button>
-          <button class="pin-btn zero" onclick="pinInput('0')">0</button>
-          <button class="pin-btn del" onclick="pinDel()">⌫</button>
-        </div>
-      </div>
-    </div>
+<header>
+  <h1>業務課 現場管理</h1>
+  <div class="sync"><div class="dot loading" id="sync-dot"></div><span id="sync-label">読み込み中...</span></div>
+</header>
 
-    <!-- 打刻画面 -->
-    <div class="screen" id="screen-punch">
-      <div class="card">
-        <div class="emp-name" id="emp-name"></div>
-        <div class="dept-badge" id="emp-dept-badge"></div>
-        <div class="time-display" id="clock">--:--:--</div>
-        <div class="date-display" id="datestr"></div>
-        <div class="punch-btns">
-          <button class="punch-btn in" id="btn-in" onclick="punch('出勤')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-            出勤
-          </button>
-          <button class="punch-btn out" id="btn-out" onclick="punch('退勤')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            退勤
-          </button>
-        </div>
-        <div class="status-box">
-          <div class="status-row"><span>本日の出勤</span><span id="st-in">未打刻</span></div>
-          <div class="status-row"><span>本日の退勤</span><span id="st-out">未打刻</span></div>
-        </div>
-        <button class="apply-btn" onclick="showApply()">打刻忘れ申請</button>
-        <button class="logout-btn" onclick="logout()">ログアウト</button>
-      </div>
-    </div>
+<div class="nav">
+  <button class="nav-btn" onclick="changeMonth(-1)">‹ 前月</button>
+  <span class="month" id="month-title"></span>
+  <button class="nav-btn" onclick="changeMonth(1)">次月 ›</button>
+</div>
 
-    <!-- 打刻完了画面 -->
-    <div class="screen" id="screen-done">
-      <div class="result-card">
-        <div class="result-icon" id="done-icon">✅</div>
-        <div class="result-title" id="done-title"></div>
-        <div class="result-sub" id="done-time"></div>
-        <button class="back-btn" onclick="showPunch()">戻る</button>
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#C0DD97"></div>日常清掃</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#B5D4F4"></div>定期清掃</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FAC775"></div>鳥害対策</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F4C0D1"></div>外注</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF4444"></div>未定</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fee2e2"></div>休み</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d4edda"></div>有給</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#C9B1E8"></div>納品</div>
+</div>
+
+<div id="calendar-wrap"><div class="loading-msg">読み込み中...</div></div>
+
+<!-- 現場モーダル -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="modal-title">現場を追加</h3>
+    <div class="form-row"><label>日付</label><input id="f-date" type="date"></div>
+    <div class="form-row"><label>現場名・作業場所 *</label><input id="f-place" placeholder="例：〇〇病院 3階廊下"></div>
+    <div class="form-row"><label>お客様名</label><input id="f-client" placeholder="例：山田商事"></div>
+    <div class="form-row"><label>作業種別</label>
+      <select id="f-type">
+        <option value="daily">日常清掃</option>
+        <option value="regular">定期清掃</option>
+        <option value="bird">鳥害対策</option>
+        <option value="outsource">外注</option>
+        <option value="pending">未定</option>
+        <option value="delivery">納品</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>担当スタッフ・外注（タップで選択）</label>
+      <div class="btn-grid" id="staff-grid"></div>
+    </div>
+    <div class="form-row">
+      <label>使用車両（複数選択可）</label>
+      <div class="btn-grid" id="car-grid"></div>
+    </div>
+    <div class="form-row"><label>出社時間</label>
+      <input id="f-departure" type="time" placeholder="例：07:30">
+    </div>
+    <div class="form-row"><label>時間</label>
+      <div class="time-row">
+        <input id="f-start" type="time">
+        <span class="time-sep">〜</span>
+        <input id="f-end" type="time">
       </div>
     </div>
-  <!-- 打刻忘れ申請画面 -->
-    <div class="screen" id="screen-apply">
-      <div class="card">
-        <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">打刻忘れ申請</div>
-        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:1.25rem;">申請内容を選んで送信してください。時刻は管理者が確認・入力します。</div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">申請日</div>
-        <input type="date" id="apply-date" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;margin-bottom:1rem;background:var(--surface);" />
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">申請種別</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem;">
-          <button id="apply-in-btn" onclick="selectApplyType('出勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#E1F5EE;color:#0F6E56;font-size:14px;font-weight:600;cursor:pointer;">出勤</button>
-          <button id="apply-out-btn" onclick="selectApplyType('退勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#f9f9f7;color:var(--text-secondary);font-size:14px;cursor:pointer;">退勤</button>
-        </div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">希望時刻</div>
-        <select id="apply-time" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;margin-bottom:1rem;background:var(--surface);">
-          <option value="">-- 選択してください --</option>
-        </select>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">理由 <span style="color:#a32d2d;font-size:11px;">必須</span></div>
-        <textarea id="apply-note" placeholder="例：現場直行のため打刻できませんでした" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:13px;height:80px;resize:none;margin-bottom:1.25rem;"></textarea>
-        <button onclick="submitApply()" style="width:100%;padding:12px;border:none;border-radius:var(--radius-md);background:#1a1a18;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:0.5rem;">申請を送信</button>
-        <button onclick="showPunch()" style="width:100%;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;">キャンセル</button>
-      </div>
+    <div class="form-row"><label>請負金額（円）</label><input id="f-amount" type="number" placeholder="例：45000"></div>
+    <div class="form-row"><label>メモ</label><textarea id="f-memo" placeholder="備考など"></textarea></div>
+    <div class="modal-btns">
+      <button class="btn btn-delete" id="delete-btn" onclick="deleteEvent()" style="display:none">削除</button>
+      <button class="btn btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEvent()">保存</button>
     </div>
   </div>
+</div>
 
-  <script>
-    // =============================================
-    // ★ GAS公開後にここのURLを書き換えてください ★
-    // =============================================
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw8F1gwvfoeDUSpiomIR7IftdERAbT2g4j8JpkYfiPwcqb-V6dlbmvfbL7axm0NjvMN/exec';
+<!-- 休日モーダル -->
+<div class="overlay" id="holiday-overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="holiday-modal-title">休日を登録</h3>
+    <div class="form-row">
+      <label>休み（タップで選択・解除）</label>
+      <div class="btn-grid" id="holiday-staff-grid"></div>
+    </div>
+    <div class="form-row">
+      <label>有給（タップで選択・解除）</label>
+      <div class="btn-grid" id="paid-leave-grid"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeHolidayModal()">閉じる</button>
+    </div>
+  </div>
+</div>
 
-    // 社員マスタ（PIN：4桁）
-    const employees = [
-      { pin: '3847', name: '平野 健雄',  dept: '業務課' },
-      { pin: '6192', name: '安藤 正樹',  dept: '業務課' },
-      { pin: '2571', name: '伏田 幸枝',  dept: '業務課' },
-      { pin: '9034', name: '小林 俊樹',  dept: '業務課' },
-      { pin: '4718', name: '石毛 貴英',  dept: '業務課' },
-      { pin: '7263', name: '石毛 拓海',  dept: '飲食事業部' },
-      { pin: '5409', name: '花見 朗子',  dept: 'バックオフィス' },
-      { pin: '1836', name: '土屋 芳広',  dept: '飲食事業部' },
-      { pin: '8527', name: '及川 晶雄',  dept: '飲食事業部' },
-      { pin: '3074', name: '宮川 玲奈',  dept: '飲食事業部' },
-      { pin: '6941', name: 'ハルシャニ', dept: '飲食事業部' },
-      { pin: '2385', name: 'ナディシャ', dept: '飲食事業部' },
-    ];
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwV_UNDYqwlGhMeoEQiasU348YX_UEKXys7E0TkZaOMfrcXtTx6-JIisyLVMCW2yj3g/exec';
+const STAFF_OWN  = ['平野健雄','安藤正樹','伏田幸枝','小林俊樹','石毛貴英','池田久史','三浦達弥','飯田怜飛','飯田栄'];
+const STAFF_OUT  = ['SUN-X','SIBS','One by One','増田（伸和洗浄）','ロープワーク','RISE','ミノアカ','小池','サンクトラスト'];
+const STAFF_HOLIDAY = ['平野健雄','安藤正樹','伏田幸枝','小林俊樹','石毛貴英'];
+const CARS = ['ロング','ショート','バン','ハイゼット','エブリー'];
+const DAYS = ['日','月','火','水','木','金','土'];
+const MAX_HOLIDAYS = 9;
 
-    let pinBuffer = '';
-    let currentEmp = null;
-    let todayIn = null;
-    let todayOut = null;
-    let prevDayNoOut = false;
+const HOLIDAYS_JP = new Set([
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24',
+  '2025-03-20','2025-04-29','2025-05-03','2025-05-04','2025-05-05','2025-05-06',
+  '2025-07-21','2025-08-11','2025-09-15','2025-09-22','2025-09-23',
+  '2025-10-13','2025-11-03','2025-11-23','2025-11-24',
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23',
+  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06',
+  '2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23',
+  '2026-10-12','2026-11-03','2026-11-23',
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23',
+  '2027-03-21','2027-03-22','2027-04-29','2027-05-03','2027-05-04','2027-05-05',
+  '2027-07-19','2027-08-11','2027-09-20','2027-09-23',
+  '2027-10-11','2027-11-03','2027-11-23',
+]);
 
-    function pinInput(n) {
-      if (pinBuffer.length >= 4) return;
-      pinBuffer += n;
-      updateDots();
-      if (pinBuffer.length === 4) setTimeout(checkPin, 150);
+const TYPE_CLASS = {daily:'type-daily',regular:'type-regular',bird:'type-bird',outsource:'type-outsource',pending:'type-pending'};
+const HOUR_START = 6, HOUR_END = 24, TOTAL_HOURS = 18;
+const HOURS = Array.from({length: TOTAL_HOURS}, (_,i) => HOUR_START + i);
+
+let current = new Date();
+current = new Date(current.getFullYear(), current.getMonth(), 1);
+let events = {}, holidays = {}, paidLeaves = {};
+let editingId = null, editingDate = null, holidayDate = null;
+let selectedStaff = [], selectedCars = [];
+let cbCount = 0;
+
+// ===== API =====
+function setSync(s, l) {
+  document.getElementById('sync-dot').className = 'dot ' + s;
+  document.getElementById('sync-label').textContent = l;
+}
+
+function jsonp(params) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_cb' + (++cbCount);
+    const timeout = setTimeout(() => { delete window[cbName]; reject(new Error('timeout')); }, 25000);
+    window[cbName] = (data) => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      const el = document.getElementById(cbName);
+      if (el) el.remove();
+      resolve(data);
+    };
+    const qs = Object.entries({ ...params, callback: cbName })
+      .map(([k,v]) => `${k}=${encodeURIComponent(typeof v==='object'?JSON.stringify(v):v)}`).join('&');
+    const script = document.createElement('script');
+    script.id = cbName;
+    script.src = `${API}?${qs}&t=${Date.now()}`;
+    script.onerror = () => { clearTimeout(timeout); delete window[cbName]; script.remove(); reject(new Error('error')); };
+    document.head.appendChild(script);
+  });
+}
+
+async function loadAll(showLoading) {
+  if (showLoading !== false) setSync('loading', '読み込み中...');
+  try {
+    const [evData, holData, plData] = await Promise.all([
+      jsonp({ action: 'getAll' }),
+      jsonp({ action: 'getHolidays' }),
+      jsonp({ action: 'getPaidLeaves' })
+    ]);
+    events = evData || {};
+    holidays = holData || {};
+    paidLeaves = plData || {};
+    setSync('ok', '同期済み');
+    render();
+  } catch(e) {
+    setSync('err', '読み込み失敗');
+    if (!Object.keys(events).length) {
+      // 固定カウンターを更新
+  const p1start = fmt(m===0?y-1:y, m===0?11:m-1, 16);
+  const p1end = fmt(y, m, 15);
+  const p2start = fmt(y, m, 16);
+  const p2nextM = m===11?0:m+1, p2nextY = m===11?y+1:y;
+  const p2end = fmt(p2nextY, p2nextM, 15);
+
+
+  document.getElementById('calendar-wrap').innerHTML =
+        '<div class="err-msg">データの読み込みに失敗しました。<br>ページを再読み込みしてください。</div>';
     }
+  }
+}
 
-    function pinDel() {
-      pinBuffer = pinBuffer.slice(0, -1);
-      updateDots();
-      document.getElementById('pin-error').textContent = '';
+// ===== ユーティリティ =====
+function fmt(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function timeToHour(t) {
+  if (!t) return null;
+  const [h, mi] = t.split(':').map(Number);
+  return h + mi / 60;
+}
+
+function hourToPct(h) {
+  return ((Math.max(HOUR_START, Math.min(HOUR_END, h)) - HOUR_START) / TOTAL_HOURS) * 100;
+}
+
+// ===== 休日カウンター =====
+function strToDate(dateStr) {
+  if (!dateStr) return null;
+  const p = dateStr.split('-');
+  return p.length < 3 ? null : new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]));
+}
+
+function countHolidaysInPeriod(start, end) {
+  const counts = {};
+  STAFF_HOLIDAY.forEach(s => counts[s] = 0);
+  Object.entries(holidays).forEach(([date, staffList]) => {
+    if (date >= start && date <= end) {
+      staffList.forEach(s => { if (counts[s] !== undefined) counts[s]++; });
     }
+  });
+  return counts;
+}
 
-    function updateDots() {
-      for (let i = 0; i < 4; i++) {
-        document.getElementById('d' + i).classList.toggle('filled', i < pinBuffer.length);
-      }
-    }
+function makeChipsHtml(start, end) {
+  const counts = countHolidaysInPeriod(start, end);
+  return STAFF_HOLIDAY.map(s => {
+    const remain = MAX_HOLIDAYS - (counts[s] || 0);
+    return `<div class="holiday-chip"><span class="chip-name">${s}</span><span class="chip-count${remain<=0?' ok':''}"">残${remain}日</span></div>`;
+  }).join('');
+}
 
-    function checkPin() {
-      const emp = employees.find(e => e.pin === pinBuffer);
-      if (emp) {
-        currentEmp = emp;
-        document.getElementById('emp-name').textContent = emp.name + ' さん';
-        const badge = document.getElementById('emp-dept-badge');
-        badge.textContent = emp.dept;
-        badge.className = 'dept-badge dept-' + emp.dept;
-        todayIn = null; todayOut = null;
-        document.getElementById('btn-in').disabled = false;
-        document.getElementById('btn-out').disabled = false;
-        updateStatus();
-        showScreen('screen-punch');
+function makeCounterHtml(y, m, isFirst) {
+  let start, end, label;
+  if (isFirst) {
+    const prevM = m === 0 ? 11 : m - 1;
+    const prevY = m === 0 ? y - 1 : y;
+    start = fmt(prevY, prevM, 16);
+    end = fmt(y, m, 15);
+    label = `${prevY}年${prevM+1}月16日 〜 ${y}年${m+1}月15日`;
+  } else {
+    const nextM = m === 11 ? 0 : m + 1;
+    const nextY = m === 11 ? y + 1 : y;
+    start = fmt(y, m, 16);
+    end = fmt(nextY, nextM, 15);
+    label = `${y}年${m+1}月16日 〜 ${nextY}年${nextM+1}月15日`;
+  }
+  return `<div class="holiday-counter">
+    <div class="holiday-counter-title">残り休日数（〆期間）</div>
+    <div class="holiday-counter-period">${label}</div>
+    <div class="holiday-chips">${makeChipsHtml(start, end)}</div>
+  </div>`;
+}
 
-        // ログイン時にスプレッドシートから今日の打刻状況を取得
-        const d = new Date();
-        const dateStr = d.getFullYear() + '/' +
-          String(d.getMonth()+1).padStart(2,'0') + '/' +
-          String(d.getDate()).padStart(2,'0');
-        fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: dateStr }),
-        })
-        .then(r => r.json())
-        .then(res => {
-          if (res.status === 'ok') {
-            if (res.inTime) {
-              todayIn = res.inTime;
-              document.getElementById('btn-in').disabled = true;
-            }
-            if (res.outTime) {
-              todayOut = res.outTime;
-              document.getElementById('btn-out').disabled = true;
-            }
-            // 前日退勤未打刻フラグ
-            prevDayNoOut = res.prevDayNoOut || false;
-            updateStatus();
-          }
-        })
-        .catch(() => {}); // エラーは無視
+// ===== カレンダー描画 =====
+function buildHalf(from, to, y, m, todayKey) {
+  let rows = '';
+  for (let d = from; d <= to; d++) {
+    const date = new Date(y, m, d);
+    const dow = date.getDay();
+    const key = fmt(y, m, d);
+    const isToday = key === todayKey;
+    const isHolidayJp = HOLIDAYS_JP.has(key);
+    const isSun = dow === 0, isSat = dow === 6;
+    const cls = (isSun?'sun':isSat?'sat':'') + (isToday?' today':'');
+    const dayEvs = events[key] || [];
+    const dayHols = holidays[key] || [];
 
+    // バー（外注・未定以外のタイムライン表示）
+    let bars = '';
+    let occupied = [];
+    dayEvs.filter(ev => ev.type !== 'outsource').forEach(ev => {
+      const tc = TYPE_CLASS[ev.type] || 'type-daily';
+      const sh = timeToHour(ev.start);
+      const eh = timeToHour(ev.end);
+      const who = Array.isArray(ev.staff) ? ev.staff.filter(Boolean).join('・') : '';
+      const carStr = Array.isArray(ev.cars) && ev.cars.length ? `[${ev.cars.join('・')}]` : '';
+      const depStr = ev.departure ? `<span style="color:#FF4444;font-weight:600">${ev.departure}出社</span>` : '';
+      const label = [depStr, ev.place, who, carStr].filter(Boolean).join(' ');
+
+      let leftPct, widthPct;
+      if (sh !== null && eh !== null && eh > sh) {
+        leftPct = hourToPct(sh); widthPct = hourToPct(eh) - leftPct;
+      } else if (sh !== null) {
+        leftPct = hourToPct(sh); widthPct = 100 / TOTAL_HOURS;
       } else {
-        document.getElementById('pin-error').textContent = 'PINコードが違います';
-        pinBuffer = '';
-        updateDots();
+        leftPct = 0; widthPct = 20;
       }
-    }
-
-    function showScreen(id) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-    }
-
-    function getTimeStr(type) {
-      const now = new Date();
-      let h = now.getHours();
-      let m = now.getMinutes();
-      if (type === '出勤') {
-        // 出勤は切り上げ（例：8:05 → 8:15）
-        m = Math.ceil(m / 15) * 15;
-        if (m === 60) { m = 0; h += 1; }
-      } else {
-        // 退勤は切り捨て（例：17:47 → 17:45）
-        m = Math.floor(m / 15) * 15;
+      let topPx = 5;
+      for (const o of occupied) {
+        if (leftPct < o.right && leftPct + widthPct > o.left) topPx = o.top + 26;
       }
-      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    }
+      occupied.push({ left: leftPct, right: leftPct + widthPct, top: topPx });
+      bars += `<span class="ev-bar ${tc}" style="left:${leftPct.toFixed(2)}%;width:${widthPct.toFixed(2)}%;top:${topPx}px" onclick="openEdit('${key}','${ev.id}')">${label}</span>`;
+    });
 
-    function updateStatus() {
-      document.getElementById('st-in').textContent = todayIn || '未打刻';
-      document.getElementById('st-out').textContent = todayOut || '未打刻';
-    }
+    const maxTop = occupied.length ? Math.max(...occupied.map(o=>o.top)) : 5;
+    const barHeight = Math.max(32, maxTop + 28);
 
-    function punch(type) {
-      const LOCATIONS = {
-        '平野 健雄': [{ lat: 35.85820, lng: 140.56246, name: '本社', radius: 300 }],
-        '安藤 正樹': [{ lat: 35.85820, lng: 140.56246, name: '本社', radius: 300 }],
-        '伏田 幸枝': [{ lat: 35.85820, lng: 140.56246, name: '本社', radius: 300 }],
-        '小林 俊樹': [{ lat: 35.85820, lng: 140.56246, name: '本社', radius: 300 }],
-        '石毛 貴英': [{ lat: 35.85820, lng: 140.56246, name: '本社', radius: 300 }],
-        '石毛 拓海': [{ lat: 35.89978, lng: 140.64040, name: '神栖横丁', radius: 300 }],
-        '花見 朗子': null,
-        '土屋 芳広': [{ lat: 35.89978, lng: 140.64040, name: '神栖横丁', radius: 300 }],
-        '及川 晶雄': [{ lat: 35.98349, lng: 140.63753, name: '鹿嶋事業所', radius: 300 }],
-        '宮川 玲奈': [{ lat: 35.89978, lng: 140.64040, name: '神栖横丁', radius: 300 }],
-        'ハルシャニ': [{ lat: 35.89978, lng: 140.64040, name: '神栖横丁', radius: 300 }],
-        'ナディシャ':  [{ lat: 35.89978, lng: 140.64040, name: '神栖横丁', radius: 300 }],
-      };
+    // 外注列
+    const outsourceItems = dayEvs.filter(ev => ev.type === 'outsource').map(ev => {
+      const who = Array.isArray(ev.staff) ? ev.staff.filter(Boolean).join('・') : '';
+      const label = [who, ev.place].filter(Boolean).join('/');
+      return `<span class="outsource-item" onclick="openEdit('${key}','${ev.id}')">${label}</span>`;
+    }).join('');
 
-      function calcDist(lat1, lng1, lat2, lng2) {
-        const R = 6371000;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 +
-                  Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      }
+    // 休み・手空きタグ
+    const assignedStaff = new Set();
+    dayEvs.forEach(ev => { if (Array.isArray(ev.staff)) ev.staff.filter(Boolean).forEach(s => assignedStaff.add(s)); });
+    const dayPaids = paidLeaves[key] || [];
+    const holidayTags = dayHols.map(s => `<span class="holiday-tag" onclick="openHolidayModal('${key}')">${s}</span>`).join('');
+    const paidTags = dayPaids.map(s => `<span class="paid-tag" onclick="openHolidayModal('${key}')">${s}(有)</span>`).join('');
+    const freeTags = STAFF_HOLIDAY.filter(s => !dayHols.includes(s) && !dayPaids.includes(s) && !assignedStaff.has(s)).map(s => `<span class="free-tag">${s}</span>`).join('');
 
-      function doPunch(geoInfo) {
-        const t = getTimeStr(type);
-        if (type === '出勤') {
-          todayIn = t;
-          document.getElementById('btn-in').disabled = true;
-        } else {
-          todayOut = t;
-          document.getElementById('btn-out').disabled = true;
-        }
-        updateStatus();
-        document.getElementById('done-title').textContent = type + 'を記録しました';
-        document.getElementById('done-time').textContent = '記録時刻: ' + t;
-        document.getElementById('done-icon').textContent = type === '出勤' ? '✅' : '🏁';
-        showScreen('screen-done');
-        const d = new Date();
-        const dateStr = d.getFullYear() + '/' +
-          String(d.getMonth()+1).padStart(2,'0') + '/' +
-          String(d.getDate()).padStart(2,'0');
-        fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({
-            date: dateStr, name: currentEmp.name, dept: currentEmp.dept,
-            type: type, time: t,
-            lat: geoInfo ? geoInfo.lat : null,
-            lng: geoInfo ? geoInfo.lng : null,
-            place: geoInfo ? geoInfo.place : 'フリー',
-          }),
-        })
-        .then(r => r.json())
-        .then(res => {
-          if (res.status === 'duplicate') {
-            // すでに打刻済み→画面を戻してアラート
-            showPunch();
-            if (type === '出勤') {
-              todayIn = null;
-              document.getElementById('btn-in').disabled = false;
-            } else {
-              todayOut = null;
-              document.getElementById('btn-out').disabled = false;
-            }
-            updateStatus();
-            alert('⚠️ ' + res.message);
-          }
-        })
-        .catch(err => console.error('送信エラー:', err));
-      }
+    // 祝日表示
+    const holidayJpLabel = isHolidayJp ? `<span class="holiday-jp-label">祝</span>` : '';
+    const dnumColor = (isHolidayJp || isSun) ? 'color:#e05555' : (isSat ? 'color:#4a90d9' : '');
 
-      // ① 退勤ボタン：出勤未打刻チェック
-      if (type === '退勤' && !todayIn) {
-        if (!confirm('⚠️ 出勤が記録されていません。\nこのまま退勤申請しますか？\n（打刻忘れ申請画面に移動します）')) {
-          return;
-        }
-        showApply();
-        return;
-      }
+    rows += `<div class="tl-row ${cls}">
+      <div class="tl-date" onclick="openAdd('${key}')">
+        <span class="dnum" style="${dnumColor}">${d}</span>
+        <span class="dname">${DAYS[dow]}</span>
+        ${holidayJpLabel}
+      </div>
+      <div class="tl-right">
+        <div class="tl-bar-area" style="min-height:${barHeight}px">
+          ${bars}
+          <button class="add-btn" onclick="openAdd('${key}')">＋ 現場</button>
+        </div>
+        <div class="tl-holiday-row">
+          ${holidayTags}${paidTags}${freeTags}
+          <span class="holiday-tag" style="background:#f5f5f0;color:#bbb;border:1px dashed #ddd" onclick="openHolidayModal('${key}')">＋ 休み</span>
+        </div>
+      </div>
+      <div class="tl-outsource-col">${outsourceItems}</div>
+    </div>`;
+  }
+  return rows;
+}
 
-      // ② 出勤ボタン：前日退勤未打刻チェック
-      if (type === '出勤' && prevDayNoOut) {
-        alert('⚠️ 前日の退勤が記録されていません。\n打刻忘れ申請をしてください。');
-        showApply();
-        return;
-      }
+function buildMobileHalf(from, to, y, m, todayKey) {
+  let rows = '';
+  for (let d = from; d <= to; d++) {
+    const date = new Date(y, m, d);
+    const dow = date.getDay();
+    const key = fmt(y, m, d);
+    const isToday = key === todayKey;
+    const isHolidayJp = HOLIDAYS_JP.has(key);
+    const isSun = dow === 0, isSat = dow === 6;
+    const dayEvs = events[key] || [];
+    const dayHols = holidays[key] || [];
 
-      const allowedLocs = LOCATIONS[currentEmp.name];
-      if (allowedLocs === null) { doPunch(null); return; }
+    const dnumColor = (isHolidayJp||isSun)?'color:#e05555':(isSat?'color:#4a90d9':'');
+    const bgColor = isToday?'background:#edf5fc':'';
+    const holidayJpLabel = isHolidayJp ? `<span class="mobile-holiday-jp">祝</span>` : '';
 
-      document.getElementById('btn-in').disabled = true;
-      document.getElementById('btn-out').disabled = true;
+    // 現場イベント（外注以外）
+    const assignedStaff = new Set();
+    const evItems = dayEvs.filter(ev=>ev.type!=='outsource').map(ev => {
+      const tc = TYPE_CLASS[ev.type]||'type-daily';
+      if (Array.isArray(ev.staff)) ev.staff.filter(Boolean).forEach(s=>assignedStaff.add(s));
+      const who = Array.isArray(ev.staff)?ev.staff.filter(Boolean).join('・'):'';
+      const dep = ev.departure?`${ev.departure}出社 `:'';
+      const time = ev.start?(ev.end?`${ev.start}〜${ev.end}`:ev.start):'';
+      const cars = Array.isArray(ev.cars)&&ev.cars.length?`[${ev.cars.join('・')}]`:'';
+      return `<div class="mobile-ev ${tc}" onclick="openEdit('${key}','${ev.id}')">
+        <span class="mobile-ev-time">${dep}${time}</span>
+        <div><div class="mobile-ev-name">${ev.place}</div><div class="mobile-ev-staff">${[who,cars].filter(Boolean).join(' ')}</div></div>
+      </div>`;
+    }).join('');
 
-      if (!navigator.geolocation) {
-        alert('このブラウザは位置情報に対応していません');
-        document.getElementById('btn-in').disabled = false;
-        document.getElementById('btn-out').disabled = false;
-        return;
-      }
+    // 外注
+    const outsourceItems = dayEvs.filter(ev=>ev.type==='outsource').map(ev=>{
+      const who = Array.isArray(ev.staff)?ev.staff.filter(Boolean).join('・'):'';
+      return `<span class="mobile-outsource-item" onclick="openEdit('${key}','${ev.id}')">${[who,ev.place].filter(Boolean).join('/')}</span>`;
+    }).join('');
 
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          let nearest = null, minDist = Infinity;
-          for (const loc of allowedLocs) {
-            const dist = calcDist(lat, lng, loc.lat, loc.lng);
-            if (dist < minDist) { minDist = dist; nearest = loc; }
-            if (dist <= loc.radius) {
-              doPunch({ lat, lng, place: loc.name, dist: Math.round(dist) });
-              return;
-            }
-          }
-          document.getElementById('btn-in').disabled = false;
-          document.getElementById('btn-out').disabled = false;
-          alert('打刻できる場所にいません\n最寄り拠点「' + nearest.name + '」まで約' + Math.round(minDist) + 'mです');
-        },
-        () => {
-          document.getElementById('btn-in').disabled = false;
-          document.getElementById('btn-out').disabled = false;
-          alert('位置情報を取得できませんでした\n設定でアクセスを許可してください');
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
+    // 休み・手空き
+    const dayPaidsMobile = paidLeaves[key] || [];
+    const holidayTags = dayHols.map(s=>`<span class="holiday-tag" onclick="openHolidayModal('${key}')">${s}</span>`).join('');
+    const paidTagsMobile = dayPaidsMobile.map(s=>`<span class="paid-tag" onclick="openHolidayModal('${key}')">${s}(有)</span>`).join('');
+    const freeTags = STAFF_HOLIDAY.filter(s=>!dayHols.includes(s)&&!dayPaidsMobile.includes(s)&&!assignedStaff.has(s)).map(s=>`<span class="free-tag">${s}</span>`).join('');
 
-    function showPunch() { showScreen('screen-punch'); }
+    rows += `<div class="mobile-row" style="${bgColor}">
+      <div class="mobile-date">
+        <span class="mobile-dnum" style="${dnumColor}">${d}</span>
+        <span class="mobile-dname">${DAYS[dow]}</span>
+        ${holidayJpLabel}
+        <button class="mobile-add-btn" onclick="openAdd('${key}')">＋ 現場</button>
+      </div>
+      <div class="mobile-events">${evItems}</div>
+      ${outsourceItems?`<div class="mobile-outsource">${outsourceItems}</div>`:''}
+      <div class="mobile-holiday-row">${holidayTags}${paidTagsMobile}${freeTags}<span class="holiday-tag" style="background:#f5f5f0;color:#bbb;border:1px dashed #ddd" onclick="openHolidayModal('${key}')">＋ 休み</span></div>
+    </div>`;
+  }
+  return rows;
+}
 
-    let applyType = '出勤';
+function render() {
+  const y = current.getFullYear(), m = current.getMonth();
+  document.getElementById('month-title').textContent = `${y}年${m+1}月`;
+  const lastDay = new Date(y, m+1, 0).getDate();
+  const now = new Date();
+  const todayKey = fmt(now.getFullYear(), now.getMonth(), now.getDate());
+  const hourHeaders = HOURS.map(h => `<div class="tl-hour">${h}:00</div>`).join('');
 
-    function showApply() {
-      const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      const day = String(d.getDate()).padStart(2,'0');
-      document.getElementById('apply-date').value = y + '-' + m + '-' + day;
-      document.getElementById('apply-note').value = '';
-      // 時刻セレクトを生成（06:00〜23:45、15分単位）
-      const sel = document.getElementById('apply-time');
-      sel.innerHTML = '<option value="">-- 選択してください --</option>';
-      for (let h = 6; h <= 23; h++) {
-        for (let min = 0; min < 60; min += 15) {
-          const hh = String(h).padStart(2,'0');
-          const mm = String(min).padStart(2,'0');
-          const opt = document.createElement('option');
-          opt.value = hh + ':' + mm;
-          opt.textContent = hh + ':' + mm;
-          sel.appendChild(opt);
-        }
-      }
-      selectApplyType('出勤');
-      showScreen('screen-apply');
-    }
+  function buildSection(from, to, label, isFirst) {
+    const sectionId = isFirst ? 'section-first' : 'section-second';
+    const chipsId = isFirst ? 'chips-first' : 'chips-second';
+    const counterHtml = makeCounterHtml(y, m, isFirst).replace(
+      'class="holiday-chips"',
+      `class="holiday-chips" id="${chipsId}"`
+    );
+    return `
+      <div id="${sectionId}">
+      ${counterHtml}
+      <div class="section-title">${label}</div>
+      <div class="timeline-wrap">
+        <div class="timeline-grid">
+          <div class="tl-header">
+            <div class="tl-date-col">日付</div>
+            <div class="tl-hours">${hourHeaders}</div>
+            <div class="tl-outsource-header">外注</div>
+          </div>
+          ${buildHalf(from, to, y, m, todayKey)}
+        </div>
+      </div>
+      <div class="mobile-list">
+        ${buildMobileHalf(from, to, y, m, todayKey)}
+      </div>`;
+  }
 
-    function selectApplyType(type) {
-      applyType = type;
-      const inBtn = document.getElementById('apply-in-btn');
-      const outBtn = document.getElementById('apply-out-btn');
-      if (type === '出勤') {
-        inBtn.style.background = '#E1F5EE'; inBtn.style.color = '#0F6E56'; inBtn.style.fontWeight = '600';
-        outBtn.style.background = '#f9f9f7'; outBtn.style.color = '#6b6b68'; outBtn.style.fontWeight = '400';
-      } else {
-        outBtn.style.background = '#FAECE7'; outBtn.style.color = '#993C1D'; outBtn.style.fontWeight = '600';
-        inBtn.style.background = '#f9f9f7'; inBtn.style.color = '#6b6b68'; inBtn.style.fontWeight = '400';
-      }
-    }
+  // 固定カウンターを更新
+  const p1start = fmt(m===0?y-1:y, m===0?11:m-1, 16);
+  const p1end = fmt(y, m, 15);
+  const p2start = fmt(y, m, 16);
+  const p2nextM = m===11?0:m+1, p2nextY = m===11?y+1:y;
+  const p2end = fmt(p2nextY, p2nextM, 15);
 
-    function submitApply() {
-      const dateVal = document.getElementById('apply-date').value;
-      const timeVal = document.getElementById('apply-time').value;
-      const note = document.getElementById('apply-note').value;
-      if (!dateVal) { alert('申請日を選択してください'); return; }
-      if (!timeVal) { alert('希望時刻を選択してください'); return; }
-      if (!note.trim()) { alert('理由を入力してください'); return; }
 
-      const dateStr = dateVal.replace(/-/g, '/');
-      fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'apply',
-          name: currentEmp.name,
-          dept: currentEmp.dept,
-          date: dateStr,
-          type: applyType,
-          time: timeVal,
-          note: note,
-        }),
-      })
-      .then(r => r.json())
-      .then(res => {
-        if (res.status === 'ok') {
-          alert('✅ 申請を送信しました\n管理者が確認後に入力します');
-          showPunch();
-        } else {
-          alert('エラー: ' + res.message);
-        }
-      })
-      .catch(() => {
-        alert('✅ 申請を送信しました\n管理者が確認後に入力します');
-        showPunch();
-      });
-    }
+  document.getElementById('calendar-wrap').innerHTML =
+    buildSection(1, 15, '上半期 — 1日〜15日', true) + '</div>' +
+    '<div style="height:12px"></div>' +
+    buildSection(16, lastDay, `下半期 — 16日〜${lastDay}日`, false) + '</div>' +
+    '<div style="height:24px"></div>';
+}
 
-    function logout() {
-      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null; prevDayNoOut = false;
-      updateDots();
-      document.getElementById('pin-error').textContent = '';
-      showScreen('screen-pin');
-    }
+function changeMonth(d) {
+  current = new Date(current.getFullYear(), current.getMonth()+d, 1);
+  loadAll();
+}
 
-    // 時計
-    function tick() {
-      const d = new Date();
-      document.getElementById('clock').textContent =
-        d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const wd = ['日','月','火','水','木','金','土'][d.getDay()];
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      document.getElementById('datestr').textContent =
-        y + ' / ' + m + ' / ' + day + '（' + wd + '）';
-    }
-    setInterval(tick, 1000);
-    tick();
-  </script>
+// ===== スタッフ・車両グリッド =====
+function renderStaffGrid() {
+  function makeBtn(s) {
+    const on = selectedStaff.includes(s);
+    return `<div class="toggle-btn${on?' selected':''}" onclick="toggleStaff('${s.replace(/'/g,"\\'")}')\">${s}</div>`;
+  }
+  document.getElementById('staff-grid').innerHTML =
+    `<div class="staff-section-label">自社スタッフ</div>` + STAFF_OWN.map(makeBtn).join('') +
+    `<div class="staff-section-label">外注</div>` + STAFF_OUT.map(makeBtn).join('');
+}
+
+function toggleStaff(name) {
+  selectedStaff = selectedStaff.includes(name) ? selectedStaff.filter(s=>s!==name) : [...selectedStaff, name];
+  renderStaffGrid();
+}
+
+function renderCarGrid() {
+  document.getElementById('car-grid').innerHTML = CARS.map(c => {
+    const on = selectedCars.includes(c);
+    return `<div class="toggle-btn${on?' selected':''}" onclick="toggleCar('${c}')">${c}</div>`;
+  }).join('');
+}
+
+function toggleCar(name) {
+  selectedCars = selectedCars.includes(name) ? selectedCars.filter(s=>s!==name) : [...selectedCars, name];
+  renderCarGrid();
+}
+
+// ===== モーダル =====
+function openAdd(dateKey) {
+  editingId = null; editingDate = dateKey;
+  selectedStaff = []; selectedCars = [];
+  const [,mo,day] = dateKey.split('-');
+  document.getElementById('modal-title').textContent = `${parseInt(mo)}月${parseInt(day)}日 — 現場を追加`;
+  document.getElementById('f-date').value = editingDate;
+  document.getElementById('f-place').value = '';
+  document.getElementById('f-client').value = '';
+  document.getElementById('f-type').value = 'daily';
+  document.getElementById('f-amount').value = '';
+  document.getElementById('f-memo').value = '';
+  document.getElementById('f-departure').value = '';
+  document.getElementById('f-start').value = '';
+  document.getElementById('f-end').value = '';
+  document.getElementById('delete-btn').style.display = 'none';
+  renderStaffGrid();
+  renderCarGrid();
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-place').focus(), 150);
+}
+
+function openEdit(dateKey, id) {
+  const ev = (events[dateKey]||[]).find(e => e.id===id);
+  if (!ev) return;
+  editingId = id; editingDate = dateKey;
+  selectedStaff = Array.isArray(ev.staff) ? ev.staff.filter(Boolean) : [];
+  selectedCars = Array.isArray(ev.cars) ? ev.cars.filter(Boolean) : [];
+  const [,mo,day] = dateKey.split('-');
+  document.getElementById('modal-title').textContent = `${parseInt(mo)}月${parseInt(day)}日 — 編集`;
+  document.getElementById('f-date').value = ev.date||'';
+  document.getElementById('f-place').value = ev.place||'';
+  document.getElementById('f-client').value = ev.client||'';
+  document.getElementById('f-type').value = ev.type||'daily';
+  document.getElementById('f-amount').value = ev.amount||'';
+  document.getElementById('f-memo').value = ev.memo||'';
+  document.getElementById('f-departure').value = ev.departure||'';
+  document.getElementById('f-start').value = ev.start||'';
+  document.getElementById('f-end').value = ev.end||'';
+  document.getElementById('delete-btn').style.display = '';
+  renderStaffGrid();
+  renderCarGrid();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+
+// ===== 休日モーダル =====
+function openHolidayModal(dateKey) {
+  holidayDate = dateKey;
+  const [,mo,day] = dateKey.split('-');
+  document.getElementById('holiday-modal-title').textContent = `${parseInt(mo)}月${parseInt(day)}日 — 休日登録`;
+  renderHolidayGrid();
+  document.getElementById('holiday-overlay').classList.add('open');
+}
+
+function renderHolidayGrid() {
+  const dayHols = holidays[holidayDate] || [];
+  const dayPaids = paidLeaves[holidayDate] || [];
+  document.getElementById('holiday-staff-grid').innerHTML = STAFF_HOLIDAY.map(s => {
+    const on = dayHols.includes(s);
+    return `<div class="holiday-staff-btn${on?' selected':''}" onclick="toggleHoliday('${s}')">${s}</div>`;
+  }).join('');
+  document.getElementById('paid-leave-grid').innerHTML = STAFF_HOLIDAY.map(s => {
+    const on = dayPaids.includes(s);
+    return `<div class="holiday-staff-btn${on?' selected':''}" style="${on?'border-color:#1a6e31;background:#d4edda;color:#1a6e31':''}" onclick="togglePaidLeave('${s}')">${s}</div>`;
+  }).join('');
+}
+
+async function togglePaidLeave(name) {
+  const dayPaids = paidLeaves[holidayDate] || [];
+  const isOn = dayPaids.includes(name);
+  if (isOn) {
+    paidLeaves[holidayDate] = dayPaids.filter(s => s !== name);
+    if (!paidLeaves[holidayDate].length) delete paidLeaves[holidayDate];
+  } else {
+    if (!paidLeaves[holidayDate]) paidLeaves[holidayDate] = [];
+    paidLeaves[holidayDate].push(name);
+  }
+  renderHolidayGrid();
+  render();
+  setSync('loading', '保存中...');
+  try {
+    await jsonp({ action: isOn?'deletePaidLeave':'savePaidLeave', data: { date: holidayDate, staff: name } });
+    setSync('ok', '保存済み');
+  } catch(e) { setSync('err', '保存失敗'); }
+}
+
+async function toggleHoliday(name) {
+  const dayHols = holidays[holidayDate] || [];
+  const isOn = dayHols.includes(name);
+  if (isOn) {
+    holidays[holidayDate] = dayHols.filter(s => s !== name);
+    if (!holidays[holidayDate].length) delete holidays[holidayDate];
+  } else {
+    if (!holidays[holidayDate]) holidays[holidayDate] = [];
+    holidays[holidayDate].push(name);
+  }
+  renderHolidayGrid();
+  render();
+  setSync('loading', '保存中...');
+  try {
+    await jsonp({ action: isOn?'deleteHoliday':'saveHoliday', data: { date: holidayDate, staff: name } });
+    setSync('ok', '保存済み');
+  } catch(e) { setSync('err', '保存失敗'); }
+}
+
+function closeHolidayModal() { document.getElementById('holiday-overlay').classList.remove('open'); }
+
+// ===== 保存・削除 =====
+async function saveEvent() {
+  const place = document.getElementById('f-place').value.trim();
+  if (!place) { alert('現場名を入力してください'); return; }
+  const newDate = document.getElementById('f-date').value || editingDate;
+  const ev = {
+    id: editingId || Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+    date: newDate, place,
+    client: document.getElementById('f-client').value.trim(),
+    type: document.getElementById('f-type').value,
+    outsource: '',
+    staff: selectedStaff,
+    cars: selectedCars,
+    departure: document.getElementById('f-departure').value,
+    start: document.getElementById('f-start').value,
+    end: document.getElementById('f-end').value,
+    amount: document.getElementById('f-amount').value.trim(),
+    memo: document.getElementById('f-memo').value.trim()
+  };
+  closeModal();
+  setSync('loading', '保存中...');
+  try {
+    await jsonp({ action: 'save', data: ev });
+    await loadAll(false);
+    setSync('ok', '保存済み');
+  } catch(e) { setSync('err', '保存失敗'); }
+}
+
+async function deleteEvent() {
+  if (!confirm('この予定を削除しますか？')) return;
+  const delId = editingId;
+  closeModal();
+  setSync('loading', '削除中...');
+  try {
+    await jsonp({ action: 'delete', data: { id: delId } });
+    await loadAll(false);
+    setSync('ok', '削除済み');
+  } catch(e) { setSync('err', '削除失敗'); }
+}
+
+document.getElementById('overlay').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
+document.getElementById('holiday-overlay').addEventListener('click', function(e) { if(e.target===this) closeHolidayModal(); });
+
+loadAll();
+</script>
 </body>
 </html>
