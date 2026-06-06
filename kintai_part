@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Prostyle PA勤怠</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="PA勤怠" />
+  <link rel="icon" type="image/png" href="data:image/png;base64,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" />
+  <link rel="apple-touch-icon" href="data:image/png;base64,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" />
+  <meta name="theme-color" content="#783c14" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --border-md: rgba(0,0,0,0.18);
+      --text-primary: #1a1a18;
+      --text-secondary: #6b6b68;
+      --text-danger: #a32d2d;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --accent: #783c14;
+    }
+    body {
+      font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .app { width: 100%; max-width: 420px; padding: 2rem 1.25rem 3rem; }
+    .logo { text-align: center; margin-bottom: 2rem; }
+    .logo-title { font-size: 20px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; }
+    .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1rem; }
+    .pin-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 1rem; text-align: center; }
+    .pin-display { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
+    .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--border-md); background: transparent; transition: background 0.15s; }
+    .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+    .error-msg { text-align: center; font-size: 13px; color: var(--text-danger); height: 18px; margin-bottom: 0.75rem; }
+    .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .pin-btn { height: 60px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: #f9f9f7; font-size: 22px; font-weight: 500; color: var(--text-primary); cursor: pointer; transition: all 0.1s; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .pin-btn:active { transform: scale(0.94); background: #ebebea; }
+    .pin-btn.zero { grid-column: 2; }
+    .emp-name { font-size: 17px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+    .dept-badge { display: inline-block; font-size: 11px; padding: 3px 12px; border-radius: 20px; margin-bottom: 1.5rem; font-weight: 500; background: #FFF3E0; color: #783c14; }
+    .time-display { font-size: 36px; font-weight: 600; color: var(--text-primary); text-align: center; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+    .date-display { font-size: 13px; color: var(--text-secondary); text-align: center; margin-bottom: 1.75rem; }
+    .punch-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1rem; }
+    .punch-btn { height: 80px; border-radius: var(--radius-lg); font-size: 17px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .punch-btn svg { width: 24px; height: 24px; }
+    .punch-btn.in { background: #E1F5EE; color: #0F6E56; }
+    .punch-btn.in:active { background: #9FE1CB; transform: scale(0.96); }
+    .punch-btn.out { background: #FAECE7; color: #993C1D; }
+    .punch-btn.out:active { background: #F5C4B3; transform: scale(0.96); }
+    .punch-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .status-box { background: #f9f9f7; border-radius: var(--radius-md); padding: 12px 16px; font-size: 13px; }
+    .status-row { display: flex; justify-content: space-between; color: var(--text-secondary); padding: 4px 0; }
+    .status-row span:last-child { color: var(--text-primary); font-weight: 500; }
+    .apply-btn { width: 100%; margin-top: 1rem; padding: 11px; border: 0.5px solid #d4a017; border-radius: var(--radius-md); background: #fffbeb; color: #92650a; font-size: 13px; cursor: pointer; }
+    .logout-btn { width: 100%; margin-top: 0.5rem; padding: 11px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
+    .result-card { background: var(--surface); border-radius: var(--radius-lg); border: 0.5px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; }
+    .result-icon { font-size: 52px; margin-bottom: 1rem; }
+    .result-title { font-size: 20px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+    .result-sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 2rem; }
+    .back-btn { padding: 11px 28px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md); background: transparent; color: var(--text-primary); font-size: 14px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="logo">
+      <div class="logo-title">Prostyle PA勤怠</div>
+      <div class="logo-sub">パート・アルバイト専用</div>
+    </div>
+
+    <!-- PIN入力画面 -->
+    <div class="screen active" id="screen-pin">
+      <div class="card">
+        <div class="pin-label">PINコードを入力してください</div>
+        <div class="pin-display">
+          <div class="pin-dot" id="d0"></div>
+          <div class="pin-dot" id="d1"></div>
+          <div class="pin-dot" id="d2"></div>
+          <div class="pin-dot" id="d3"></div>
+        </div>
+        <div class="error-msg" id="pin-error"></div>
+        <div class="pin-grid">
+          <button class="pin-btn" onclick="pinInput('1')">1</button>
+          <button class="pin-btn" onclick="pinInput('2')">2</button>
+          <button class="pin-btn" onclick="pinInput('3')">3</button>
+          <button class="pin-btn" onclick="pinInput('4')">4</button>
+          <button class="pin-btn" onclick="pinInput('5')">5</button>
+          <button class="pin-btn" onclick="pinInput('6')">6</button>
+          <button class="pin-btn" onclick="pinInput('7')">7</button>
+          <button class="pin-btn" onclick="pinInput('8')">8</button>
+          <button class="pin-btn" onclick="pinInput('9')">9</button>
+          <button class="pin-btn zero" onclick="pinInput('0')">0</button>
+          <button class="pin-btn" onclick="pinDel()">⌫</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 打刻画面 -->
+    <div class="screen" id="screen-punch">
+      <div class="card">
+        <div class="emp-name" id="emp-name"></div>
+        <div class="dept-badge" id="emp-dept-badge"></div>
+        <div class="time-display" id="clock">--:--:--</div>
+        <div class="date-display" id="datestr"></div>
+        <div class="punch-btns">
+          <button class="punch-btn in" id="btn-in" onclick="punch('出勤')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            出勤
+          </button>
+          <button class="punch-btn out" id="btn-out" onclick="punch('退勤')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            退勤
+          </button>
+        </div>
+        <div class="status-box">
+          <div class="status-row"><span>本日の出勤</span><span id="st-in">未打刻</span></div>
+          <div class="status-row"><span>本日の退勤</span><span id="st-out">未打刻</span></div>
+        </div>
+        <button class="apply-btn" onclick="showApply()">打刻忘れ申請</button>
+        <button class="logout-btn" onclick="logout()">ログアウト</button>
+      </div>
+    </div>
+
+    <!-- 打刻完了画面 -->
+    <div class="screen" id="screen-done">
+      <div class="result-card">
+        <div class="result-icon" id="done-icon">✅</div>
+        <div class="result-title" id="done-title"></div>
+        <div class="result-sub" id="done-time"></div>
+        <button class="back-btn" onclick="showPunch()">戻る</button>
+      </div>
+    </div>
+
+    <!-- 打刻忘れ申請画面 -->
+    <div class="screen" id="screen-apply">
+      <div class="card">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">打刻忘れ申請</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:1.25rem;">申請内容を選んで送信してください。時刻は管理者が確認・入力します。</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">申請日</div>
+        <input type="date" id="apply-date" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;margin-bottom:1rem;background:var(--surface);" />
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">申請種別</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem;">
+          <button id="apply-in-btn" onclick="selectApplyType('出勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#E1F5EE;color:#0F6E56;font-size:14px;font-weight:600;cursor:pointer;">出勤</button>
+          <button id="apply-out-btn" onclick="selectApplyType('退勤')" style="padding:12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#f9f9f7;color:var(--text-secondary);font-size:14px;cursor:pointer;">退勤</button>
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">希望時刻</div>
+        <select id="apply-time" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;margin-bottom:1rem;background:var(--surface);">
+          <option value="">-- 選択してください --</option>
+        </select>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">理由 <span style="color:#a32d2d;font-size:11px;">必須</span></div>
+        <textarea id="apply-note" placeholder="例：現場直行のため打刻できませんでした" style="width:100%;padding:10px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:13px;height:80px;resize:none;margin-bottom:1.25rem;"></textarea>
+        <button onclick="submitApply()" style="width:100%;padding:12px;border:none;border-radius:var(--radius-md);background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:0.5rem;">申請を送信</button>
+        <button onclick="showPunch()" style="width:100%;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GAS_URL = 'YOUR_GAS_WEB_APP_URL';
+
+    const employees = [
+      { pin: '2824', name: '小林メグ',    dept: '焼きたて屋',         locs: [{ lat: 35.9831, lng: 140.6368, name: '焼きたて屋', radius: 300 }] },
+      { pin: '1409', name: '荒宏信',      dept: '焼きたて屋',         locs: [{ lat: 35.9831, lng: 140.6368, name: '焼きたて屋', radius: 300 }] },
+      { pin: '5506', name: '松岡実麻',    dept: 'タコハイ',            locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '5012', name: '石井義則',    dept: 'バッシング',          locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '4657', name: '中村利人',    dept: 'バッシング',          locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '3286', name: '山﨑悠人',    dept: 'バッシング',          locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '2679', name: '本田光江',    dept: 'バッシング',          locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '9935', name: '橋本桂子',    dept: '横丁清掃',            locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '2424', name: '小金澤登美',  dept: '横丁清掃',            locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '7912', name: '綱代愛',      dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '1520', name: '新河美和',    dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '1488', name: '飯塚利恵',    dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '2535', name: '栗林里江',    dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '4582', name: '篠塚柚紀',    dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '4811', name: '篠田麻里奈',  dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '9279', name: '林沙樹',      dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '1434', name: '須之内郁美',  dept: 'りゅうちゃん',        locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
+      { pin: '4257', name: '八木秀子',    dept: '十三里屋',            locs: [{ lat: 35.8891, lng: 140.4978, name: '十三里屋', radius: 300 }] },
+      { pin: '9928', name: '籾山結泉',    dept: '十三里屋',            locs: [{ lat: 35.8891, lng: 140.4978, name: '十三里屋', radius: 300 }] },
+      { pin: '7873', name: '下河邊なお子', dept: '十三里屋',           locs: [{ lat: 35.8891, lng: 140.4978, name: '十三里屋', radius: 300 }] },
+      { pin: '4611', name: '小堀真桜',    dept: '十三里屋',            locs: [{ lat: 35.8891, lng: 140.4978, name: '十三里屋', radius: 300 }] },
+      { pin: '8359', name: '河野千恵子',  dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '5557', name: '橋本房枝',    dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '1106', name: '山本里奈',    dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '3615', name: '長谷川碧里',  dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '7924', name: '松本めぐみ',  dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '6574', name: '田村あつ子',  dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '5552', name: '衣幡千明',    dept: 'トータルステイ',      locs: [{ lat: 35.9048, lng: 140.6358, name: 'トータルステイ', radius: 300 }] },
+      { pin: '3547', name: '石川泰博',    dept: '市川東病院',          locs: [{ lat: 35.7034, lng: 139.9589, name: '市川東病院', radius: 300 }] },
+      { pin: '4527', name: '山田明子',    dept: '市川東病院',          locs: [{ lat: 35.7034, lng: 139.9589, name: '市川東病院', radius: 300 }] },
+      { pin: '6514', name: '伊藤美津子',  dept: '市川東病院',          locs: [{ lat: 35.7034, lng: 139.9589, name: '市川東病院', radius: 300 }] },
+      { pin: '2674', name: '桜庭京子',    dept: '海事・横河',          locs: [{ lat: 35.8885, lng: 140.6527, name: '海事・横河', radius: 300 }] },
+      { pin: '2519', name: '小倉孔子',    dept: 'ちば醤油',            locs: [{ lat: 35.8569, lng: 140.5562, name: 'ちば醤油', radius: 300 }] },
+      { pin: '7224', name: '齊藤良江',    dept: '神宮・亀甲堂・ゆう屋', locs: null },
+      { pin: '2584', name: '宮嵜博之',    dept: '香取神宮',            locs: [{ lat: 35.8862, lng: 140.5287, name: '香取神宮', radius: 300 }] },
+      { pin: '6881', name: '千葉規雄',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '6635', name: '武田則政',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '5333', name: '高瀬弥生子',  dept: 'ニッセーデリカ',      locs: null },
+      { pin: '1711', name: '菅原和夫',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '9785', name: '樽本裕美',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '3045', name: '望月辰雄',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '7201', name: '岸本敏男',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '2291', name: '高野由美',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '5803', name: '村田耕一',    dept: 'ニッセーデリカ',      locs: null },
+      { pin: '6925', name: '池田久史',    dept: '本社',               locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 300 }] },
+      { pin: '4150', name: '三浦達弥',    dept: '本社',               locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 300 }] },
+    ];
+
+    let pinBuffer = '';
+    let currentEmp = null;
+    let todayIn = null;
+    let todayOut = null;
+    let prevDayNoOut = false;
+    let applyType = '出勤';
+
+    function pinInput(n) {
+      if (pinBuffer.length >= 4) return;
+      pinBuffer += n;
+      updateDots();
+      if (pinBuffer.length === 4) setTimeout(checkPin, 150);
+    }
+
+    function pinDel() {
+      pinBuffer = pinBuffer.slice(0, -1);
+      updateDots();
+      document.getElementById('pin-error').textContent = '';
+    }
+
+    function updateDots() {
+      for (let i = 0; i < 4; i++) {
+        document.getElementById('d' + i).classList.toggle('filled', i < pinBuffer.length);
+      }
+    }
+
+    function checkPin() {
+      const emp = employees.find(e => e.pin === pinBuffer);
+      if (emp) {
+        currentEmp = emp;
+        document.getElementById('emp-name').textContent = emp.name + ' さん';
+        document.getElementById('emp-dept-badge').textContent = emp.dept;
+        todayIn = null; todayOut = null; prevDayNoOut = false;
+        document.getElementById('btn-in').disabled = false;
+        document.getElementById('btn-out').disabled = false;
+        updateStatus();
+        showScreen('screen-punch');
+
+        // ログイン時に打刻状況取得
+        const d = new Date();
+        const dateStr = d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+        fetch(GAS_URL, {
+          method: 'POST', mode: 'cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'getStatusPA', name: emp.name, date: dateStr }),
+        })
+        .then(r => r.json())
+        .then(res => {
+          if (res.status === 'ok') {
+            if (res.inTime) { todayIn = res.inTime; document.getElementById('btn-in').disabled = true; }
+            if (res.outTime) { todayOut = res.outTime; document.getElementById('btn-out').disabled = true; }
+            prevDayNoOut = res.prevDayNoOut || false;
+            updateStatus();
+          }
+        })
+        .catch(() => {});
+      } else {
+        document.getElementById('pin-error').textContent = 'PINコードが違います';
+        pinBuffer = '';
+        updateDots();
+      }
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function getTimeStr(type) {
+      const now = new Date();
+      let h = now.getHours();
+      let m = now.getMinutes();
+      if (type === '出勤') {
+        m = Math.ceil(m / 15) * 15;
+        if (m === 60) { m = 0; h += 1; }
+      } else {
+        m = Math.floor(m / 15) * 15;
+      }
+      return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+    }
+
+    function updateStatus() {
+      document.getElementById('st-in').textContent = todayIn || '未打刻';
+      document.getElementById('st-out').textContent = todayOut || '未打刻';
+    }
+
+    function calcDist(lat1, lng1, lat2, lng2) {
+      const R = 6371000;
+      const dLat = (lat2-lat1)*Math.PI/180;
+      const dLng = (lng2-lng1)*Math.PI/180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+
+    function punch(type) {
+      // 退勤：出勤未打刻チェック
+      if (type === '退勤' && !todayIn) {
+        if (!confirm('⚠️ 出勤が記録されていません。\n打刻忘れ申請画面に移動しますか？')) return;
+        showApply(); return;
+      }
+      // 出勤：前日退勤未打刻チェック
+      if (type === '出勤' && prevDayNoOut) {
+        alert('⚠️ 前日の退勤が記録されていません。\n打刻忘れ申請をしてください。');
+        showApply(); return;
+      }
+
+      const allowedLocs = currentEmp.locs;
+      if (allowedLocs === null) { doPunch(type, null); return; }
+
+      document.getElementById('btn-in').disabled = true;
+      document.getElementById('btn-out').disabled = true;
+
+      if (!navigator.geolocation) {
+        alert('位置情報に対応していません');
+        document.getElementById('btn-in').disabled = false;
+        document.getElementById('btn-out').disabled = false;
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          let nearest = null, minDist = Infinity;
+          for (const loc of allowedLocs) {
+            const dist = calcDist(lat, lng, loc.lat, loc.lng);
+            if (dist < minDist) { minDist = dist; nearest = loc; }
+            if (dist <= loc.radius) { doPunch(type, { lat, lng, place: loc.name }); return; }
+          }
+          document.getElementById('btn-in').disabled = false;
+          document.getElementById('btn-out').disabled = false;
+          alert('打刻できる場所にいません\n最寄り「' + nearest.name + '」まで約' + Math.round(minDist) + 'm');
+        },
+        () => {
+          document.getElementById('btn-in').disabled = false;
+          document.getElementById('btn-out').disabled = false;
+          alert('位置情報を取得できませんでした');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function doPunch(type, geoInfo) {
+      const t = getTimeStr(type);
+      if (type === '出勤') { todayIn = t; document.getElementById('btn-in').disabled = true; }
+      else { todayOut = t; document.getElementById('btn-out').disabled = true; }
+      updateStatus();
+      document.getElementById('done-title').textContent = type + 'を記録しました';
+      document.getElementById('done-time').textContent = '記録時刻: ' + t;
+      document.getElementById('done-icon').textContent = type === '出勤' ? '✅' : '🏁';
+      showScreen('screen-done');
+
+      const d = new Date();
+      const dateStr = d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+      fetch(GAS_URL, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'punchPA',
+          date: dateStr, name: currentEmp.name, dept: currentEmp.dept,
+          type: type, time: t,
+          lat: geoInfo ? geoInfo.lat : null,
+          lng: geoInfo ? geoInfo.lng : null,
+          place: geoInfo ? geoInfo.place : 'フリー',
+        }),
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'duplicate') {
+          // 上書き確認
+          if (confirm('⚠️ ' + res.message + '\n上書きしますか？')) {
+            const d2 = new Date();
+            const ds2 = d2.getFullYear() + '/' + String(d2.getMonth()+1).padStart(2,'0') + '/' + String(d2.getDate()).padStart(2,'0');
+            fetch(GAS_URL, {
+              method: 'POST', mode: 'cors',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({ action: 'punchPA', date: ds2, name: currentEmp.name, dept: currentEmp.dept, type: type, time: t, overwrite: true }),
+            }).catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+    }
+
+    function showPunch() { showScreen('screen-punch'); }
+
+    function showApply() {
+      const d = new Date();
+      const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+      document.getElementById('apply-date').value = y + '-' + m + '-' + day;
+      document.getElementById('apply-note').value = '';
+      const sel = document.getElementById('apply-time');
+      sel.innerHTML = '<option value="">-- 選択してください --</option>';
+      for (let h = 6; h <= 23; h++) {
+        for (let min = 0; min < 60; min += 15) {
+          const opt = document.createElement('option');
+          opt.value = String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
+          opt.textContent = opt.value;
+          sel.appendChild(opt);
+        }
+      }
+      selectApplyType('出勤');
+      showScreen('screen-apply');
+    }
+
+    function selectApplyType(type) {
+      applyType = type;
+      const inBtn = document.getElementById('apply-in-btn');
+      const outBtn = document.getElementById('apply-out-btn');
+      if (type === '出勤') {
+        inBtn.style.background='#E1F5EE'; inBtn.style.color='#0F6E56'; inBtn.style.fontWeight='600';
+        outBtn.style.background='#f9f9f7'; outBtn.style.color='#6b6b68'; outBtn.style.fontWeight='400';
+      } else {
+        outBtn.style.background='#FAECE7'; outBtn.style.color='#993C1D'; outBtn.style.fontWeight='600';
+        inBtn.style.background='#f9f9f7'; inBtn.style.color='#6b6b68'; inBtn.style.fontWeight='400';
+      }
+    }
+
+    function submitApply() {
+      const dateVal = document.getElementById('apply-date').value;
+      const timeVal = document.getElementById('apply-time').value;
+      const note = document.getElementById('apply-note').value;
+      if (!dateVal) { alert('申請日を選択してください'); return; }
+      if (!timeVal) { alert('希望時刻を選択してください'); return; }
+      if (!note.trim()) { alert('理由を入力してください'); return; }
+      const dateStr = dateVal.replace(/-/g, '/');
+      fetch(GAS_URL, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'apply', name: currentEmp.name, dept: currentEmp.dept, date: dateStr, type: applyType, time: timeVal, note: note }),
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'ok') { alert('✅ 申請を送信しました'); showPunch(); }
+        else { alert('エラー: ' + res.message); }
+      })
+      .catch(() => { alert('✅ 申請を送信しました'); showPunch(); });
+    }
+
+    function logout() {
+      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null; prevDayNoOut = false;
+      updateDots();
+      document.getElementById('pin-error').textContent = '';
+      showScreen('screen-pin');
+    }
+
+    function tick() {
+      const d = new Date();
+      document.getElementById('clock').textContent = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+      document.getElementById('datestr').textContent = d.getFullYear() + ' / ' + String(d.getMonth()+1).padStart(2,'0') + ' / ' + String(d.getDate()).padStart(2,'0') + '（' + wd + '）';
+    }
+    setInterval(tick, 1000); tick();
+  </script>
+</body>
+</html>
