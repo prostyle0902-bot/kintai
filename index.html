@@ -383,6 +383,7 @@
     let todayIn = null;
     let todayOut = null;
     let prevDayNoOut = false;
+    let crossDayDate = null;
 
     function pinInput(n) {
       if (pinBuffer.length >= 4) return;
@@ -439,8 +440,14 @@
               todayOut = res.outTime;
               document.getElementById('btn-out').disabled = true;
             }
-            // 前日退勤未打刻フラグ
+            // 前日退勤未打刻フラグ・日またぎフラグ
             prevDayNoOut = res.prevDayNoOut || false;
+            // 日またぎ：前日出勤あり・退勤なし・今日出勤なし → 退勤ボタンを有効化
+            if (res.crossDay && !res.inTime) {
+              crossDayDate = res.crossDayDate;
+              document.getElementById('btn-in').disabled = true;
+              document.getElementById('btn-out').disabled = false;
+            }
             updateStatus();
           }
         })
@@ -518,9 +525,11 @@
         document.getElementById('done-icon').textContent = type === '出勤' ? '✅' : '🏁';
         showScreen('screen-done');
         const d = new Date();
-        const dateStr = d.getFullYear() + '/' +
+        const todayStr = d.getFullYear() + '/' +
           String(d.getMonth()+1).padStart(2,'0') + '/' +
           String(d.getDate()).padStart(2,'0');
+        // 日またぎ退勤の場合は前日の日付で送信
+        const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : todayStr;
         fetch(GAS_URL, {
           method: 'POST',
           mode: 'cors',
@@ -687,7 +696,7 @@
     }
 
     function logout() {
-      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null; prevDayNoOut = false;
+      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null; prevDayNoOut = false; crossDayDate = null;
       updateDots();
       document.getElementById('pin-error').textContent = '';
       showScreen('screen-pin');
