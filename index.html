@@ -561,8 +561,8 @@
         .catch(err => console.error('送信エラー:', err));
       }
 
-      // ① 退勤ボタン：出勤未打刻チェック
-      if (type === '退勤' && !todayIn) {
+      // ① 退勤ボタン：出勤未打刻チェック（日またぎの場合はスキップ）
+      if (type === '退勤' && !todayIn && !crossDayDate) {
         if (!confirm('⚠️ 出勤が記録されていません。\nこのまま退勤申請しますか？\n（打刻忘れ申請画面に移動します）')) {
           return;
         }
