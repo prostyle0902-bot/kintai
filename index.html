@@ -169,7 +169,7 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwFtFMQftG-5Zi3cYomVqwiPIsPtjBO9Ls7LjYBLa8T23AO72qY3vEWNb-rUkhqcQcK/exec';
-    
+
     const employees = [
       { pin: '3847', name: '平野 健雄', dept: '業務課',     locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }] },
       { pin: '6192', name: '安藤 正樹', dept: '業務課',     locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }] },
@@ -185,13 +185,14 @@
       { pin: '2385', name: 'ナディシャ',  dept: '飲食事業部', locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
     ];
 
-    let pinBuffer = '';
-    let currentEmp = null;
-    let todayIn = null;
-    let todayOut = null;
+    let pinBuffer    = '';
+    let currentEmp   = null;
+    let todayIn      = null;
+    let todayOut     = null;
     let prevDayNoOut = false;
     let crossDayDate = null;
-    let applyType = '出勤';
+    let applyType    = '出勤';
+    let loginDateStr = ''; // ★ ログイン時の日付を固定保持
 
     function pinInput(n) {
       if (pinBuffer.length >= 4) return;
@@ -212,6 +213,10 @@
       }
     }
 
+    function getDateStr(d) {
+      return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+    }
+
     function checkPin() {
       const emp = employees.find(e => e.pin === pinBuffer);
       if (emp) {
@@ -226,23 +231,24 @@
         updateStatus();
         showScreen('screen-punch');
 
-        // ログイン時に打刻状況取得
-        const d = new Date();
-        const dateStr = d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+        // ★ ログイン時の日付を固定
+        const now = new Date();
+        loginDateStr = getDateStr(now);
+
         fetch(GAS_URL, {
           method: 'POST', mode: 'cors',
           headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: dateStr }),
+          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: loginDateStr }),
         })
         .then(r => r.json())
         .then(res => {
           if (res.status === 'ok') {
-            if (res.inTime) { todayIn = res.inTime; document.getElementById('btn-in').disabled = true; }
+            if (res.inTime)  { todayIn  = res.inTime;  document.getElementById('btn-in').disabled  = true; }
             if (res.outTime) { todayOut = res.outTime; document.getElementById('btn-out').disabled = true; }
             prevDayNoOut = res.prevDayNoOut || false;
             if (res.crossDay && !res.inTime) {
               crossDayDate = res.crossDayDate;
-              document.getElementById('btn-in').disabled = true;
+              document.getElementById('btn-in').disabled  = true;
               document.getElementById('btn-out').disabled = false;
             }
             updateStatus();
@@ -275,7 +281,7 @@
     }
 
     function updateStatus() {
-      document.getElementById('st-in').textContent = todayIn || '未打刻';
+      document.getElementById('st-in').textContent  = todayIn  || '未打刻';
       document.getElementById('st-out').textContent = todayOut || '未打刻';
     }
 
@@ -288,12 +294,10 @@
     }
 
     function punch(type) {
-      // 退勤：出勤未打刻チェック（日またぎの場合はスキップ）
       if (type === '退勤' && !todayIn && !crossDayDate) {
         if (!confirm('⚠️ 出勤が記録されていません。\n打刻忘れ申請画面に移動しますか？')) return;
         showApply(); return;
       }
-      // 出勤：前日退勤未打刻チェック
       if (type === '出勤' && prevDayNoOut) {
         alert('⚠️ 前日の退勤が記録されていません。\n打刻忘れ申請をしてください。');
         showApply(); return;
@@ -302,12 +306,12 @@
       const allowedLocs = currentEmp.locs;
       if (allowedLocs === null) { doPunch(type, null); return; }
 
-      document.getElementById('btn-in').disabled = true;
+      document.getElementById('btn-in').disabled  = true;
       document.getElementById('btn-out').disabled = true;
 
       if (!navigator.geolocation) {
         alert('位置情報に対応していません');
-        document.getElementById('btn-in').disabled = false;
+        document.getElementById('btn-in').disabled  = false;
         document.getElementById('btn-out').disabled = false;
         return;
       }
@@ -322,12 +326,12 @@
             if (dist < minDist) { minDist = dist; nearest = loc; }
             if (dist <= loc.radius) { doPunch(type, { lat, lng, place: loc.name }); return; }
           }
-          document.getElementById('btn-in').disabled = false;
+          document.getElementById('btn-in').disabled  = false;
           document.getElementById('btn-out').disabled = false;
           alert('打刻できる場所にいません\n最寄り「' + nearest.name + '」まで約' + Math.round(minDist) + 'm');
         },
         () => {
-          document.getElementById('btn-in').disabled = false;
+          document.getElementById('btn-in').disabled  = false;
           document.getElementById('btn-out').disabled = false;
           alert('位置情報を取得できませんでした');
         },
@@ -337,28 +341,31 @@
 
     function doPunch(type, geoInfo) {
       const t = getTimeStr(type);
-      if (type === '出勤') { todayIn = t; document.getElementById('btn-in').disabled = true; }
-      else { todayOut = t; document.getElementById('btn-out').disabled = true; }
+      if (type === '出勤') { todayIn  = t; document.getElementById('btn-in').disabled  = true; }
+      else                 { todayOut = t; document.getElementById('btn-out').disabled = true; }
       updateStatus();
       document.getElementById('done-title').textContent = type + 'を記録しました';
-      document.getElementById('done-time').textContent = '記録時刻: ' + t;
-      document.getElementById('done-icon').textContent = type === '出勤' ? '✅' : '🏁';
+      document.getElementById('done-time').textContent  = '記録時刻: ' + t;
+      document.getElementById('done-icon').textContent  = type === '出勤' ? '✅' : '🏁';
       showScreen('screen-done');
 
-      const d = new Date();
-      const todayStr = d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
-      const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : todayStr;
+      // ★ 日付は loginDateStr を使う（日またぎでも正しい日付で送る）
+      // ★ 退勤で crossDayDate がある場合はそちらを優先
+      const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : loginDateStr;
 
       fetch(GAS_URL, {
         method: 'POST', mode: 'cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          date: dateStr, name: currentEmp.name, dept: currentEmp.dept,
-          type: type, time: t,
+          date: dateStr,
+          name: currentEmp.name,
+          dept: currentEmp.dept,
+          type: type,
+          time: t,
           crossDay: (type === '退勤' && crossDayDate) ? true : false,
           crossDayDate: crossDayDate,
-          lat: geoInfo ? geoInfo.lat : null,
-          lng: geoInfo ? geoInfo.lng : null,
+          lat:   geoInfo ? geoInfo.lat   : null,
+          lng:   geoInfo ? geoInfo.lng   : null,
           place: geoInfo ? geoInfo.place : 'フリー',
         }),
       })
@@ -366,8 +373,8 @@
       .then(res => {
         if (res.status === 'duplicate') {
           showPunch();
-          if (type === '出勤') { todayIn = null; document.getElementById('btn-in').disabled = false; }
-          else { todayOut = null; document.getElementById('btn-out').disabled = false; }
+          if (type === '出勤') { todayIn  = null; document.getElementById('btn-in').disabled  = false; }
+          else                 { todayOut = null; document.getElementById('btn-out').disabled = false; }
           updateStatus();
           alert('⚠️ ' + res.message);
         }
@@ -398,24 +405,24 @@
 
     function selectApplyType(type) {
       applyType = type;
-      const inBtn = document.getElementById('apply-in-btn');
+      const inBtn  = document.getElementById('apply-in-btn');
       const outBtn = document.getElementById('apply-out-btn');
       if (type === '出勤') {
-        inBtn.style.background='#E1F5EE'; inBtn.style.color='#0F6E56'; inBtn.style.fontWeight='600';
+        inBtn.style.background='#E1F5EE';  inBtn.style.color='#0F6E56';  inBtn.style.fontWeight='600';
         outBtn.style.background='#f9f9f7'; outBtn.style.color='#6b6b68'; outBtn.style.fontWeight='400';
       } else {
         outBtn.style.background='#FAECE7'; outBtn.style.color='#993C1D'; outBtn.style.fontWeight='600';
-        inBtn.style.background='#f9f9f7'; inBtn.style.color='#6b6b68'; inBtn.style.fontWeight='400';
+        inBtn.style.background='#f9f9f7';  inBtn.style.color='#6b6b68';  inBtn.style.fontWeight='400';
       }
     }
 
     function submitApply() {
       const dateVal = document.getElementById('apply-date').value;
       const timeVal = document.getElementById('apply-time').value;
-      const note = document.getElementById('apply-note').value;
-      if (!dateVal) { alert('申請日を選択してください'); return; }
-      if (!timeVal) { alert('希望時刻を選択してください'); return; }
-      if (!note.trim()) { alert('理由を入力してください'); return; }
+      const note    = document.getElementById('apply-note').value;
+      if (!dateVal)     { alert('申請日を選択してください');   return; }
+      if (!timeVal)     { alert('希望時刻を選択してください'); return; }
+      if (!note.trim()) { alert('理由を入力してください');     return; }
       const dateStr = dateVal.replace(/-/g, '/');
       fetch(GAS_URL, {
         method: 'POST', mode: 'cors',
@@ -431,7 +438,8 @@
     }
 
     function logout() {
-      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null; prevDayNoOut = false; crossDayDate = null;
+      currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null;
+      prevDayNoOut = false; crossDayDate = null; loginDateStr = '';
       updateDots();
       document.getElementById('pin-error').textContent = '';
       showScreen('screen-pin');
