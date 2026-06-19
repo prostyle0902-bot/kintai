@@ -192,7 +192,38 @@
     let prevDayNoOut = false;
     let crossDayDate = null;
     let applyType    = '出勤';
-    let loginDateStr = ''; // ★ ログイン時の日付を固定保持
+    let businessDateStr = ''; // 業務日付（5時基準）
+
+    // ★ 業務時間の概念：0:00〜4:59は前日扱い
+    function getBusinessDate() {
+      const now = new Date();
+      const h = now.getHours();
+      if (h < 5) {
+        const prev = new Date(now);
+        prev.setDate(prev.getDate() - 1);
+        return prev;
+      }
+      return now;
+    }
+
+    function getDateStr(d) {
+      return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+    }
+
+    // ★ 業務時刻文字列（0:00〜4:59は24:00〜28:59として返す）
+    function getBusinessTimeStr(type) {
+      const now = new Date();
+      let h = now.getHours();
+      let m = now.getMinutes();
+      if (h < 5) h += 24; // 0時台→24時台、1時台→25時台、など
+      if (type === '出勤') {
+        m = Math.ceil(m / 15) * 15;
+        if (m === 60) { m = 0; h += 1; }
+      } else {
+        m = Math.floor(m / 15) * 15;
+      }
+      return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+    }
 
     function pinInput(n) {
       if (pinBuffer.length >= 4) return;
@@ -213,10 +244,6 @@
       }
     }
 
-    function getDateStr(d) {
-      return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
-    }
-
     function checkPin() {
       const emp = employees.find(e => e.pin === pinBuffer);
       if (emp) {
@@ -231,14 +258,13 @@
         updateStatus();
         showScreen('screen-punch');
 
-        // ★ ログイン時の日付を固定
-        const now = new Date();
-        loginDateStr = getDateStr(now);
+        // ★ 業務日付を取得（0〜4時なら前日）
+        businessDateStr = getDateStr(getBusinessDate());
 
         fetch(GAS_URL, {
           method: 'POST', mode: 'cors',
           headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: loginDateStr }),
+          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: businessDateStr }),
         })
         .then(r => r.json())
         .then(res => {
@@ -265,19 +291,6 @@
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
-    }
-
-    function getTimeStr(type) {
-      const now = new Date();
-      let h = now.getHours();
-      let m = now.getMinutes();
-      if (type === '出勤') {
-        m = Math.ceil(m / 15) * 15;
-        if (m === 60) { m = 0; h += 1; }
-      } else {
-        m = Math.floor(m / 15) * 15;
-      }
-      return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
     }
 
     function updateStatus() {
@@ -340,18 +353,27 @@
     }
 
     function doPunch(type, geoInfo) {
-      const t = getTimeStr(type);
-      if (type === '出勤') { todayIn  = t; document.getElementById('btn-in').disabled  = true; }
-      else                 { todayOut = t; document.getElementById('btn-out').disabled = true; }
+      // ★ 業務時刻を使う（0〜4時は24〜28時台）
+      const t = getBusinessTimeStr(type);
+
+      if (type === '出勤') {
+        todayIn = t;
+        document.getElementById('btn-in').disabled = true;
+        // ★ 出勤打刻時の業務日付を固定
+        businessDateStr = getDateStr(getBusinessDate());
+      } else {
+        todayOut = t;
+        document.getElementById('btn-out').disabled = true;
+      }
+
       updateStatus();
       document.getElementById('done-title').textContent = type + 'を記録しました';
       document.getElementById('done-time').textContent  = '記録時刻: ' + t;
       document.getElementById('done-icon').textContent  = type === '出勤' ? '✅' : '🏁';
       showScreen('screen-done');
 
-      // ★ 日付は loginDateStr を使う（日またぎでも正しい日付で送る）
-      // ★ 退勤で crossDayDate がある場合はそちらを優先
-      const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : loginDateStr;
+      // ★ 日付は businessDateStr（出勤した業務日付）を使う
+      const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : businessDateStr;
 
       fetch(GAS_URL, {
         method: 'POST', mode: 'cors',
@@ -385,13 +407,13 @@
     function showPunch() { showScreen('screen-punch'); }
 
     function showApply() {
-      const d = new Date();
+      const d = getBusinessDate();
       const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
       document.getElementById('apply-date').value = y + '-' + m + '-' + day;
       document.getElementById('apply-note').value = '';
       const sel = document.getElementById('apply-time');
       sel.innerHTML = '<option value="">-- 選択してください --</option>';
-      for (let h = 6; h <= 23; h++) {
+      for (let h = 5; h <= 26; h++) {
         for (let min = 0; min < 60; min += 15) {
           const opt = document.createElement('option');
           opt.value = String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
@@ -439,17 +461,19 @@
 
     function logout() {
       currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null;
-      prevDayNoOut = false; crossDayDate = null; loginDateStr = '';
+      prevDayNoOut = false; crossDayDate = null; businessDateStr = '';
       updateDots();
       document.getElementById('pin-error').textContent = '';
       showScreen('screen-pin');
     }
 
     function tick() {
-      const d = new Date();
-      document.getElementById('clock').textContent = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const wd = ['日','月','火','水','木','金','土'][d.getDay()];
-      document.getElementById('datestr').textContent = d.getFullYear() + ' / ' + String(d.getMonth()+1).padStart(2,'0') + ' / ' + String(d.getDate()).padStart(2,'0') + '（' + wd + '）';
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      // ★ 表示日付も業務日付（0〜4時は前日）
+      const bd = getBusinessDate();
+      const wd = ['日','月','火','水','木','金','土'][bd.getDay()];
+      document.getElementById('datestr').textContent = bd.getFullYear() + ' / ' + String(bd.getMonth()+1).padStart(2,'0') + ' / ' + String(bd.getDate()).padStart(2,'0') + '（' + wd + '）';
     }
     setInterval(tick, 1000); tick();
   </script>
