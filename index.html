@@ -70,6 +70,7 @@
     .result-icon { font-size: 52px; margin-bottom: 1rem; }
     .result-title { font-size: 20px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
     .result-sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 2rem; }
+    .result-card.error .result-title { color: var(--text-danger); }
     .back-btn { padding: 11px 28px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md); background: transparent; color: var(--text-primary); font-size: 14px; cursor: pointer; }
   </style>
 </head>
@@ -135,7 +136,7 @@
 
     <!-- 打刻完了画面 -->
     <div class="screen" id="screen-done">
-      <div class="result-card">
+      <div class="result-card" id="result-card">
         <div class="result-icon" id="done-icon">✅</div>
         <div class="result-title" id="done-title"></div>
         <div class="result-sub" id="done-time"></div>
@@ -175,7 +176,7 @@
       { pin: '6192', name: '安藤 正樹', dept: '業務課',     locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }] },
       { pin: '2571', name: '伏田 幸枝', dept: '業務課',     locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }] },
       { pin: '9034', name: '小林 俊樹', dept: '業務課',     locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }] },
-      { pin: '4718', name: '石毛 貴英', dept: '業務課', locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }, { lat: 35.990552, lng: 140.638966, name: 'ビアガーデン', radius: 300 }] },
+      { pin: '4718', name: '石毛 貴英', dept: '業務課',     locs: [{ lat: 35.8580, lng: 140.5625, name: '本社', radius: 500 }, { lat: 35.990552, lng: 140.638966, name: 'ビアガーデン', radius: 300 }] },
       { pin: '7263', name: '石毛 拓海', dept: '飲食事業部', locs: null },
       { pin: '5409', name: '花見 朗子', dept: 'バックオフィス', locs: null },
       { pin: '1836', name: '土屋 芳広', dept: '飲食事業部', locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
@@ -307,9 +308,11 @@
     }
 
     function punch(type) {
+      // ★ 出勤が無くても、確認のうえ退勤だけは記録できるようにする
       if (type === '退勤' && !todayIn && !crossDayDate) {
-        if (!confirm('⚠️ 出勤が記録されていません。\n打刻忘れ申請画面に移動しますか？')) return;
-        showApply(); return;
+        if (!confirm('⚠️ 出勤が記録されていません。\n退勤だけ記録しますか？\n\n「キャンセル」を押すと打刻忘れ申請へ進みます。')) {
+          showApply(); return;
+        }
       }
       if (type === '出勤' && prevDayNoOut) {
         alert('⚠️ 前日の退勤が記録されていません。\n打刻忘れ申請をしてください。');
@@ -352,28 +355,19 @@
       );
     }
 
+    // ★ 送信結果を確認してから「記録しました」を出す
     function doPunch(type, geoInfo) {
-      // ★ 業務時刻を使う（0〜4時は24〜28時台）
       const t = getBusinessTimeStr(type);
+      const punchDate = getDateStr(getBusinessDate());
+      const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : punchDate;
 
-      if (type === '出勤') {
-        todayIn = t;
-        document.getElementById('btn-in').disabled = true;
-        // ★ 出勤打刻時の業務日付を固定
-        businessDateStr = getDateStr(getBusinessDate());
-      } else {
-        todayOut = t;
-        document.getElementById('btn-out').disabled = true;
-      }
-
-      updateStatus();
-      document.getElementById('done-title').textContent = type + 'を記録しました';
+      document.getElementById('btn-in').disabled  = true;
+      document.getElementById('btn-out').disabled = true;
+      document.getElementById('result-card').classList.remove('error');
+      document.getElementById('done-icon').textContent  = '⏳';
+      document.getElementById('done-title').textContent = '送信中...';
       document.getElementById('done-time').textContent  = '記録時刻: ' + t;
-      document.getElementById('done-icon').textContent  = type === '出勤' ? '✅' : '🏁';
       showScreen('screen-done');
-
-      // ★ 日付は businessDateStr（出勤した業務日付）を使う
-      const dateStr = (type === '退勤' && crossDayDate) ? crossDayDate : businessDateStr;
 
       fetch(GAS_URL, {
         method: 'POST', mode: 'cors',
@@ -393,18 +387,41 @@
       })
       .then(r => r.json())
       .then(res => {
-        if (res.status === 'duplicate') {
-          showPunch();
-          if (type === '出勤') { todayIn  = null; document.getElementById('btn-in').disabled  = false; }
-          else                 { todayOut = null; document.getElementById('btn-out').disabled = false; }
+        if (res.status === 'ok') {
+          // サーバーが保存を確認してから記録扱いにする
+          if (type === '出勤') { todayIn  = t; businessDateStr = punchDate; }
+          else                 { todayOut = t; }
           updateStatus();
+          document.getElementById('done-icon').textContent  = type === '出勤' ? '✅' : '🏁';
+          document.getElementById('done-title').textContent = type + 'を記録しました';
+        } else if (res.status === 'duplicate') {
+          showPunch();
+          document.getElementById('btn-in').disabled  = !!todayIn;
+          document.getElementById('btn-out').disabled = !!todayOut;
           alert('⚠️ ' + res.message);
+        } else {
+          punchFailed(type, res.message || '不明なエラー');
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        punchFailed(type, '通信に失敗しました');
+      });
     }
 
-    function showPunch() { showScreen('screen-punch'); }
+    // ★ 失敗時：はっきり伝えて、もう一度押せる状態に戻す
+    function punchFailed(type, msg) {
+      document.getElementById('result-card').classList.add('error');
+      document.getElementById('done-icon').textContent  = '⚠️';
+      document.getElementById('done-title').textContent = type + 'を記録できませんでした';
+      document.getElementById('done-time').textContent  = msg + '｜電波を確認して、戻るボタンからもう一度押してください';
+      document.getElementById('btn-in').disabled  = !!todayIn;
+      document.getElementById('btn-out').disabled = !!todayOut;
+    }
+
+    function showPunch() {
+      document.getElementById('result-card').classList.remove('error');
+      showScreen('screen-punch');
+    }
 
     function showApply() {
       const d = getBusinessDate();
@@ -456,7 +473,7 @@
         if (res.status === 'ok') { alert('✅ 申請を送信しました'); showPunch(); }
         else { alert('エラー: ' + res.message); }
       })
-      .catch(() => { alert('✅ 申請を送信しました'); showPunch(); });
+      .catch(() => { alert('⚠️ 申請を送信できませんでした。電波を確認してもう一度お試しください。'); });
     }
 
     function logout() {
