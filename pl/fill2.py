@@ -3,9 +3,9 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, payroll
+import build2, sales, inv6, inv7, payroll
 
-STAMP = "2026-08-18 07:20"
+STAMP = "2026-08-20 03:10"
 
 # 店舗ごとに行名が違うものの読み替え（既存スプシに合わせる）
 REMAP = {("韓国酒場ハナ", "仕入（やまなか）"): "仕入（山中ストアー）"}
@@ -98,6 +98,8 @@ INV = [
  ("本部","帝国データバンク","帝国データバンク",3000,300,"業務/帝国データバンク.pdf",
   "COSMOSNET 2026.07利用分／新規項目"),
 ]
+
+INV += inv7.INV7_ADD   # 2026-08-20 追加投入分（本部フォルダ8件を含む28ファイル）
 
 INV_HOLD = []   # 2026-08-18 利用者指示により全件解決（行名＝取引先名）
 
@@ -209,7 +211,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, vendor, src, reason in INV_HOLD:
         hs.append(["請求書", "", tab, vendor, "", f"{src} — {reason}"])
     if hs.max_row == 2:
-        hs.cell(3, 1, "保留はありません（2026-08-18 時点／カード明細6月・7月＋請求書2606月・2607月＋給与4〜7月）"
+        hs.cell(3, 1, "保留はありません（2026-08-20 時点／カード明細6月・7月＋請求書2606月・2607月＋給与4〜7月）"
                 ).font = Font(bold=True, color="008000")
     for col, w in zip("ABCDEF", [12,12,16,26,12,95]):
         hs.column_dimensions[col].width = w
