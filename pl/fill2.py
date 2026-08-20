@@ -3,7 +3,7 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, honbu_fixed, shokaihi
+import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 
 STAMP = "2026-08-20 06:40"
 
@@ -211,18 +211,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_YOKO; c.number_format = build2.NUMFMT
     print("横丁社内請求セル", len(yoko_rows))
 
-    # ===== 本部の毎月定額（自動引落・請求書なし）=====
-    # ★請求書・カード明細より後に置くこと。check() が「空であること」を見て
-    #   二重計上を止めるので、先に置くと素通りする。
-    honbu_fixed.check(wb)
+    # ===== 毎月定額の自動引落・自動振込（請求書なし・全タブ）=====
+    # ★請求書・カード明細・横丁の社内請求より後に置くこと。check() が
+    #   「空であること」を見て二重計上を止めるので、先に置くと素通りする。
+    fix_same = fixed_costs.check(wb)     # 重なったセルの金額一致を確認
     F_FIX = PatternFill("solid", fgColor="FFF2F2")
-    fix_rows = list(honbu_fixed.rows())
+    fix_rows = list(fixed_costs.rows(wb))
     for tab, plrow, m, val, src, note in fix_rows:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "本部定額")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_FIX; c.number_format = build2.NUMFMT
-    print("本部定額セル", len(fix_rows), "／計", f"{sum(x[3] for x in fix_rows):,}")
+    print("定額セル", len(fix_rows), "／計", f"{sum(x[3] for x in fix_rows):,}",
+          "／請求書と重なって飛ばしたセル", len(fix_same), "（金額は全部一致）")
 
     # ===== 本部の諸会費（会費類の受け皿。2026-08-20 新設）=====
     shokaihi.check()
