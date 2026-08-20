@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board
 
-STAMP = "2026-08-20 05:30"
+STAMP = "2026-08-20 05:20"
 
 # 店舗ごとに行名が違うものの読み替え（既存スプシに合わせる）
 REMAP = {("韓国酒場ハナ", "仕入（やまなか）"): "仕入（山中ストアー）"}
@@ -125,20 +125,20 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "カード")); continue
         c = wb[tab][f"{build2.MCOL[month]}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + int(val); c.fill = F_POST; c.number_format = "#,##0"
+        c.value = int(c.value or 0) + int(val); c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
     for tab, vendor, plrow, ex, tax, src, biko in INV:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "請求書")); continue
         c = wb[tab][f"{build2.MCOL['7月']}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = "#,##0"
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
     # 2606月 → 6月列（仕様どおり）
     for tab, vendor, plrow, ex, tax, src, biko in inv6.INV6:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "請求書6月")); continue
         c = wb[tab][f"{build2.MCOL['6月']}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = "#,##0"
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
 
     # ===== JCB / 三井住友カード（支払日ベース） =====
@@ -153,7 +153,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "カード(JCB/三井住友)")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + val; c.fill = F_CARD; c.number_format = "#,##0"
+        c.value = int(c.value or 0) + val; c.fill = F_CARD; c.number_format = build2.NUMFMT
         card_cells += 1
     print("JCB/三井住友セル", card_cells, "／保留", len(card_hold))
 
@@ -162,7 +162,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     board_rows = list(board.rows())
     for tab, plrow, m, ex, tax, n, src, detail in board_rows:
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + ex; c.fill = F_BOARD; c.number_format = "#,##0"
+        c.value = int(c.value or 0) + ex; c.fill = F_BOARD; c.number_format = build2.NUMFMT
     print("boardセル", len(board_rows))
     # boardが正になる (タブ, 行, 月) — 既存スプシの売上転記から除外する
     board_owned = set(board.SUPPRESS) | {(t, r, m) for t, r, m, *_ in board_rows}
@@ -174,7 +174,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "給与")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + val; c.fill = F_PAY; c.number_format = "#,##0"
+        c.value = int(c.value or 0) + val; c.fill = F_PAY; c.number_format = build2.NUMFMT
         pay_cells += 1
     print("人件費セル", pay_cells)
 
@@ -190,7 +190,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                 if (tab, rowname, m) in board_owned:
                     continue          # boardを正とするので既存スプシ値は使わない
                 c = wb[tab][f"{build2.MCOL[m]}{r}"]
-                c.value = int(vals[i]); c.fill = F_SALES; c.number_format = "#,##0"
+                c.value = int(vals[i]); c.fill = F_SALES; c.number_format = build2.NUMFMT
                 sales_cells += 1
     print("売上セル", sales_cells)
 

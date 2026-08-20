@@ -15,6 +15,10 @@ MCOL = {m: get_column_letter(3 + i) for i, m in enumerate(MONTHS)}
 
 SEC, IN, FM = "SEC", "IN", "FM"
 
+# 表示書式。マイナスは赤字（利用者指示 2026-08-20）
+NUMFMT = "#,##0;[Red]-#,##0"
+PCTFMT = "0.0%;[Red]-0.0%"
+
 # 期の表記。new_wb(period=...) で切り替える
 PERIODS = {"21期": "21期（2025.9〜2026.8）", "22期": "22期（2026.9〜2027.8）"}
 PERIOD = "21期"
@@ -185,10 +189,10 @@ def build_pl_tab(ws, tab):
         b = ws.cell(r, 2)
         b.value = f'=IFERROR(AVERAGE(C{r}:N{r}),"")' if ratio else f"=SUM(C{r}:N{r})"
         b.fill = F_YR; b.font = Font(bold=True); b.border = BORD
-        b.number_format = "0.0%" if ratio else "#,##0"
+        b.number_format = PCTFMT if ratio else NUMFMT
         for m in MONTHS:
             col = MCOL[m]; cc = ws[f"{col}{r}"]
-            cc.border = BORD; cc.number_format = "0.0%" if ratio else "#,##0"
+            cc.border = BORD; cc.number_format = PCTFMT if ratio else NUMFMT
             if kind == FM:
                 cc.value = render(tpl, col, ridx); cc.fill = F_FM; cc.font = Font(bold=True)
             else:
@@ -219,17 +223,17 @@ def build_summary(ws):
             ws.cell(r, 1, tab).border = BORD
             src = RIDX[tab][key]
             cc = ws.cell(r, 2, f"='{tab}'!B{src}")
-            cc.number_format = "0.0%" if "比率" in key else "#,##0"; cc.border = BORD
+            cc.number_format = PCTFMT if "比率" in key else NUMFMT; cc.border = BORD
             for j, m in enumerate(MONTHS, start=3):
                 c2 = ws.cell(r, j, f"='{tab}'!{MCOL[m]}{src}")
-                c2.number_format = "0.0%" if "比率" in key else "#,##0"; c2.border = BORD
+                c2.number_format = PCTFMT if "比率" in key else NUMFMT; c2.border = BORD
             r += 1
         if "比率" not in key:
             ws.cell(r, 1, "合計").font = Font(bold=True)
             for j in range(2, 15):
                 cc = ws.cell(r, j, f"=SUM({get_column_letter(j)}{first}:{get_column_letter(j)}{r-1})")
                 cc.font = Font(bold=True); cc.fill = F_YR
-                cc.number_format = "#,##0"; cc.border = BORD
+                cc.number_format = NUMFMT; cc.border = BORD
             r += 1
         r += 1
     ws.column_dimensions["A"].width = 20
