@@ -15,6 +15,10 @@ MCOL = {m: get_column_letter(3 + i) for i, m in enumerate(MONTHS)}
 
 SEC, IN, FM = "SEC", "IN", "FM"
 
+# 期の表記。new_wb(period=...) で切り替える
+PERIODS = {"21期": "21期（2025.9〜2026.8）", "22期": "22期（2026.9〜2027.8）"}
+PERIOD = "21期"
+
 # ---- 共通レイアウト（仕様【1】） ----
 COMMON_COGS = ["仕入（鹿島食品8%）","仕入（鹿島食品10%）","仕入（藤原ストア）","仕入（平洋酒店）",
                "仕入（六角堂）","仕入（freeeカード）","仕入（現金・米）","仕入（ネット食材）",
@@ -161,7 +165,7 @@ def render(tpl, col, ridx):
 def build_pl_tab(ws, tab):
     L, ridx = LAYOUTS[tab], RIDX[tab]
     extra = set() if tab in NO_COMMON else set(EXTRA_COGS[tab]) | set(EXTRA_SGA[tab])
-    ws.cell(1, 1, f"{tab}　損益計算書　21期（2025.9〜2026.8）／単位：円・税抜（円未満切り捨て）"
+    ws.cell(1, 1, f"{tab}　損益計算書　{PERIODS[PERIOD]}／単位：円・税抜（円未満切り捨て）"
             ).font = Font(bold=True, size=13)
     for j, h in enumerate(["勘定科目", "年計"] + MONTHS, start=1):
         c = ws.cell(2, j, h); c.font = Font(bold=True, color="FFFFFF")
@@ -196,7 +200,7 @@ def build_pl_tab(ws, tab):
 
 
 def build_summary(ws):
-    ws.cell(1, 1, "全体サマリー　21期（2025.9〜2026.8）／単位：円・税抜").font = Font(bold=True, size=14)
+    ws.cell(1, 1, f"全体サマリー　{PERIODS[PERIOD]}／単位：円・税抜").font = Font(bold=True, size=14)
     ws.cell(2, 1, "各店舗タブを参照しています（手入力しないでください）").font = Font(italic=True, color="808080")
     keys = ["売上合計(1)","売上原価(a)","売上総利益(3)","販管費合計(4)","営業利益(5)",
             "Food比率（目標25%）","Labor比率（目標35%）"]
@@ -233,7 +237,9 @@ def build_summary(ws):
         ws.column_dimensions[get_column_letter(j)].width = 12
 
 
-def new_wb():
+def new_wb(period="21期"):
+    global PERIOD
+    PERIOD = period
     wb = Workbook(); wb.remove(wb.active)
     build_summary(wb.create_sheet("全体サマリー"))
     for t in TABS:
