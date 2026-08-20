@@ -90,6 +90,28 @@ IDが変わり push.py が動かなくなるので、変換しないこと）:
 
 ---
 
+## 毎月の運用（毎月10日）
+
+利用者が毎月10日にDropboxへファイルを入れる。その日の朝9時（JST）に
+リマインドのRoutineが飛ぶ。
+
+    Routine: 損益計算書 月次転記リマインド（毎月10日）
+    trigger_id: trig_01UaK3bXCZ98XsQkUiokZhG9
+    cron: 0 0 10 * *（UTC。= 毎月10日 09:00 JST）
+    通知: プッシュ＋メール
+
+★このRoutineは「思い出させる」だけ。取り込みはしない。
+  Routineが起動するセッションにはコネクタ（Dropbox・Googleドライブ）が付かないため。
+  この環境の組織設定では create_trigger に connectors を渡せない
+  （"the connectors parameter is not available for this organization"）。
+  自動で取り込みまでやらせたいなら、claude.ai の Routines 画面から
+  コネクタ付きで作り直すこと。
+
+取り込みは、ファイルを入れ終わったあとに Claude Code のセッションで
+「月次やって」と言う。手順は下の「使い方」のとおり。
+
+---
+
 ## データの入り口
 
 | データ | 場所 | 揃う時期 |
