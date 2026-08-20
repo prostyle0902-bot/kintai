@@ -3,7 +3,7 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho
+import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, honbu_fixed
 
 STAMP = "2026-08-20 06:40"
 
@@ -216,6 +216,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_YOKO; c.number_format = build2.NUMFMT
     print("横丁社内請求セル", len(yoko_rows))
+
+    # ===== 本部の毎月定額（自動引落・請求書なし）=====
+    # ★請求書・カード明細より後に置くこと。check() が「空であること」を見て
+    #   二重計上を止めるので、先に置くと素通りする。
+    honbu_fixed.check(wb)
+    F_FIX = PatternFill("solid", fgColor="FFF2F2")
+    fix_rows = list(honbu_fixed.rows())
+    for tab, plrow, m, val, src, note in fix_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "本部定額")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_FIX; c.number_format = build2.NUMFMT
+    print("本部定額セル", len(fix_rows), "／計", f"{sum(x[3] for x in fix_rows):,}")
     # かめやが正になる (タブ, 行, 月)。既存スプシからの売上転記より優先する。
     # ★これが無いと、あとの売上ループが同じセルを上書きして順番依存になる。
     #   金額は一致しているので結果は同じだが、明示しておく。
@@ -297,6 +310,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src in yoko_rows:
         ws.append(["2026-07-31", tab, "神栖横丁", "社内請求", "", 10, val, "", plrow, m, src,
                    STAMP, "神栖横丁が入居店舗へ出す合計請求書。神栖横丁側の売上は保留"])
+    for tab, plrow, m, val, src, note in fix_rows:
+        ws.append(["", tab, plrow, "自動引落（定額）", "", "", val, "", plrow, m, src, STAMP,
+                   note or "既存スプシで11か月とも同額。請求書は来ない"])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
