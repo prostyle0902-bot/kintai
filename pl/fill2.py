@@ -3,9 +3,9 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll, cards, board
+import build2, sales, inv6, inv7, payroll, cards, board, demaekan
 
-STAMP = "2026-08-20 05:20"
+STAMP = "2026-08-20 06:40"
 
 # 店舗ごとに行名が違うものの読み替え（既存スプシに合わせる）
 REMAP = {("韓国酒場ハナ", "仕入（やまなか）"): "仕入（山中ストアー）"}
@@ -167,6 +167,17 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     # boardが正になる (タブ, 行, 月) — 既存スプシの売上転記から除外する
     board_owned = set(board.SUPPRESS) | {(t, r, m) for t, r, m, *_ in board_rows}
 
+    # ===== 出前館の手数料（21期は手数料のみ／利用者判断 B-2） =====
+    demaekan.check(sales)          # ①が既存PLと一致することを確認
+    F_DEMAE = PatternFill("solid", fgColor="E2EFDA")
+    demae_rows = list(demaekan.fee_rows())
+    for tab, plrow, m, val, src, _ in demae_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "出前館")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
+    print("出前館セル", len(demae_rows), "／計", f"{sum(x[3] for x in demae_rows):,}")
+
     # ===== 人件費・法定福利費（給与データ 4月〜7月） =====
     F_PAY = PatternFill("solid", fgColor="E2D9F2")
     pay_cells = 0
@@ -228,6 +239,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         for d, cust, v in detail:
             ws.append([d, tab, cust, "board請求", "", 10, v, "", plrow, m, src, STAMP,
                        f"boardの請求一覧CSVより（グループ列で部門判定）。この行を含む{n}件を合計{ex:,}円として転記"])
+    for tab, plrow, m, val, src, (fee, fee_tax) in demae_rows:
+        ws.append(["", tab, "出前館", "支払通知書", fee, 10, val, fee_tax, plrow, m, src, STAMP,
+                   "出前館利用料⑥の税抜（サービス利用料10%＋配達代行25%＋振込手数料＋決済手数料）。"
+                   "21期は手数料のみ計上（利用者判断 B-2 2026-08-20）"])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -245,6 +260,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.fill = PatternFill("solid", fgColor="C00000"); c.border = BORD
     for _, x in hold.iterrows():
         hs.append(["カード明細", x["利用日"], x["店舗"], x["取引先"], int(x["税込"]), x["理由"]])
+    for m, back, src in demaekan.hold_rows():
+        hs.append(["出前館", m, "焼きたて屋", "お戻し金額（商品代金補填・不課税）", back,
+                   f"{src} — 費用のマイナスか雑収入か判断できないため未計上。"
+                   f"21期合計20,890円／7か月。PLの『支払手数料（出前館返金）』行が対応か"])
     for iss, merch, ex, used in card_hold:
         hs.append([f"{iss}カード", used, "本部", merch, ex, "取引先マスタ（cards.py）に未登録。行名を要指示"])
     for tab, vendor, src, reason in INV_HOLD:
