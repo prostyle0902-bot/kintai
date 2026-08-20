@@ -235,6 +235,26 @@ def rows():
             yield TAB, plrow, m, amount, src
 
 
+def cash_rows():
+    """現金過不足 → 雑損失（利用者判断 2026-08-20「かめやの過不足は雑損失」）
+
+    符号に注意。精算書の現金過不足金は
+        マイナス = 現金が足りない → 損失 → 雑損失は【プラス】
+        プラス   = 現金が余った   → 利益 → 雑損失は【マイナス】
+    なので 雑損失 = −現金過不足。
+
+    ★この新シートは営業外損益を「営業外収益(6)／営業外費用(7)」に集約している。
+      既存スプシのように 受取利息／雑収入／支払利息／雑損失 の4行には割っていない。
+      なので雑損失は「営業外費用(7)」に入る。経常利益の計算には正しく効く。
+    """
+    for month, d in DATA.items():
+        v = d.get("現金過不足", 0)
+        if v:
+            yield TAB, "営業外費用(7)", month, -v, d["src"], (
+                f"かめや合計精算書の現金過不足金 {v:+,}円を雑損失として計上"
+                f"（{'現金不足' if v < 0 else '現金過剰'}）")
+
+
 def hold_rows():
     """保留: 行き先が決まっていないもの"""
     missing = [m for m in MONTHS_21 if m not in DATA]
@@ -245,15 +265,8 @@ def hold_rows():
         for item, amount in d.get("経費", {}).items():
             if item in UNASSIGNED:
                 yield (m, item, UNASSIGNED[item] + f"（{amount:,}円）")
-    cash = [(m, d["現金過不足"]) for m, d in DATA.items() if d.get("現金過不足")]
-    if cash:
-        tot = sum(v for _, v in cash)
-        detail = "／".join(f"{m}{v:+,}" for m, v in cash)
-        yield ("21期通年", "現金過不足金",
-               f"かめや合計精算書のPOS売上明細表にある現金過不足金。PLに対応する行がない。"
-               f"内訳 {detail}／年計 {tot:+,}円。"
-               f"12月▲50,380と1月+49,001はほぼ相殺なので月ズレとみられる。"
-               f"雑収入／雑損失に入れるか、入れないか要指示。")
+    # 現金過不足は 2026-08-20 に「雑損失」と決まったので保留から外した。
+    # cash_rows() が営業外費用(7)に計上する。
 
 
 def check():

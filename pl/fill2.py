@@ -198,7 +198,12 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
             missing.append((tab, plrow, "かめや")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_KAME; c.number_format = build2.NUMFMT
-    print("かめやセル", len(kame_rows))
+    kame_cash = list(kameya.cash_rows())
+    for tab, plrow, m, val, src, note in kame_cash:
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_KAME; c.number_format = build2.NUMFMT
+    print("かめやセル", len(kame_rows), "／現金過不足→雑損失", len(kame_cash),
+          "セル 計", f"{sum(x[3] for x in kame_cash):+,}")
 
     # ===== 神栖横丁 → 入居店舗への社内請求 =====
     yokocho.check()
@@ -312,6 +317,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                    "既存PLも同じ扱い（年計 ▲20,890）"])
     for tab, plrow, m, val, src in kame_rows:
         ws.append(["", tab, "かめや", "本部請求", "", "", val, "", plrow, m, src, STAMP, ""])
+    for tab, plrow, m, val, src, note in kame_cash:
+        ws.append(["", tab, "かめや", "合計精算書", "", "", val, "", plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src in yoko_rows:
         ws.append(["2026-07-31", tab, "神栖横丁", "社内請求", "", 10, val, "", plrow, m, src,
                    STAMP, "神栖横丁が入居店舗へ出す合計請求書。神栖横丁側の売上は保留"])
