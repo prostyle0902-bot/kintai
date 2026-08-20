@@ -13,7 +13,14 @@
 3. サービスアカウントを作成し、JSONキーを発行
 4. JSONの client_email（〜@〜.iam.gserviceaccount.com）に、対象フォルダを
    「編集者」で共有する
-5. JSONを Dropbox の /※請求書※/sa-key.json に置く
+5. JSONを Dropbox の /※請求書※ 直下に置く
+   実物: sa-key.json.json （file_id: id:BKWmtQDznicAAAAAAAIh2g）
+   サービスアカウント: pl-writer@prostyle-pl.iam.gserviceaccount.com
+
+--- 疎通確認済み（2026-08-20）-------------------------------------------
+21期・22期とも反映成功。Drive側のファイルサイズがローカルと完全一致した。
+つまずいたのは1点だけ: プロジェクトで Google Drive API が無効だった
+（403 accessNotConfigured）。Sheets API は使わないので有効化は不要。
 
 --- 鍵の受け渡し（毎セッション）-----------------------------------------
 コンテナはセッションごとに消えるので、毎回 Dropbox から取り直す。
@@ -40,11 +47,13 @@ import json, os, sys
 
 # 必要: pip install google-api-python-client google-auth
 
+# 期: (ローカルの.xlsx, DriveのファイルID)
+# ファイルIDは秘密情報ではないので直接書いてよい。環境変数で上書きもできる。
 TARGETS = {
-    # 期: (ローカルの.xlsx, DriveのファイルID)
-    #     ファイルIDは初回アップロード後に search_files などで調べて埋める
-    "21期": ("損益計算書_21期テスト版.xlsx", os.environ.get("SHEET_ID_21")),
-    "22期": ("損益計算書_22期.xlsx",        os.environ.get("SHEET_ID_22")),
+    "21期": ("損益計算書_21期テスト版.xlsx",
+            os.environ.get("SHEET_ID_21", "1i7R-v75cigfHjTBCVJ2dzBWOJxAf2Iww")),
+    "22期": ("損益計算書_22期.xlsx",
+            os.environ.get("SHEET_ID_22", "1DGjxwNznNyXbRu1ovgMtca5zSKQyN0er")),
 }
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

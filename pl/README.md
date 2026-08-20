@@ -41,7 +41,11 @@ python3 build22.py        # → 損益計算書_22期.xlsx（空シート・2026
 push.py の冒頭）。この環境から sheets.googleapis.com へ到達できることは確認済み
 （未認証で403＝Google本体に届いている、server: ESF）。
 
-**鍵は Dropbox の `/※請求書※/sa-key.json` に置き、毎セッション取り直す。**
+**2026-08-20 疎通確認済み。** 21期・22期とも反映に成功し、Drive側のサイズが
+ローカルと完全一致した。つまずいたのは Drive API の有効化だけ
+（403 accessNotConfigured）。Sheets API は使わないので不要。
+
+**鍵は Dropbox の `/※請求書※/sa-key.json.json` に置き、毎セッション取り直す。**
 Dropboxの `download_link` で一時URLを発行して `curl` でディスクに落とせば、
 鍵の中身が会話ログを通らない。以下は使わない:
 - クラウド環境変数 — 公式ドキュメントが認証情報の格納を明確に禁じている
@@ -56,9 +60,10 @@ Dropboxの `download_link` で一時URLを発行して `curl` でディスクに
   アシスタントの1応答の出力上限を超えるため通せない
 （push.py はPythonがディスクから読んで送るので、この制約を受けない）
 
-アップロード先:
-- 21期テスト版 → Driveの「2025損益計算書」フォルダ `18sxTjYlDR1WYaIb-nVivGGkDQNKyL3zi`
-- 22期        → Driveの「22期損益計算書」フォルダ `1QJvoUBbrv6nWQZH3o-8j7h2jQZSA2w-4`
+対象ファイル（.xlsxのままDriveに置いてある。ネイティブSheetsに変換すると
+IDが変わり push.py が動かなくなるので、変換しないこと）:
+- 21期テスト版 `1i7R-v75cigfHjTBCVJ2dzBWOJxAf2Iww` →「2025損益計算書」フォルダ
+- 22期        `1DGjxwNznNyXbRu1ovgMtca5zSKQyN0er` →「22期損益計算書」フォルダ
 
 ---
 
