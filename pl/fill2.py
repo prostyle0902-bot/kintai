@@ -3,9 +3,9 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll
+import build2, sales, inv6, inv7, payroll, cards, board
 
-STAMP = "2026-08-20 03:10"
+STAMP = "2026-08-20 05:30"
 
 # 店舗ごとに行名が違うものの読み替え（既存スプシに合わせる）
 REMAP = {("韓国酒場ハナ", "仕入（やまなか）"): "仕入（山中ストアー）"}
@@ -141,6 +141,32 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = "#,##0"
         posted += 1
 
+    # ===== JCB / 三井住友カード（支払日ベース） =====
+    F_CARD = PatternFill("solid", fgColor="FFF2CC")
+    card_cells, card_hold = 0, []
+    agg = {}
+    for tab, merch, plrow, ex, tax, src, m, used, iss in cards.rows():
+        if plrow is None:
+            card_hold.append((iss, merch, ex, used)); continue
+        agg[(tab, plrow, m)] = agg.get((tab, plrow, m), 0) + ex
+    for (tab, plrow, m), val in agg.items():
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "カード(JCB/三井住友)")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_CARD; c.number_format = "#,##0"
+        card_cells += 1
+    print("JCB/三井住友セル", card_cells, "／保留", len(card_hold))
+
+    # ===== board（売掛）→ 業務課・鳥害対策課・神栖横丁の売上 =====
+    F_BOARD = PatternFill("solid", fgColor="FCE4EC")
+    board_rows = list(board.rows())
+    for tab, plrow, m, ex, tax, n, src, detail in board_rows:
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_BOARD; c.number_format = "#,##0"
+    print("boardセル", len(board_rows))
+    # boardが正になる (タブ, 行, 月) — 既存スプシの売上転記から除外する
+    board_owned = set(board.SUPPRESS) | {(t, r, m) for t, r, m, *_ in board_rows}
+
     # ===== 人件費・法定福利費（給与データ 4月〜7月） =====
     F_PAY = PatternFill("solid", fgColor="E2D9F2")
     pay_cells = 0
@@ -161,6 +187,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
             for i, m in enumerate(build2.MONTHS):
                 if vals[i] is None:
                     continue
+                if (tab, rowname, m) in board_owned:
+                    continue          # boardを正とするので既存スプシ値は使わない
                 c = wb[tab][f"{build2.MCOL[m]}{r}"]
                 c.value = int(vals[i]); c.fill = F_SALES; c.number_format = "#,##0"
                 sales_cells += 1
@@ -191,6 +219,15 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, vendor, src, biko in JISSEKI:
         ws.append(["2026-07", tab, vendor, "実績", "", "", "", "", "（金額なし・実績のみ）", "7月",
                    f"買掛/21期/2607月/{src}", STAMP, biko])
+    for tab, merch, plrow, ex, tax, src, m, used, iss in cards.rows():
+        ws.append([used, tab, merch, f"{iss}カード", ex + tax, 10, ex, tax,
+                   plrow or "（保留）", m, src, STAMP,
+                   "支払日ベースで計上（明細は利用日をそのまま記載）。"
+                   "カード明細に税額の記載がないため10%で逆算"])
+    for tab, plrow, m, ex, tax, n, src, detail in board_rows:
+        for d, cust, v in detail:
+            ws.append([d, tab, cust, "board請求", "", 10, v, "", plrow, m, src, STAMP,
+                       f"boardの請求一覧CSVより（グループ列で部門判定）。この行を含む{n}件を合計{ex:,}円として転記"])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -208,6 +245,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.fill = PatternFill("solid", fgColor="C00000"); c.border = BORD
     for _, x in hold.iterrows():
         hs.append(["カード明細", x["利用日"], x["店舗"], x["取引先"], int(x["税込"]), x["理由"]])
+    for iss, merch, ex, used in card_hold:
+        hs.append([f"{iss}カード", used, "本部", merch, ex, "取引先マスタ（cards.py）に未登録。行名を要指示"])
     for tab, vendor, src, reason in INV_HOLD:
         hs.append(["請求書", "", tab, vendor, "", f"{src} — {reason}"])
     if hs.max_row == 2:
