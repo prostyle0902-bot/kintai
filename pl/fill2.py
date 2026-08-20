@@ -3,7 +3,7 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya
+import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho
 
 STAMP = "2026-08-20 06:40"
 
@@ -103,6 +103,15 @@ INV += inv7.INV7_ADD   # 2026-08-20 追加投入分（本部フォルダ8件を�
 
 INV_HOLD = []   # 2026-08-18 利用者指示により全件解決（行名＝取引先名）
 
+# 取引先マスタに無い等で入れられないもの（タブ, 月, 取引先, 税込, 理由）
+EXTRA_HOLD = [
+    ("本部", "7月", "一般社団法人Excellent Leaders", 22000,
+     "買掛/21期/2607月/本部/支払い済/エクセレントリーダーズ.pdf — "
+     "EL会費（税抜20,000＋消費税2,000）。①本部シートに対応する行が無い "
+     "②請求が「2026.7,8月」の2か月分（@10,000×2）なので7月と8月に分けるか要判断 "
+     "③宛名が『飯田 栄 様』個人宛 ④登録番号が空欄（インボイス登録なし）"),
+]
+
 # 金額のない実績データ（明細ログにのみ記録）
 JISSEKI = [("焼きたて屋","丸善エコアース","焼きたて屋/丸善エコアース実績.pdf",
             "2026年7月 回収実績: 月間回収量80kg／回収袋数7袋（可燃・生ごみ）。"
@@ -196,6 +205,17 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_KAME; c.number_format = build2.NUMFMT
     print("かめやセル", len(kame_rows))
+
+    # ===== 神栖横丁 → 入居店舗への社内請求 =====
+    yokocho.check()
+    F_YOKO = PatternFill("solid", fgColor="DDEBF7")
+    yoko_rows = list(yokocho.rows())
+    for tab, plrow, m, val, src in yoko_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "横丁社内請求")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_YOKO; c.number_format = build2.NUMFMT
+    print("横丁社内請求セル", len(yoko_rows))
     # かめやが正になる (タブ, 行, 月)。既存スプシからの売上転記より優先する。
     # ★これが無いと、あとの売上ループが同じセルを上書きして順番依存になる。
     #   金額は一致しているので結果は同じだが、明示しておく。
@@ -274,6 +294,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                    "既存PLも同じ扱い（年計 ▲20,890）"])
     for tab, plrow, m, val, src in kame_rows:
         ws.append(["", tab, "かめや", "本部請求", "", "", val, "", plrow, m, src, STAMP, ""])
+    for tab, plrow, m, val, src in yoko_rows:
+        ws.append(["2026-07-31", tab, "神栖横丁", "社内請求", "", 10, val, "", plrow, m, src,
+                   STAMP, "神栖横丁が入居店舗へ出す合計請求書。神栖横丁側の売上は保留"])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -293,6 +316,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["カード明細", x["利用日"], x["店舗"], x["取引先"], int(x["税込"]), x["理由"]])
     for m, item, reason in kameya.hold_rows():
         hs.append(["かめや", m, "焼きたて屋", item, "", reason])
+    for m, tab, item, reason in yokocho.hold_rows():
+        hs.append(["横丁社内請求", m, tab, item, "", reason])
+    for tab, m, vendor, amount, reason in EXTRA_HOLD:
+        hs.append(["請求書", m, tab, vendor, amount, reason])
     for iss, merch, ex, used in card_hold:
         hs.append([f"{iss}カード", used, "本部", merch, ex, "取引先マスタ（cards.py）に未登録。行名を要指示"])
     for tab, vendor, src, reason in INV_HOLD:
