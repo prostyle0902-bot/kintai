@@ -196,6 +196,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_KAME; c.number_format = build2.NUMFMT
     print("かめやセル", len(kame_rows))
+    # かめやが正になる (タブ, 行, 月)。既存スプシからの売上転記より優先する。
+    # ★これが無いと、あとの売上ループが同じセルを上書きして順番依存になる。
+    #   金額は一致しているので結果は同じだが、明示しておく。
+    kame_owned = {(t, r, m) for t, r, m, *_ in kame_rows}
 
     # ===== 人件費・法定福利費（給与データ 4月〜7月） =====
     F_PAY = PatternFill("solid", fgColor="E2D9F2")
@@ -219,6 +223,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                     continue
                 if (tab, rowname, m) in board_owned:
                     continue          # boardを正とするので既存スプシ値は使わない
+                if (tab, rowname, m) in kame_owned:
+                    continue          # かめや精算書を正とする（焼きたて屋の売上・消費税）
                 c = wb[tab][f"{build2.MCOL[m]}{r}"]
                 c.value = int(vals[i]); c.fill = F_SALES; c.number_format = build2.NUMFMT
                 sales_cells += 1
