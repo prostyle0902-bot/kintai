@@ -20,7 +20,7 @@ Dropboxの請求書PDF・freeeカードCSV・給与集計スプシから、店�
 ## 使い方
 
 ```
-pip install openpyxl pandas pypdf
+pip install openpyxl pandas pypdf google-api-python-client google-auth
 python3 fill2.py          # → 損益計算書_21期テスト版.xlsx を出力
 python3 build2.py         # 行構成だけ確認したいとき（_skeleton.xlsx）
 ```
@@ -35,10 +35,17 @@ python3 engine.py         # csv/statement-*.csv → out_meisai.csv, out_hold.csv
 python3 build22.py        # → 損益計算書_22期.xlsx（空シート・2026年9月から本番用）
 ```
 
-出力された `.xlsx` は**利用者がGoogle Driveへ手動アップロード**する。理由は2つ:
-- Drive APIにセル書き込みの口がない（既存シートの更新はできない）
-- 新規アップロードのAPIはbase64をインラインで渡す方式で、
-  100KB前後のxlsxはアシスタントの1応答の出力上限を超えるため通せない
+### Driveへの反映
+
+サービスアカウントを設定すれば `python3 push.py 21期` で直接反映できる（手順は
+push.py の冒頭）。この環境から sheets.googleapis.com へ到達できることは確認済み
+（未認証で403＝Google本体に届いている、server: ESF）。
+
+設定していない場合は**手動アップロード**になる。MCPのDriveツールでは代替できない:
+- `update_file` はタイトルと親フォルダしか変えられず、セルは書けない
+- `create_file` はbase64をインラインで渡す方式で、100KB前後のxlsxは
+  アシスタントの1応答の出力上限を超えるため通せない
+（push.py はPythonがディスクから読んで送るので、この制約を受けない）
 
 アップロード先:
 - 21期テスト版 → Driveの「2025損益計算書」フォルダ `18sxTjYlDR1WYaIb-nVivGGkDQNKyL3zi`
@@ -58,6 +65,7 @@ python3 build22.py        # → 損益計算書_22期.xlsx（空シート・2026
 | `inv7.py` | 2607月の追加投入分 28件（本部フォルダ8件を含む） → 7月列 |
 | `payroll.py` | 人件費・法定福利費（R8年4〜7月）。給与集計スプシ由来 |
 | `build22.py` | 22期（2026.9〜2027.8）の空シートを作る。行構成は build2.py を共有 |
+| `push.py` | 生成した.xlsxをDriveのスプレッドシートへ直接反映（サービスアカウント必要） |
 | `cards.py` | JCB法人カード／三井住友カードの明細分類。**支払日ベース**で計上 |
 | `board.py` | boardの請求一覧CSV → 業務課・鳥害対策課・神栖横丁の売上（売掛） |
 | `cards/` | 上記2つの元データ（`202608meisai.csv`＝JCB、`202609.csv`＝三井住友、`invoices.csv`＝board） |

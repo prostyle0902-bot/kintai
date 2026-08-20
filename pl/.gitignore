@@ -2,3 +2,8 @@ out_*.csv
 *.xlsx
 !csv/*.csv
 __pycache__/
+# サービスアカウントの鍵（絶対にコミットしない）
+sa*.json
+*service-account*.json
+*credentials*.json
+.env
