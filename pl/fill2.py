@@ -3,7 +3,7 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll, cards, board, demaekan
+import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya
 
 STAMP = "2026-08-20 06:40"
 
@@ -176,7 +176,26 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
             missing.append((tab, plrow, "出前館")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
-    print("出前館セル", len(demae_rows), "／計", f"{sum(x[3] for x in demae_rows):,}")
+    demae_refund = list(demaekan.refund_rows())
+    for tab, plrow, m, val, src, _ in demae_refund:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "出前館返金")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
+    print("出前館セル", len(demae_rows) + len(demae_refund),
+          "／手数料", f"{sum(x[3] for x in demae_rows):,}",
+          "／返金", f"{sum(x[3] for x in demae_refund):,}")
+
+    # ===== かめや（焼きたて屋のFC本部）=====
+    kameya.check()                 # ロイヤリティの式が既存PLと合うことを確認
+    F_KAME = PatternFill("solid", fgColor="FFF2CC")
+    kame_rows = list(kameya.rows())
+    for tab, plrow, m, val, src in kame_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "かめや")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_KAME; c.number_format = build2.NUMFMT
+    print("かめやセル", len(kame_rows))
 
     # ===== 人件費・法定福利費（給与データ 4月〜7月） =====
     F_PAY = PatternFill("solid", fgColor="E2D9F2")
@@ -242,7 +261,13 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, (fee, fee_tax) in demae_rows:
         ws.append(["", tab, "出前館", "支払通知書", fee, 10, val, fee_tax, plrow, m, src, STAMP,
                    "出前館利用料⑥の税抜（サービス利用料10%＋配達代行25%＋振込手数料＋決済手数料）。"
-                   "21期は手数料のみ計上（利用者判断 B-2 2026-08-20）"])
+                   "既存PLと11か月とも一致することを確認済み（demaekan.EXIST_21_FEE）"])
+    for tab, plrow, m, val, src, back in demae_refund:
+        ws.append(["", tab, "出前館", "支払通知書", back, "", val, "", plrow, m, src, STAMP,
+                   "お戻し金額⑦（商品代金補填・不課税）を費用のマイナスで計上。"
+                   "既存PLも同じ扱い（年計 ▲20,890）"])
+    for tab, plrow, m, val, src in kame_rows:
+        ws.append(["", tab, "かめや", "本部請求", "", "", val, "", plrow, m, src, STAMP, ""])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -260,10 +285,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.fill = PatternFill("solid", fgColor="C00000"); c.border = BORD
     for _, x in hold.iterrows():
         hs.append(["カード明細", x["利用日"], x["店舗"], x["取引先"], int(x["税込"]), x["理由"]])
-    for m, back, src in demaekan.hold_rows():
-        hs.append(["出前館", m, "焼きたて屋", "お戻し金額（商品代金補填・不課税）", back,
-                   f"{src} — 費用のマイナスか雑収入か判断できないため未計上。"
-                   f"21期合計20,890円／7か月。PLの『支払手数料（出前館返金）』行が対応か"])
+    for m, item, reason in kameya.hold_rows():
+        hs.append(["かめや", m, "焼きたて屋", item, "", reason])
     for iss, merch, ex, used in card_hold:
         hs.append([f"{iss}カード", used, "本部", merch, ex, "取引先マスタ（cards.py）に未登録。行名を要指示"])
     for tab, vendor, src, reason in INV_HOLD:
