@@ -41,6 +41,15 @@ python3 build22.py        # → 損益計算書_22期.xlsx（空シート・2026
 push.py の冒頭）。この環境から sheets.googleapis.com へ到達できることは確認済み
 （未認証で403＝Google本体に届いている、server: ESF）。
 
+**鍵は Dropbox の `/※請求書※/sa-key.json` に置き、毎セッション取り直す。**
+Dropboxの `download_link` で一時URLを発行して `curl` でディスクに落とせば、
+鍵の中身が会話ログを通らない。以下は使わない:
+- クラウド環境変数 — 公式ドキュメントが認証情報の格納を明確に禁じている
+- Driveの `download_file_content` — 中身をアシスタントに返すため会話に残る
+
+なお、セルを書けるGoogle Sheets用MCPコネクタはレジストリに存在しない
+（2026-08-20時点で確認）。サービスアカウント以外の経路はない。
+
 設定していない場合は**手動アップロード**になる。MCPのDriveツールでは代替できない:
 - `update_file` はタイトルと親フォルダしか変えられず、セルは書けない
 - `create_file` はbase64をインラインで渡す方式で、100KB前後のxlsxは

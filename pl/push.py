@@ -13,9 +13,19 @@
 3. サービスアカウントを作成し、JSONキーを発行
 4. JSONの client_email（〜@〜.iam.gserviceaccount.com）に、対象フォルダを
    「編集者」で共有する
-5. JSONの中身を環境変数 GOOGLE_SA_KEY に入れる
-   （ファイルで渡す場合は GOOGLE_SA_KEY_FILE にパスを入れる）
+5. JSONを Dropbox の /※請求書※/sa-key.json に置く
 
+--- 鍵の受け渡し（毎セッション）-----------------------------------------
+コンテナはセッションごとに消えるので、毎回 Dropbox から取り直す。
+
+    # Dropbox の download_link で一時URLを発行し、curl でディスクに落とす
+    curl -sSL -o /tmp/sa.json "<一時URL>"
+    GOOGLE_SA_KEY_FILE=/tmp/sa.json python3 push.py 21期
+
+★この経路だと鍵の中身が会話ログを通らない。Driveコネクタの
+  download_file_content は中身をアシスタントに返すので、この用途には使わない。
+★クラウド環境変数にも入れないこと。公式ドキュメントが明確に禁じている
+  （シークレット保管庫ではなく、環境を使う人は誰でも値を読める）。
 ★鍵はリポジトリにコミットしないこと。.gitignore で sa*.json を除外している。
 
 --- 仕組み ---------------------------------------------------------------
