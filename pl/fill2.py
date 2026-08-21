@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa, shiina, exist_fill
+import namefa, shiina, exist_fill, inv8
 
 STAMP = "2026-08-20 06:40"
 
@@ -92,9 +92,9 @@ INV = [
   "税込50,000・うち消費税4,545／既存スプシ45,455と一致"),
  ("業務課","ミノアカ","外注費（ミノアカ）",275000,27500,"業務/ミノアカ.xlsx",
   "7月分12件（信金各支店・ハウスクリーニング等）／既存スプシ275,000と一致"),
- ("業務課","日本ビルメン経営品質協議会","諸会費（日本ビルメン）",20000,0,
-  "業務/日本ビルメン経営品質協議会.pdf",
-  "令和8年8月分会費。消費税の記載なし・適格請求書ではない旨の注記あり（新規項目）"),
+ # ★日本ビルメン（JBQ）の会費は本部の「JBQ」行に fixed_costs.py が毎月20,000を
+ #   入れている。銀行の支払いも月1回だけ（千葉銀行9-10月20,385／PayPay11月〜20,000）。
+ #   ここに入れると二重計上になるので外した（2026-08-21）。
  ("業務課","リペアボックス","修繕費（リペアボックス）",15000,1500,"業務/リペアボックス.pdf",
   "東京食堂（神栖市）修理／新規項目"),
  ("本部","帝国データバンク","帝国データバンク",3000,300,"業務/帝国データバンク.pdf",
@@ -138,6 +138,15 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c = wb[tab][f"{build2.MCOL['7月']}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
+    # 2608月 → 8月列（21期の最終月。届いたぶんから順に入れていく）
+    inv8.check(wb)
+    for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書8月")); continue
+        c = wb[tab][f"{build2.MCOL['8月']}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+
     # 2606月 → 6月列（仕様どおり）
     for tab, vendor, plrow, ex, tax, src, biko in inv6.INV6:
         if plrow not in build2.RIDX[tab]:
@@ -400,6 +409,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, vendor, plrow, ex, tax, src, biko in inv6.INV6:
         ws.append(["2026-06", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, "6月",
                    f"買掛/21期/2606月/確認済/{src}", STAMP, biko])
+    for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
+        ws.append(["2026-08", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, "8月",
+                   f"買掛/21期/{src}", STAMP, biko])
     for tab, vendor, src, biko in JISSEKI:
         ws.append(["2026-07", tab, vendor, "実績", "", "", "", "", "（金額なし・実績のみ）", "7月",
                    f"買掛/21期/2607月/{src}", STAMP, biko])
