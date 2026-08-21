@@ -51,6 +51,15 @@
 ★鈴喜だけは請求書の消費税が8%ちょうどではない（7,160に対し574＝8.02%）。
   8%と10%が混じった請求のため。逆算すると1円ずれることがある。
 
+--- ★振込（TRANSFER）は口座振替と性格が違う。支払日ベースで入れる ---------
+口座振替は毎月5〜9日に前月分が落ちる（＝LAG=1）。ところが取引先への【振込】は
+月末（9/30・10/31）に出ている。締め日が分からないので月ズレを決められない。
+    ・請求書が無い（Dropboxに2606月・2607月ぶんしか無い）
+    ・既存PLシートにも載っていない。タコハイの9月の仕入合計は195,466で、
+      フラバーダイニングの348,789が入る余地がない＝既存PLの計上漏れ
+根拠が銀行明細しかないので【支払日の月】に入れる。税率も分からないので10%。
+月ズレも税率も裏が取れていないことは保留リストに出す。
+
 --- 入れない月 -----------------------------------------------------------
 請求書から既に入っている月（6月・7月）は【取引先ごとに】飛ばす。
 yokocho_bank.py と同じ作法。行ごとに飛ばすと、同じ行に入る別の相手を
@@ -95,6 +104,25 @@ FLAT = {
         (69522, "ＣＬＣリース", "ちばぎんリース。11か月とも同額で引落"),
 }
 
+# 取引先への【振込】。口座振替と違い支払日ベースで入れる（冒頭の★参照）。
+# 摘要はダッシュの字種がゆれるので、部分一致で拾う。
+# (口座, 摘要の一部) -> (タブ, PL行, 税率, 取引先名, メモ)
+TRANSFER = {
+    ("3548060", "フラバ"):
+        ("タコとハイボール", "仕入（フラバーダイニング）", 10, "フラバーダイニング",
+         "利用者指示 2026-08-21「その他の下に」→ 仕入（その他）の下に新設"),
+    ("3555848", "シンバスイサン"):
+        ("もも焼きJAPAN", "仕入（新場水産）", 10, "新場水産",
+         "利用者指示 2026-08-21「その他の下に」→ 仕入（その他）の下に新設"),
+    ("3556801", "ネツトプロテクシヨ"):
+        ("りゅうちゃん", "仕入（六角堂）", 10, "沖縄六角堂",
+         "ネットプロテクションズはNP後払いの決済代行。中身は沖縄六角堂への仕入"
+         "（利用者 2026-08-21）。既存の「仕入（六角堂）」行へ"),
+    ("3546725", "シンクロ"):
+        ("さわら十三里屋", "その他経費", 10, "シンクロエンターテイメント",
+         "利用者指示 2026-08-21「その他に入れて」→ 既存の「その他経費」へ"),
+}
+
 # 請求書から既に入っている月（明細ログで確認 2026-08-21）。取引先ごとに持つ。
 FROM_INVOICE = {
     ("3555848", "カ）カタノシヨウテン", "6月"): 7284,
@@ -123,16 +151,9 @@ NOT_POSTED = [
      "2件（2025/09・10）のみ。11月から支払いがPayPay銀行に移ったため。"
      "行は「仕入（なめファ8％）」「仕入（なめファ10％）」があるが、"
      "銀行明細だけでは8%と10%に割れない"),
-    ("タコとハイボール", "フラバーダイニング", 586269,
-     "★行が無い。2件（2025/09・10）のみ"),
-    ("もも焼きJAPAN", "新場水産", 330810, "★行が無い。1件（2025/09）のみ"),
-    ("りゅうちゃん", "ネットプロテクションズ", 312065,
-     "★行が無い。2件（2025/09・10）のみ。本部の1,138,880円と同じ相手"),
     ("りゅうちゃん", "コウノ　リユウジ（店長）", 300330,
      "1件（2025/09）のみ。行は「人件費（店長）」がある。"
      "給与は payroll.py が別に持っているので、二重計上にならないか要確認"),
-    ("さわら十三里屋", "シンクロエンターテイメント", 253780,
-     "★行が無い。1件（2026/02）のみ"),
     ("もも焼きJAPAN", "東京さえき", 122647,
      "2件（2025/09・10）のみ。行は「仕入（東京さえき）」がある"),
     ("もも焼きJAPAN", "華まる", 90990,
@@ -169,7 +190,7 @@ def _debits():
     """{(口座, 摘要): {年月: 引落合計}}。同じ行を2回数えない。"""
     d = collections.defaultdict(lambda: collections.defaultdict(int))
     seen = set()
-    accounts = {a for a, _ in VENDORS}
+    accounts = {a for a, _ in VENDORS} | {a for a, _ in TRANSFER}
     for path in sorted(glob.glob(os.path.join(DIR, "*小見川支店*.csv"))):
         acct = os.path.basename(path).split("_")[2]
         if acct not in accounts:
@@ -181,9 +202,13 @@ def _debits():
             if key in seen:
                 continue
             seen.add(key)
-            k = (acct, r["摘要"].strip())
-            if k in VENDORS:
-                d[k][r["取引日"].replace("/", "")[:6]] += int(r["出金金額(円)"])
+            raw = r["摘要"].strip()
+            ym = r["取引日"].replace("/", "")[:6]
+            if (acct, raw) in VENDORS:
+                d[(acct, raw)][ym] += int(r["出金金額(円)"])
+            for key in TRANSFER:                     # 部分一致で拾う
+                if key[0] == acct and key[1] in raw:
+                    d[key][ym] += int(r["出金金額(円)"])
     return d
 
 
@@ -210,6 +235,18 @@ def rows(wb=None):
                    f"銀行明細/21期/小見川支店_普通_{acct}_{ym}*.csv",
                    f"{name}。引落{inc:,}（税込{rate}%）→ 税抜{ex:,}"
                    + ("" if exact else "。端数が割り切れず切り捨て"))
+    for (acct, frag), (tab, plrow, rate, name, memo) in sorted(
+            TRANSFER.items(), key=lambda x: (x[1][0], x[1][1])):
+        for m in MONTHS:                  # 支払日ベースなのでLAGなし
+            ym = YM[m]
+            if ym not in d[(acct, frag)]:
+                continue
+            inc = d[(acct, frag)][ym]
+            ex, exact = _ex(inc, rate)
+            yield (tab, plrow, m, ex,
+                   f"銀行明細/21期/小見川支店_普通_{acct}_{ym}*.csv",
+                   f"{name}。振込{inc:,}（税込{rate}%と仮定）→ 税抜{ex:,}。"
+                   f"★請求書が無いため支払日の月に入れている。{memo}")
     for (tab, plrow), (inc, raw, memo) in sorted(FLAT.items()):
         ex, _ = _ex(inc, 10)
         for m in MONTHS:
@@ -259,6 +296,16 @@ def hold_rows():
             yield ("・".join(miss), tab, plrow,
                    f"{name}。この月は引落が見つからず請求書も無いので空欄のまま。"
                    f"引落日が明細の期間外か、翌月にまとめて落ちている可能性")
+    for (acct, frag), (tab, plrow, rate, name, memo) in sorted(
+            TRANSFER.items(), key=lambda x: (x[1][0], x[1][1])):
+        got = {m: d[(acct, frag)][YM[m]] for m in MONTHS if YM[m] in d[(acct, frag)]}
+        if not got:
+            continue
+        yield ("・".join(got), tab, plrow,
+               f"{name} 計{sum(got.values()):,}円（税込）。"
+               f"★請求書が無く、既存PLシートにも載っていないため、月ズレも税率も"
+               f"裏が取れていない。支払日の月に、税率10%として入れてある。"
+               f"11月以降はPayPay銀行に支払いが移っているので、この口座では拾えない")
     for (tab, plrow), (inc, raw, memo) in sorted(FLAT.items()):
         yield ("通年", tab, plrow,
                f"{raw} 月額{inc:,}円（税込）を毎月同額で計上した。"
@@ -297,7 +344,8 @@ if __name__ == "__main__":
     print("-" * 84)
     t = 0
     for tab, plrow, m, ex, src, note in rows():
-        inc = note.split("引落")[1].split("（")[0]
+        head = note.split("。")[1] if "。" in note else note
+        inc = head.split("引落")[-1].split("振込")[-1].split("月額")[-1].split("（")[0]
         print(f"{tab:<14}{plrow:<22}{m:<5}{inc:>11}{ex:>10,}   {note.split('。')[0]}")
         t += ex
     print("-" * 84)
