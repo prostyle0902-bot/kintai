@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""生成した .xlsx を Google Drive のスプレッドシートへ直接反映する
+"""生成した .xlsx を Google Drive の【Excelファイル】へ直接反映する
+
+★2026-08-21 追記: 相手がネイティブのGoogleスプレッドシートのときは使えない
+  （files.update が 500 Internal Error になる）。そちらは push_sheets.py。
+    21期 … .xlsx のまま。このスクリプト
+    22期 … ネイティブのスプレッドシート。push_sheets.py
 
 これがあると「ダウンロード → Driveにアップロード → 変換」の手作業がなくなる。
 
@@ -49,6 +54,9 @@ import json, os, sys
 
 # 期: (ローカルの.xlsx, DriveのファイルID)
 # ファイルIDは秘密情報ではないので直接書いてよい。環境変数で上書きもできる。
+# ★22期は 2026-08-21 から push_sheets.py（ネイティブのスプレッドシート）に移行した。
+#   ここに残っている .xlsx は、当面のバックアップとして残してあるだけ。
+#   ふだんの反映は push_sheets.py を使うこと。
 TARGETS = {
     "21期": ("損益計算書_21期テスト版.xlsx",
             os.environ.get("SHEET_ID_21", "1i7R-v75cigfHjTBCVJ2dzBWOJxAf2Iww")),

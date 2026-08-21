@@ -43,9 +43,11 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # 期: (ローカルの.xlsx, ネイティブのスプレッドシートのID)
 # ★push.py の TARGETS とは別物。あちらは .xlsx のファイルID。
+# 21期は今のところ .xlsx のまま（push.py）。ネイティブ版を作ったらIDを入れる。
 TARGETS = {
     "21期": ("損益計算書_21期テスト版.xlsx", os.environ.get("GSHEET_ID_21", "")),
-    "22期": ("損益計算書_22期.xlsx", os.environ.get("GSHEET_ID_22", "")),
+    "22期": ("損益計算書_22期.xlsx",
+            os.environ.get("GSHEET_ID_22", "1sq6pulq1dT3AWo2zzQTRukajlUar_QHULOOqjjOLL24")),
 }
 
 
