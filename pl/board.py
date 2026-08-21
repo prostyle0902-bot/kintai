@@ -26,15 +26,26 @@ boardに載るのは請求書を発行する側＝売掛だけ。
       判別できないため、行レベルの割り当てはしていない。売上合計(1)は変わらない。
 """
 
-import csv, os
+import csv, glob, os
 
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
-FILES = [("invoices.csv", "7月")]          # (ファイル, PL列)
+# ★エクスポートを取り直すたびに絞り込みが変わることがある。1本を正としない。
+#   2026-08-20版: No.7737〜8175（58件）。テナントの合計請求書8210〜8219が無い
+#   2026-08-21版: No.7737〜8219（55件）。↑は入ったが、Seaplus 1,100,000 など
+#                 業務課・鳥害対策課の13件が落ちていた
+#   両方を請求書Noで和集合にすると68件になり、鳥害対策課7月が 6,217,800 と
+#   既存PLに一致する（CHECK）。だから cards/invoices*.csv を全部読んで束ねる。
+FILES = [("invoices*.csv", "7月")]          # (ファイル名パターン, PL列)
 
 GROUP2PL = {
     "業務課":    ("業務課", "売上"),
     "鳥害対策課": ("鳥害対策課", "売上"),
-    "飲食事業部": ("神栖横丁", "その他売上"),
+    # ★2026-08-21 変更: 「その他売上」→「売上」
+    #   8/20版は9件481,245で、スポンサー等の細かいものだけだった。だから
+    #   その他売上に入れていた。8/21版でテナントの合計請求書10件が加わり、
+    #   19件2,965,826（＝横丁の家賃収入そのもの）になったので「売上」に移す。
+    #   既存シートの神栖横丁「売上」も9月〜6月は毎月193万〜252万の家賃収入。
+    "飲食事業部": ("神栖横丁", "売上"),
 }
 
 # 既存スプシの売上のうち、boardを正として置き換える（＝転記しない）もの
@@ -57,10 +68,20 @@ def _read(path):
     raise RuntimeError(path)
 
 
+def _union(pattern):
+    """cards/invoices*.csv を全部読んで、合計請求書Noで重複を落とす。
+    後から読んだファイルで上書きする（新しいエクスポートを優先）。"""
+    merged = {}
+    for path in sorted(glob.glob(os.path.join(DIR, pattern))):
+        for r in _read(path):
+            merged[r["合計請求書No"]] = r
+    return list(merged.values())
+
+
 def rows():
     """(タブ, PL行, 月, 税抜, 消費税, 件数, 元ファイル, 内訳) を列挙。"""
-    for fname, month in FILES:
-        det = _read(os.path.join(DIR, fname))
+    for pattern, month in FILES:
+        det = _union(pattern)
         by = {}
         for r in det:
             g = r["グループ"]
@@ -78,4 +99,4 @@ def rows():
             assert got == v, f"{tab}: board {got:,} ≠ 既存スプシ {v:,}"
         for (tab, plrow), v in by.items():
             yield (tab, plrow, month, v["ex"], v["tax"], v["n"],
-                   f"freeeカード明細/21期/{fname}", sorted(v["detail"], key=lambda d: -d[2]))
+                   "freeeカード明細/21期/invoices*.csv（8/20版＋8/21版の和集合）", sorted(v["detail"], key=lambda d: -d[2]))
