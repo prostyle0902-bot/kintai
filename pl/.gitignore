@@ -7,3 +7,4 @@ sa*.json
 *service-account*.json
 *credentials*.json
 .env
+rikuji_pdf/

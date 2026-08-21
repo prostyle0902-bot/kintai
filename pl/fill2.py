@@ -4,6 +4,7 @@
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
+import rikuji, eneos
 
 STAMP = "2026-08-20 06:40"
 
@@ -216,6 +217,22 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_YOKO; c.number_format = build2.NUMFMT
     print("横丁社内請求セル", len(yoko_rows))
 
+    # ===== 業務課の車両費（請求書あり・11か月まとめて）=====
+    # 陸事総合＝ETC高速代（請求書PDF）／ENEOS＝給油代（請求書CSV）。
+    # どちらも既存PLが税込・税抜バラバラで、月ズレもあった。ここで全月入れ替える。
+    rikuji.check()                 # PDF実物・銀行の引落・CP請求鑑CSVと突き合わせ
+    eneos.check()
+    F_CAR = PatternFill("solid", fgColor="FCE4D6")
+    car_rows = list(rikuji.rows()) + list(eneos.rows())
+    for tab, plrow, m, val, src, note in car_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "車両費")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_CAR; c.number_format = build2.NUMFMT
+    print("陸事総合＋ENEOSセル", len(car_rows),
+          "／陸事総合", f"{sum(x[3] for x in rikuji.rows()):,}",
+          "／ENEOS", f"{sum(x[3] for x in eneos.rows()):,}")
+
     # ===== 毎月定額の自動引落・自動振込（請求書なし・全タブ）=====
     # ★請求書・カード明細・横丁の社内請求より後に置くこと。check() が
     #   「空であること」を見て二重計上を止めるので、先に置くと素通りする。
@@ -322,6 +339,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src in yoko_rows:
         ws.append(["2026-07-31", tab, "神栖横丁", "社内請求", "", 10, val, "", plrow, m, src,
                    STAMP, "神栖横丁が入居店舗へ出す合計請求書。神栖横丁側の売上は保留"])
+    for tab, plrow, m, val, src, note in car_rows:
+        ws.append([f"21期 {m}", tab, "陸事総合協同組合" if "陸自" in plrow else "トヨタファイナンス",
+                   "請求書", "", "", int(val), "", plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, note in fix_rows:
         ws.append(["", tab, plrow, "自動引落（定額）", "", "", val, "", plrow, m, src, STAMP,
                    note or "既存スプシで11か月とも同額。請求書は来ない"])
@@ -349,6 +369,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["かめや", m, "焼きたて屋", item, "", reason])
     for m, tab, item, reason in yokocho.hold_rows():
         hs.append(["横丁社内請求", m, tab, item, "", reason])
+    for m, tab, item, reason in rikuji.hold_rows():
+        hs.append(["陸事総合", m, tab, item, "", reason])
     for tab, m, vendor, amount, reason in EXTRA_HOLD:
         hs.append(["請求書", m, tab, vendor, amount, reason])
     for iss, merch, ex, used in card_hold:
