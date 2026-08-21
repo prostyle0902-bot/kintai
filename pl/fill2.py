@@ -5,6 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
+import namefa
 
 STAMP = "2026-08-20 06:40"
 
@@ -256,6 +257,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_YBK; c.number_format = build2.NUMFMT
     print("振込セル", len(tr_rows), "／計", f"{sum(x[3] for x in tr_rows):,}")
 
+    # ===== なめがたしろはとファーム → さわら十三里屋（請求書11枚）=====
+    # 銀行だけだと年816万円の一括入金で8%/10%に割れず、いちばん大きな保留だった。
+    # 請求書には家賃・ロイヤリティ・水道・電気まで入っているので6行が埋まる。
+    # 6月分は inv6.py、7月分は下の INV が持っているので、ここは9月〜5月だけ。
+    namefa.check(wb)               # 請求書の内部整合・銀行の振込額・書き込み先が空か
+    nf_rows = list(namefa.rows())
+    for tab, plrow, m, val, src, note in nf_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "なめがた")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
+    print("なめがたセル", len(nf_rows), "／計", f"{sum(x[3] for x in nf_rows):,}")
+
     # ===== 業務課の車両費（請求書あり・11か月まとめて）=====
     # 陸事総合＝ETC高速代（請求書PDF）／ENEOS＝給油代（請求書CSV）。
     # どちらも既存PLが税込・税抜バラバラで、月ズレもあった。ここで全月入れ替える。
@@ -421,6 +435,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["横丁口座", m, tab, item, "", reason])
     for m, tab, item, reason in store_bank.hold_rows():
         hs.append(["店舗口座", m, tab, item, "", reason])
+    for m, tab, item, reason in namefa.hold_rows():
+        hs.append(["なめがた", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
         hs.append(["振込", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
