@@ -4,7 +4,7 @@
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
-import rikuji, eneos, yokocho_bank
+import rikuji, eneos, yokocho_bank, store_bank
 
 STAMP = "2026-08-20 06:40"
 
@@ -231,6 +231,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     print("横丁口座振替セル", len(yb_rows), "／計", f"{sum(x[3] for x in yb_rows):,}",
           "／請求書と食い違った月", len(yb_bad))
 
+    # ===== 店舗口座の口座振替（ガス代・鈴喜）=====
+    # 店舗ごとに口座が分かれている。ただし11月から支払いがPayPay銀行に移ったので、
+    # 店舗口座に毎月残っているのは口座振替だけ。それだけを入れる。
+    sb_bad = store_bank.check(wb)
+    sb_rows = list(store_bank.rows(wb))
+    for tab, plrow, m, val, src, note in sb_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "店舗口座")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_YBK; c.number_format = build2.NUMFMT
+    print("店舗口座振替セル", len(sb_rows), "／計", f"{sum(x[3] for x in sb_rows):,}",
+          "／請求書と食い違った月", len(sb_bad))
+
     # ===== 業務課の車両費（請求書あり・11か月まとめて）=====
     # 陸事総合＝ETC高速代（請求書PDF）／ENEOS＝給油代（請求書CSV）。
     # どちらも既存PLが税込・税抜バラバラで、月ズレもあった。ここで全月入れ替える。
@@ -356,6 +369,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in yb_rows:
         ws.append([f"21期 {m}", tab, note.split("。")[0], "口座振替", "", 10, int(val), "",
                    plrow, m, src, STAMP, note])
+    for tab, plrow, m, val, src, note in sb_rows:
+        ws.append([f"21期 {m}", tab, note.split("。")[0], "口座振替", "", "", int(val), "",
+                   plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, note in car_rows:
         ws.append([f"21期 {m}", tab, "陸事総合協同組合" if "陸自" in plrow else "トヨタファイナンス",
                    "請求書", "", "", int(val), "", plrow, m, src, STAMP, note])
@@ -388,6 +404,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["横丁社内請求", m, tab, item, "", reason])
     for m, tab, item, reason in yokocho_bank.hold_rows():
         hs.append(["横丁口座", m, tab, item, "", reason])
+    for m, tab, item, reason in store_bank.hold_rows():
+        hs.append(["店舗口座", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
         hs.append(["陸事総合", m, tab, item, "", reason])
     for tab, m, vendor, amount, reason in EXTRA_HOLD:
