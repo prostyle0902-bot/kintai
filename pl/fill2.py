@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa
+import namefa, shiina
 
 STAMP = "2026-08-20 06:40"
 
@@ -270,6 +270,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
     print("なめがたセル", len(nf_rows), "／計", f"{sum(x[3] for x in nf_rows):,}")
 
+    # ===== 椎名環境整備の産廃処分（大口2件）→ 本部 =====
+    # 銀行に242,000（2025/11）と221,100（2026/05）の大きな支払いがあり、
+    # 毎月の13,200とは桁が違った。業務フォルダに請求書があり、場所は
+    # 「本社倉庫」「事務所」。利用者判断で本部に入れる（2026-08-21）。
+    shiina.check(wb)               # 請求書の内部整合・振込額・書き込み先が空か
+    sh_rows = list(shiina.rows())
+    for tab, plrow, m, val, src, note in sh_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "産廃")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
+    print("産廃セル", len(sh_rows), "／計", f"{sum(x[3] for x in sh_rows):,}")
+
     # ===== 業務課の車両費（請求書あり・11か月まとめて）=====
     # 陸事総合＝ETC高速代（請求書PDF）／ENEOS＝給油代（請求書CSV）。
     # どちらも既存PLが税込・税抜バラバラで、月ズレもあった。ここで全月入れ替える。
@@ -437,6 +450,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["店舗口座", m, tab, item, "", reason])
     for m, tab, item, reason in namefa.hold_rows():
         hs.append(["なめがた", m, tab, item, "", reason])
+    for m, tab, item, reason in shiina.hold_rows():
+        hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
         hs.append(["振込", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
