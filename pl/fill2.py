@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa, shiina
+import namefa, shiina, exist_fill
 
 STAMP = "2026-08-20 06:40"
 
@@ -356,6 +356,23 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                 sales_cells += 1
     print("売上セル", sales_cells)
 
+    # ===== 既存21期PLからの穴埋め（★いちばん最後に置くこと）=================
+    # 請求書・カード・銀行から積み上げても2割しか埋まらなかった。既存PLは
+    # 1年ぶん手で入れてある記録なので、書類から作れないセルはこれを写す。
+    # ★空いているセルだけ。書類から入れた値は絶対に上書きしない。
+    #   だからこのブロックは全部の転記が終わったあとに置く必要がある。
+    #   重なって金額が違うセルは exist_fill.conflicts() が拾い、下の
+    #   「既存PLとの食い違い」タブに出す。判断は利用者に委ねる。
+    exist_fill.check()
+    ef_conf = exist_fill.conflicts(wb)
+    F_EXIST = PatternFill("solid", fgColor="FFF2CC")
+    ef_rows = list(exist_fill.rows(wb))
+    for tab, plrow, m, val, src, note in ef_rows:
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_EXIST; c.number_format = build2.NUMFMT
+    print("既存PLからの穴埋めセル", len(ef_rows), "／計", f"{sum(x[3] for x in ef_rows):,}",
+          "／食い違い", len(ef_conf), "セル")
+
     # 明細ログ
     ws = wb.create_sheet("明細ログ")
     ws.cell(1, 1, "明細ログ（転記の元データ／検証用）").font = Font(bold=True, size=13)
@@ -452,6 +469,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["なめがた", m, tab, item, "", reason])
     for m, tab, item, reason in shiina.hold_rows():
         hs.append(["産廃", m, tab, item, "", reason])
+    for m, tab, item, reason in exist_fill.hold_rows():
+        hs.append(["既存PL", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
         hs.append(["振込", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
@@ -468,6 +487,25 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for col, w in zip("ABCDEF", [12,12,16,26,12,95]):
         hs.column_dimensions[col].width = w
     hs.freeze_panes = "A3"
+
+    # ===== 既存PLとの食い違い（2026-08-21 新設）==============================
+    # 新シートは書類（請求書・カード明細・銀行明細）から作った値を正としている。
+    # 既存21期PLと金額が違うセルはここに全部出す。上書きはしていない。
+    # 「差」がプラス＝新シートのほうが大きい。
+    cs = wb.create_sheet("既存PLとの食い違い")
+    cs.cell(1, 1, "既存21期PLと金額が違うセル（新シートは書類の値を採っている。"
+                  "上書きはしていない）").font = Font(bold=True, size=12)
+    for j, h in enumerate(["タブ", "行", "月", "新シート（書類）", "既存21期PL", "差"], 1):
+        c = cs.cell(2, j, h); c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="ED7D31")
+    for tab, plrow, m, new, old in sorted(ef_conf, key=lambda x: -abs(x[3] - x[4])):
+        cs.append([tab, plrow, m, new, old, new - old])
+    for col, w in zip("ABCDEF", (14, 26, 6, 16, 16, 14)):
+        cs.column_dimensions[col].width = w
+    for row in cs.iter_rows(min_row=3, min_col=4, max_col=6):
+        for c in row:
+            c.number_format = build2.NUMFMT
+    cs.freeze_panes = "A3"
 
     wb.save(dst)
     print("転記セル数", posted, "／ 明細ログ", ws.max_row - 2, "行 ／ 保留", hs.max_row - 2, "件")
