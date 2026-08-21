@@ -57,6 +57,8 @@ TARGETS = {
 }
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+GSHEET = "application/vnd.google-apps.spreadsheet"
+_KIND = {XLSX: "Excelファイル", GSHEET: "Googleスプレッドシート"}
 
 
 def _creds():
@@ -83,12 +85,21 @@ def push(period):
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     svc = build("drive", "v3", credentials=_creds(), cache_discovery=False)
-    before = svc.files().get(fileId=file_id, fields="name,modifiedTime").execute()
-    print(f"対象: {before['name']}  (最終更新 {before['modifiedTime']})")
+    before = svc.files().get(fileId=file_id,
+                             fields="name,mimeType,modifiedTime").execute()
+    print(f"対象: {before['name']}  ({_KIND.get(before['mimeType'], before['mimeType'])}"
+          f"／最終更新 {before['modifiedTime']})")
 
+    # ★Drive側が今どちらの形式かを見て、その形式のまま上書きする。
+    #   ネイティブのスプレッドシートに xlsx をそのまま上げると Excelファイルに
+    #   戻ってしまい、開くたびの変換（DOCS_EVERYWHERE_IMPORT）が復活する。
+    #   body に変換後の mimeType を入れると、Driveが取り込み時に変換してくれる。
+    body = {"mimeType": GSHEET} if before["mimeType"] == GSHEET else {}
     media = MediaFileUpload(local, mimetype=XLSX, resumable=True)
-    after = svc.files().update(fileId=file_id, media_body=media,
-                               fields="name,modifiedTime,webViewLink").execute()
+    after = svc.files().update(fileId=file_id, body=body, media_body=media,
+                               fields="name,mimeType,modifiedTime,webViewLink").execute()
+    assert after["mimeType"] == before["mimeType"], \
+        f"形式が {before['mimeType']} から {after['mimeType']} に変わってしまった"
     print(f"反映しました: {after['name']}  → {after['modifiedTime']}")
     print(after["webViewLink"])
 
