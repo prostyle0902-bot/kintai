@@ -90,16 +90,17 @@ def push(period):
     print(f"対象: {before['name']}  ({_KIND.get(before['mimeType'], before['mimeType'])}"
           f"／最終更新 {before['modifiedTime']})")
 
-    # ★Drive側が今どちらの形式かを見て、その形式のまま上書きする。
-    #   ネイティブのスプレッドシートに xlsx をそのまま上げると Excelファイルに
-    #   戻ってしまい、開くたびの変換（DOCS_EVERYWHERE_IMPORT）が復活する。
-    #   body に変換後の mimeType を入れると、Driveが取り込み時に変換してくれる。
-    body = {"mimeType": GSHEET} if before["mimeType"] == GSHEET else {}
+    # ★body に mimeType を入れて変換させることはできない。
+    #   2026-08-21 に試したら 400 invalidContentType で弾かれた
+    #   （"Invalid MIME type provided for the uploaded content."）。
+    #   v3 の files.update は形式変換に対応していない。convert_probe.py に記録。
+    #   なのでメディアだけ送る。上書きで形式が変わっていないことは下で確かめる。
     media = MediaFileUpload(local, mimetype=XLSX, resumable=True)
-    after = svc.files().update(fileId=file_id, body=body, media_body=media,
+    after = svc.files().update(fileId=file_id, media_body=media,
                                fields="name,mimeType,modifiedTime,webViewLink").execute()
     assert after["mimeType"] == before["mimeType"], \
-        f"形式が {before['mimeType']} から {after['mimeType']} に変わってしまった"
+        f"形式が {_KIND.get(before['mimeType'], before['mimeType'])} から " \
+        f"{_KIND.get(after['mimeType'], after['mimeType'])} に変わってしまった"
     print(f"反映しました: {after['name']}  → {after['modifiedTime']}")
     print(after["webViewLink"])
 
