@@ -93,11 +93,38 @@ SKIP = {
         "中身は電気料金だけだった（10月49,577が新シートの電気と1円まで一致）。"
         "なめがたの請求書から11か月とも入っているので写す必要がない",
     ("業務課", "仕入（クリーン＆ケミカル）"): "全月0円",
+    ("さわら十三里屋", "雑費"):
+        "★シンクロエンターテイメントへの支払いと二重計上になる。既存PLは11月の"
+        "「雑費」に230,730、新シートは銀行明細から12月の「その他経費」に230,709。"
+        "銀行にシンクロへの支払いは2026/02/17の253,780（税込）1件しかなく、"
+        "253,780÷1.1＝230,709。既存PLの雑費も年に11月の1件だけ。同じ支払いと見て"
+        "既存PLのほうを写さない（新シートは書類の値を採る方針）。"
+        "★ただし計上月が11月と12月で食い違う。どちらが正しいか要確認",
 }
 
 # 小計・利益・比率の行。新シートは数式で持っているので写さない
 import re
 _CALC = re.compile(r"合計|利益|比率|\(\d+\)|＝|=|期首|期末|売上原価\(a\)")
+
+# ★カード明細を費目別に割った月は、既存PLの一括額を写すと二重計上になる。
+#   既存PLは1枚の請求額をまるごと「JCBカード」「三井住友カード」の1行に入れている。
+#   新シートは cards.py が明細1行ずつを費目へ割り振る（利用者指示 2026-08-20）。
+#   両方入れると同じ支払いを2回数えることになる。
+#     実測: JCB 7月 … cards.py の税込合計 624,249 ＝ 既存PL「JCBカード」7月 624,249
+#           1円まで一致した。同じ明細である裏づけ（2026-08-21）。
+#   明細のある月だけを外す。明細の無い月（9月〜6月）は既存PLが唯一の情報源なので写す。
+_LUMP = {"JCB": "JCBカード", "三井住友": "三井住友カード"}
+
+
+def split_by_cards():
+    """cards.py が費目別に割った (タブ, 一括行, 月) の集合。写してはいけないセル。"""
+    import cards
+    out = set()
+    for tab, _merch, plrow, _ex, _tax, _src, m, _used, iss in cards.rows():
+        if plrow is None:
+            continue
+        out.add((tab, _LUMP[iss], m))
+    return out
 
 
 def _target(tab, item):
@@ -111,6 +138,7 @@ def rows(wb):
     """(タブ, PL行, 月, 値, 元, メモ) を列挙。空いているセルだけ。"""
     import build2
     ex, order = exist_pl.load()
+    split = split_by_cards()
     for tab in order:
         if tab not in build2.RIDX or tab not in wb.sheetnames:
             continue
@@ -122,6 +150,8 @@ def rows(wb):
             for m in MONTHS:
                 v = ex[tab][item].get(m)
                 if not v:            # 未入力・0円は写さない
+                    continue
+                if (tab, plrow, m) in split:   # カード明細を費目別に割った月
                     continue
                 c = ws[f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
                 if c.value:          # 書類から入っている。絶対に上書きしない
@@ -136,6 +166,7 @@ def conflicts(wb):
     """既存PLと新シートで金額が食い違うセル。(タブ, 行, 月, 新, 既存)"""
     import build2
     ex, order = exist_pl.load()
+    split = split_by_cards()
     out = []
     for tab in order:
         if tab not in build2.RIDX or tab not in wb.sheetnames:
@@ -146,6 +177,8 @@ def conflicts(wb):
             if plrow is None or plrow not in build2.RIDX[tab]:
                 continue
             for m in MONTHS:
+                if (tab, plrow, m) in split:
+                    continue
                 v = ex[tab][item].get(m)
                 c = ws[f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"].value
                 if not v or not c or isinstance(c, str):
@@ -180,6 +213,14 @@ def hold_rows():
     """保留リストへ出すもの。"""
     ex, _ = exist_pl.load()
     out = []
+    ex2 = ex
+    for tab, plrow, m in sorted(split_by_cards()):
+        v = ex2.get(tab, {}).get(plrow, {}).get(m)
+        if not v:
+            continue
+        out.append((m, tab, f"既存PL「{plrow}」{m}（{v:,}円）",
+                    "カード明細を費目別に割った月なので、既存PLの一括額は写していない。"
+                    "写すと同じ支払いを2回数えることになる（実測で税込1円まで一致）"))
     for (tab, item), why in SKIP.items():
         s = sum(ex.get(tab, {}).get(item, {}).values())
         if not s:

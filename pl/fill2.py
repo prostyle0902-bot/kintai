@@ -365,7 +365,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     #   「既存PLとの食い違い」タブに出す。判断は利用者に委ねる。
     exist_fill.check()
     ef_conf = exist_fill.conflicts(wb)
-    F_EXIST = PatternFill("solid", fgColor="FFF2CC")
+    # ★カード（F_CARD）と同じ色にしないこと。どこから来た値か見分けがつかなくなる
+    F_EXIST = PatternFill("solid", fgColor="DDEBF7")
     ef_rows = list(exist_fill.rows(wb))
     for tab, plrow, m, val, src, note in ef_rows:
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
