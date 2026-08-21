@@ -115,15 +115,30 @@ def _ex(inc):
 
 
 def _debits():
-    """{摘要: {銀行の年月: 引落合計}}"""
+    """{摘要: {年月: 引落合計}}
+
+    ★年月はファイル名ではなく【取引日の列】から取る。
+      千葉銀行のエクスポートは 小見川支店_普通_3543920_202607_202608210925.csv の
+      ように末尾に書き出し日時が付く。ファイル名の位置で切ると、
+      そのまま置いたファイルで壊れる。取引日から取れば名前が何でも動く。
+    """
     d = collections.defaultdict(lambda: collections.defaultdict(int))
+    seen = set()
     for path in sorted(glob.glob(os.path.join(DIR, f"*_{ACCOUNT}_*.csv"))):
-        ym = os.path.basename(path)[-10:-4]
         for r in csv.DictReader(open(path, encoding="utf-8-sig")):
             if not r["出金金額(円)"]:
                 continue
+            # ★同じ月のCSVが2本置かれても二重に数えない。
+            #   銀行のエクスポートは同じ期間を何度でも書き出せるので、
+            #   古い名前のファイルが残っていると簡単に二重計上になる。
+            #   日付・摘要・金額・残高が全部同じ行は同じ取引とみなす。
+            key = (r["取引日"], r["摘要"], r["出金金額(円)"], r["残高(円)"])
+            if key in seen:
+                continue
+            seen.add(key)
             k = r["摘要"].strip()
             if k in VENDORS:
+                ym = r["取引日"].replace("/", "")[:6]   # 2026/07/03 -> 202607
                 d[k][ym] += int(r["出金金額(円)"])
     return d
 
@@ -162,7 +177,7 @@ def rows(wb=None):
         inc = sum(x[1] for x in items)
         who = "＋".join(VENDORS[x[0]][2].split("。")[0] for x in items)
         yield (TAB, plrow, m, ex,
-               f"銀行明細/21期/小見川支店_普通_{ACCOUNT}_{items[0][4]}.csv",
+               f"銀行明細/21期/小見川支店_普通_{ACCOUNT}_{items[0][4]}*.csv",
                f"{who}。引落{inc:,}（税込）→ 税抜{ex:,}"
                + ("" if all(x[3] for x in items) else "。端数が割り切れず切り捨て"))
 

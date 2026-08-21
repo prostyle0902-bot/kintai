@@ -225,8 +225,15 @@ IGNORE_CHIBA = [
 # 正体が分からないもの。保留リストに出す。
 UNRESOLVED = {
     "（摘要なし）":
-        "千葉銀行に摘要が空の出金が4件・計8,927,950円ある。"
-        "手形か特殊な振替とみられるが銀行明細だけでは判断できない",
+        "千葉銀行3351509に摘要が空の出金が4件・計8,927,950円。中身を調べた"
+        "（2026-08-21）: 2025/10/30 1,815,550／2026/02/02・04/30・07/31 が"
+        "それぞれ 2,370,800（3回とも同額）。同額3回の日付が1月末・4月末・7月末で、"
+        "8月決算の会社の【消費税の中間納付（年3回）】の納期限とぴったり一致する。"
+        "4件とも直前に「ツミタテ」からの入金（150万〜200万）で資金を寄せている。"
+        "摘要が空なのは電子納税（ダイレクト納付）の特徴。"
+        "つまり税金の納付とみられる。だとすればPLの費用ではなく貸借対照表側"
+        "（未払消費税・未払法人税等）なので、PLに出てこないのが正しい。"
+        "★あくまで金額と日付からの推定。freeeの取引か税理士に確認すること",
     "カ）　ネツトプロテクシヨンズ":
         "NP後払いの決済代行。21期で10件・計1,138,880円。月2回・毎回金額バラバラ。"
         "どのタブのどの行に入れるか不明（利用者も「不明」と回答 2026-08-20）",
@@ -296,7 +303,12 @@ def _acct(path):
 
 
 def _load_chiba(accounts=None):
-    """千葉銀行の【出金】。accounts で口座を絞れる（既定は全口座）。"""
+    """千葉銀行の【出金】。accounts で口座を絞れる（既定は全口座）。
+
+    ★同じ期間のCSVが2本あっても二重に数えない。銀行は同じ月を何度でも
+      書き出せるので、古い名前のファイルが残っていると簡単に二重になる。
+    """
+    seen = set()
     for path in sorted(glob.glob(os.path.join(DIR, "*小見川支店*.csv"))):
         a = _acct(path)
         if accounts and a not in accounts:
@@ -304,6 +316,10 @@ def _load_chiba(accounts=None):
         for r in csv.DictReader(open(path, encoding="utf-8-sig")):
             if not r["出金金額(円)"]:
                 continue
+            key = (a, r["取引日"], r["摘要"], r["出金金額(円)"], r["残高(円)"])
+            if key in seen:
+                continue
+            seen.add(key)
             yield {"date": r["取引日"], "bank": CHIBA_ACCOUNTS.get(a, "千葉銀行"),
                    "raw": r["摘要"].strip(), "amount": int(r["出金金額(円)"]),
                    "src": os.path.basename(path)}
@@ -318,9 +334,14 @@ def deposits(account="3543920"):
     for path in sorted(glob.glob(os.path.join(DIR, "*小見川支店*.csv"))):
         if _acct(path) != account:
             continue
+        seen = set()
         for r in csv.DictReader(open(path, encoding="utf-8-sig")):
             if not r["入金金額(円)"]:
                 continue
+            key = (r["取引日"], r["摘要"], r["入金金額(円)"], r["残高(円)"])
+            if key in seen:
+                continue
+            seen.add(key)
             d = r["摘要"].strip()
             yield (r["取引日"], d, int(r["入金金額(円)"]),
                    d in ("フツウ　ＷＥＢフリカエ", "リソク"),
