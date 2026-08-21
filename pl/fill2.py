@@ -363,7 +363,6 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     #   だからこのブロックは全部の転記が終わったあとに置く必要がある。
     #   重なって金額が違うセルは exist_fill.conflicts() が拾い、下の
     #   「既存PLとの食い違い」タブに出す。判断は利用者に委ねる。
-    exist_fill.check()
     ef_conf = exist_fill.conflicts(wb)
     # ★カード（F_CARD）と同じ色にしないこと。どこから来た値か見分けがつかなくなる
     F_EXIST = PatternFill("solid", fgColor="DDEBF7")
@@ -371,8 +370,13 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in ef_rows:
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_EXIST; c.number_format = build2.NUMFMT
+    # ★カード明細のルール（利用者指示 2026-08-21）を書き込みのあとに検算する。
+    #   明細のある月は費目別。一括行に入っていたら二重計上なので止める。
+    exist_fill.check(wb)
+    ef_lump = exist_fill.lump_months(wb)
     print("既存PLからの穴埋めセル", len(ef_rows), "／計", f"{sum(x[3] for x in ef_rows):,}",
-          "／食い違い", len(ef_conf), "セル")
+          "／食い違い", len(ef_conf), "セル",
+          "／カード一括のまま", len(ef_lump), "セル（明細待ち）")
 
     # 明細ログ
     ws = wb.create_sheet("明細ログ")
@@ -470,7 +474,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["なめがた", m, tab, item, "", reason])
     for m, tab, item, reason in shiina.hold_rows():
         hs.append(["産廃", m, tab, item, "", reason])
-    for m, tab, item, reason in exist_fill.hold_rows():
+    for m, tab, item, reason in exist_fill.hold_rows(wb):
         hs.append(["既存PL", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
         hs.append(["振込", m, tab, item, "", reason])

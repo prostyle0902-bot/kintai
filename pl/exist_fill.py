@@ -114,6 +114,8 @@ _CALC = re.compile(r"合計|利益|比率|\(\d+\)|＝|=|期首|期末|売上原�
 #           1円まで一致した。同じ明細である裏づけ（2026-08-21）。
 #   明細のある月だけを外す。明細の無い月（9月〜6月）は既存PLが唯一の情報源なので写す。
 _LUMP = {"JCB": "JCBカード", "三井住友": "三井住友カード"}
+# 一括で受けている行（カード会社ごとの請求額まるごと）。タブは本部だけ。
+LUMP_ROWS = {"本部": list(_LUMP.values())}
 
 
 def split_by_cards():
@@ -188,6 +190,27 @@ def conflicts(wb):
     return out
 
 
+def lump_months(wb):
+    """一括行のまま残っている (タブ, 行, 月, 金額)。明細が入れば費目別にできる。"""
+    import build2
+    split = split_by_cards()
+    out = []
+    for tab, rows in LUMP_ROWS.items():
+        if tab not in wb.sheetnames:
+            continue
+        for plrow in rows:
+            r = build2.RIDX[tab].get(plrow)
+            if r is None:
+                continue
+            for m in MONTHS:
+                if (tab, plrow, m) in split:
+                    continue
+                v = wb[tab][f"{build2.MCOL[m]}{r}"].value
+                if v and not isinstance(v, str):
+                    out.append((tab, plrow, m, int(v)))
+    return out
+
+
 def check(wb=None):
     """対応づけの取りこぼしが無いかを見る。"""
     import build2
@@ -207,15 +230,41 @@ def check(wb=None):
     assert not lost, ("既存PLに値があるのに新シートに行が無い（ALIAS か SKIP か "
                       "build2.py の行追加が要る）:\n  " +
                       "\n  ".join(f"{t} 「{i}」 {s:,}円" for t, i, s in lost))
+    if wb is None:
+        return
+    # ★カード明細のルール（利用者指示 2026-08-21）:
+    #   明細のある月は費目別に入れる。一括行には絶対に入れない。
+    #   同じ月に両方あったら二重計上なので、ここで止める。
+    both = []
+    for tab, plrow, m in sorted(split_by_cards()):
+        r = build2.RIDX[tab].get(plrow)
+        if r is None:
+            continue
+        v = wb[tab][f"{build2.MCOL[m]}{r}"].value
+        if v and not isinstance(v, str):
+            both.append(f"{tab} 「{plrow}」{m} に {int(v):,} が入っている")
+    assert not both, ("カード明細を費目別に割った月なのに一括行にも入っている"
+                      "（二重計上）:\n  " + "\n  ".join(both))
 
 
-def hold_rows():
+def hold_rows(wb=None):
     """保留リストへ出すもの。"""
     ex, _ = exist_pl.load()
     out = []
-    ex2 = ex
+    if wb is not None:
+        for tab, plrow, m, v in lump_months(wb):
+            out.append((m, tab, f"{plrow}（一括のまま {v:,}円）",
+                        "カード明細がまだ無い月。既存21期PLの請求額まるごとを暫定で置いている。"
+                        "明細（JCBは20xxxxmeisai.csv、三井住友は20xxxx.csv）を "
+                        "※請求書※/freeeカード明細/21期/ に入れてもらえれば、"
+                        "cards.py が費目別に割り直してこの行は空になる"))
+    return out + _skip_holds(ex)
+
+
+def _skip_holds(ex):
+    out = []
     for tab, plrow, m in sorted(split_by_cards()):
-        v = ex2.get(tab, {}).get(plrow, {}).get(m)
+        v = ex.get(tab, {}).get(plrow, {}).get(m)
         if not v:
             continue
         out.append((m, tab, f"既存PL「{plrow}」{m}（{v:,}円）",
