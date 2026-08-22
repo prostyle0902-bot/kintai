@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa, shiina, exist_fill, inv8, nihonshokken
+import namefa, shiina, exist_fill, inv8, nihonshokken, norow
 
 STAMP = "2026-08-20 06:40"
 
@@ -301,6 +301,22 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
     print("日本食研セル", len(ns_rows), "／計", f"{sum(x[3] for x in ns_rows):,}")
 
+    # ===== 受け皿の行が無かった3件（新設した行へ）=====
+    # 利用者指示 2026-08-22「行を作成して」。
+    #   もも焼きJAPAN「外注費（MEG design office）」… 請求書3枚（イベントサポート業務）
+    #   もも焼きJAPAN「ヒラノ　タカシ」            … 請求書が無く費目を決められない
+    #   タコとハイボール「共済掛金（SMBC）」        … 口座振替1件・非課税
+    # ★千葉銀行のWEB振込額には振込手数料が乗っていることが今回わかった。
+    #   norow.py は手数料を除いた本体だけを入れている。
+    norow.check(wb)                # 銀行明細の実額・請求書の内部整合・書き込み先が空か
+    nr_rows = list(norow.rows())
+    for tab, plrow, m, val, src, note in nr_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "行を新設")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
+    print("新設行セル", len(nr_rows), "／計", f"{sum(x[3] for x in nr_rows):,}")
+
     # ===== 椎名環境整備の産廃処分（大口2件）→ 本部 =====
     # 銀行に242,000（2025/11）と221,100（2026/05）の大きな支払いがあり、
     # 毎月の13,200とは桁が違った。業務フォルダに請求書があり、場所は
@@ -473,6 +489,13 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in tr_rows:
         ws.append([f"21期 {m}", tab, note.split("。")[0], "振込", "", "", int(val), "",
                    plrow, m, src, STAMP, note])
+    for tab, plrow, m, val, src, note in nr_rows:
+        ws.append([[p[5] for p in norow.POSTINGS
+                    if (p[0], p[1], p[2]) == (tab, plrow, m)][0], tab,
+                   "MEG design office" if "MEG" in plrow else plrow,
+                   "請求書" if "MEG" in plrow else "銀行明細",
+                   "", 10 if "MEG" in plrow else "", int(val), "",
+                   plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, note in car_rows:
         ws.append([f"21期 {m}", tab, "陸事総合協同組合" if "陸自" in plrow else "トヨタファイナンス",
                    "請求書", "", "", int(val), "", plrow, m, src, STAMP, note])
@@ -511,6 +534,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["なめがた", m, tab, item, "", reason])
     for m, tab, item, reason in shiina.hold_rows():
         hs.append(["産廃", m, tab, item, "", reason])
+    for m, tab, item, reason in norow.hold_rows():
+        hs.append(["新設行", m, tab, item, "", reason])
     for m, tab, item, reason in exist_fill.hold_rows(wb):
         hs.append(["既存PL", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
