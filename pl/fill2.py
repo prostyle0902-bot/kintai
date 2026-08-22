@@ -158,10 +158,17 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     # ===== JCB / 三井住友カード（支払日ベース） =====
     F_CARD = PatternFill("solid", fgColor="FFF2CC")
     card_cells, card_hold = 0, []
+    # ★分類できなかったぶんは捨てず、カード会社の一括行に残す（2026-08-22）。
+    #   明細を全部読むようにしたら187件・約302万円が取引先マスタに無かった。
+    #   落とすと明細の総額とPLが合わなくなる。一括行に寄せておけば
+    #   「費目別に割れたぶん＋未分類＝明細の総額」が常に保たれ、
+    #   マスタに足すたびに一括行が減っていく。全件を保留リストにも出す。
+    LUMP = {"JCB": "JCBカード", "三井住友": "三井住友カード"}
     agg = {}
     for tab, merch, plrow, ex, tax, src, m, used, iss in cards.rows():
         if plrow is None:
-            card_hold.append((iss, merch, ex, used)); continue
+            card_hold.append((iss, merch, ex, used))
+            plrow = LUMP[iss]
         agg[(tab, plrow, m)] = agg.get((tab, plrow, m), 0) + ex
     for (tab, plrow, m), val in agg.items():
         if plrow not in build2.RIDX[tab]:
@@ -169,7 +176,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_CARD; c.number_format = build2.NUMFMT
         card_cells += 1
-    print("JCB/三井住友セル", card_cells, "／保留", len(card_hold))
+    print("JCB/三井住友セル", card_cells, "／計", f"{sum(agg.values()):,}",
+          "／未分類（一括行に残した）", len(card_hold), "件",
+          f"{sum(x[2] for x in card_hold):,}円")
 
     # ===== board（売掛）→ 業務課・鳥害対策課・神栖横丁の売上 =====
     F_BOARD = PatternFill("solid", fgColor="FCE4EC")

@@ -237,19 +237,33 @@ def check(wb=None):
                       "\n  ".join(f"{t} 「{i}」 {s:,}円" for t, i, s in lost))
     if wb is None:
         return
-    # ★カード明細のルール（利用者指示 2026-08-21）:
-    #   明細のある月は費目別に入れる。一括行には絶対に入れない。
-    #   同じ月に両方あったら二重計上なので、ここで止める。
-    both = []
+    # ★カード明細のルール（利用者指示 2026-08-21、2026-08-22 に見直し）:
+    #   明細のある月は、取引先マスタで割れたぶんを費目別に、割れなかったぶんを
+    #   カード会社の一括行に入れる。既存PLの一括額は写さない（rows() で除外済み）。
+    #   （最初は「一括行が空であること」を見ていたが、未分類ぶんを一括行に
+    #     残す作りにしたので前提が変わった）
+    #   ここでは一括行が「未分類の合計」と一致することを見る。
+    #   これが合っていれば、既存PLの額が紛れ込んでいないことも同時に確かめられる。
+    import cards
+    import collections
+    unclassified = collections.Counter()
+    for _t, _mc, plrow_, ex_, _tx, _sr, m_, _u, iss_ in cards.rows():
+        if plrow_ is None:
+            unclassified[(_LUMP[iss_], m_)] += ex_
+    bad = []
     for tab, plrow, m in sorted(split_by_cards()):
         r = build2.RIDX[tab].get(plrow)
         if r is None:
             continue
         v = wb[tab][f"{build2.MCOL[m]}{r}"].value
-        if v and not isinstance(v, str):
-            both.append(f"{tab} 「{plrow}」{m} に {int(v):,} が入っている")
-    assert not both, ("カード明細を費目別に割った月なのに一括行にも入っている"
-                      "（二重計上）:\n  " + "\n  ".join(both))
+        got = int(v) if v and not isinstance(v, str) else 0
+        want = unclassified.get((plrow, m), 0)
+        if got != want:
+            bad.append(f"{tab} 「{plrow}」{m}: シート {got:,} ／ 未分類の合計 {want:,}")
+    assert not bad, ("カード一括行が未分類の合計と合わない"
+                     "（既存PLの額が紛れ込んでいるか、取りこぼし）:\n  "
+                     + "\n  ".join(bad))
+
     # ★棚卸しの連鎖: 前月の期末＝当月の期首。崩れると売上原価が狂う。
     #   売上原価(a) = 仕入合計(2) + 期首棚卸し - 期末棚卸し なので、
     #   ここがずれると売上総利益から下が全部おかしくなる。

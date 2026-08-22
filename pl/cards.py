@@ -52,8 +52,35 @@ SMCC_MASTER = {
 }
 
 # (ファイル, 発行会社, PL列, 明細合計の検算値)
+# (ファイル, 発行会社, PL列, 明細合計の検算値)
+# ★PL列 = ファイル年月 −1か月（支払日ベース。冒頭の説明を参照）。
+#   JCBは11枚とも既存21期PL「JCBカード」の月額と1円まで一致した（2026-08-22 実測）。
 FILES = [
+    ("202510meisai.csv", "JCB", "9月", 991395),
+    ("202511meisai.csv", "JCB", "10月", 497745),
+    ("202512meisai.csv", "JCB", "11月", 635785),
+    ("202601meisai.csv", "JCB", "12月", 789988),
+    ("202602meisai.csv", "JCB", "1月", 532674),
+    ("202603meisai.csv", "JCB", "2月", 347904),
+    ("202604meisai.csv", "JCB", "3月", 410596),
+    ("202605meisai.csv", "JCB", "4月", 339754),
+    ("202606meisai.csv", "JCB", "5月", 511265),
+    ("202607meisai.csv", "JCB", "6月", 538175),
     ("202608meisai.csv", "JCB", "7月", 624249),
+    ("202510.csv", "三井住友", "9月", 30000),
+    ("202511.csv", "三井住友", "10月", 77377),
+    # ★11月だけ既存21期PLは30,771で、明細の合計行30,071と700円違う。
+    #   書類を正とする方針どおり明細の額を採る。差は「既存PLとの食い違い」タブに出る。
+    ("202512.csv", "三井住友", "11月", 30071),
+    ("202601.csv", "三井住友", "12月", 8000),
+    ("202602.csv", "三井住友", "1月", 5000),
+    ("202603.csv", "三井住友", "2月", 74500),
+    ("202604.csv", "三井住友", "3月", 5000),
+    ("202605.csv", "三井住友", "4月", 32400),
+    ("202606.csv", "三井住友", "5月", 8000),
+    # 6月・7月は既存21期PLが空欄。明細から新たに入る
+    ("202607.csv", "三井住友", "6月", 7360),
+    ("202608.csv", "三井住友", "7月", 33100),
     ("202609.csv", "三井住友", "8月", 112625),
 ]
 
@@ -76,17 +103,65 @@ def _read_jcb(path):
     for r in csv.reader(io.StringIO(raw)):
         if r and r[0] == "ご利用者":
             started = True; continue
-        if started and len(r) >= 9 and r[2].strip():
-            yield (r[2].strip(),                                   # ご利用日
-                   unicodedata.normalize("NFKC", r[3]).strip(),    # ご利用先
-                   int(r[8].replace(",", "")))                     # お支払い金額(税込)
+        if not started or len(r) < 9:
+            continue
+        # ★カテゴリ ≪その他≫ の行は利用日が空のことがある
+        #   （「ＥＴＣスルーカードＮ ご利用おまとめ」。その月ぶんの合算なので日付が無い）。
+        #   列の位置はふつうの明細と同じで、金額は列8。利用日だけで弾くと
+        #   検算が合わなくなる（202601で2,580円ぶん足りなかった）。
+        #   年会費（法人ゴールドカード年会費）も同じ ≪その他≫ だが利用日は入っている。
+        other = "≪その他≫" in r[1]
+        if not (r[2].strip() or other):
+            continue
+        # ★訂正サインが「取消」の行はお支払い金額が空。プラスとマイナスの
+        #   2行で打ち消してあるので、そのまま飛ばす（202510で実測）。
+        if not r[8].strip():
+            continue
+        yield (r[2].strip(),                                   # ご利用日（無いこともある）
+               unicodedata.normalize("NFKC", r[3]).strip(),    # ご利用先
+               int(r[8].replace(",", "")))                     # お支払い金額(税込)
 
 
 def _read_smcc(path):
-    for line in open(path, encoding="cp932"):
+    """三井住友。★2つの形式がある（2026-08-22 に判明）。
+
+    ① 支払照会（202609.csv だけがこれ）
+         利用日,利用先,本人区分,支払区分,,支払月,金額,金額,...
+         列0=利用日／列1=利用先／列6=金額。ヘッダ行なし。
+    ② 明細照会（202510〜202608。今回まとめて入った12枚）
+         カード名義の行で始まり、明細は
+           利用日,利用先,金額,回数,回数,金額,備考
+         ★年会費とWEB明細書年会費割引だけ列2が空で、列5に金額が入る。
+           列2だけ見ていると825円ぶん取りこぼす（202511で実測）。
+         ★最終行が合計行（列0が空・列5に総額）。ここは足さない。
+         ★カードが2枚あると名義行が途中にもう一度出る（202607がそう）。
+    どちらも金額に返品のマイナスが混じる。
+    """
+    lines = open(path, encoding="cp932").read().splitlines()
+    fmt2 = any("様" in l.split(",")[0] for l in lines[:1])
+    for line in lines:
         p = line.rstrip("\n").split(",")
-        if len(p) > 6 and p[0].strip():
-            yield (p[0].strip(), unicodedata.normalize("NFKC", p[1]).strip(), int(p[6]))
+        if not fmt2:                                   # ① 支払照会
+            if len(p) > 6 and p[0].strip():
+                yield (p[0].strip(), unicodedata.normalize("NFKC", p[1]).strip(),
+                       int(p[6]))
+            continue
+        # ② 明細照会
+        if len(p) < 6:
+            continue
+        if "様" in p[0]:                                # カード名義の行
+            continue
+        if not p[0].strip() and not p[1].strip():       # 最終行の合計
+            continue
+        amt = p[2].strip() or p[5].strip()              # 年会費は列5にある
+        if not amt:
+            continue
+        try:
+            v = int(amt.replace(",", ""))
+        except ValueError:
+            continue
+        used = p[0].strip() or "（年会費）"
+        yield (used, unicodedata.normalize("NFKC", p[1]).strip(), v)
 
 
 def _classify(issuer, merchant):
