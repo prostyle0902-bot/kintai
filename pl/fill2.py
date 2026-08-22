@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa, shiina, exist_fill, inv8
+import namefa, shiina, exist_fill, inv8, nihonshokken
 
 STAMP = "2026-08-20 06:40"
 
@@ -288,6 +288,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
     print("なめがたセル", len(nf_rows), "／計", f"{sum(x[3] for x in nf_rows):,}")
 
+    # ===== 日本食研（1枚の請求書を店舗別に割る）=====
+    # 1回の振込に複数店ぶんがまとまっていて銀行では割れなかったが、
+    # 請求書に店舗ごとの【店計】があった（利用者指示 2026-08-22）。
+    # 6月・7月は inv6.py / 下の INV が先に入れているので9月〜5月だけ。
+    nihonshokken.check()
+    ns_rows = list(nihonshokken.rows())
+    for tab, plrow, m, val, src, note in ns_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "日本食研")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
+    print("日本食研セル", len(ns_rows), "／計", f"{sum(x[3] for x in ns_rows):,}")
+
     # ===== 椎名環境整備の産廃処分（大口2件）→ 本部 =====
     # 銀行に242,000（2025/11）と221,100（2026/05）の大きな支払いがあり、
     # 毎月の13,200とは桁が違った。業務フォルダに請求書があり、場所は
@@ -421,6 +434,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
         ws.append(["2026-08", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, "8月",
                    f"買掛/21期/{src}", STAMP, biko])
+    for tab, plrow, m, val, src, note in nihonshokken.rows():
+        ws.append([f"21期 {m}", tab, "日本食研", "請求書", "", 8, val, "", plrow, m,
+                   src, STAMP, note])
     for tab, vendor, src, biko in JISSEKI:
         ws.append(["2026-07", tab, vendor, "実績", "", "", "", "", "（金額なし・実績のみ）", "7月",
                    f"買掛/21期/2607月/{src}", STAMP, biko])

@@ -140,11 +140,11 @@ def hold_rows():
     """保留: 神栖横丁側の売上と、相殺・値引き"""
     for month, stores in DATA.items():
         total = sum(d["小計"] for d in stores.values())
-        yield (month, TAB_OWNER, "テナント請求（売上）",
-               f"3店舗ぶん税抜 {total:,}円を読み取ったが、神栖横丁の売上は"
-               f"9月〜6月が毎月220万〜252万。テナントは3店舗だけではなく、"
-               f"残りの合計請求書がDropboxに無い。一部だけ入れると売上が実態と"
-               f"かけ離れるため未計上。全店ぶんが揃ったら入れる。")
+        # ★2026-08-22 に解決。利用者指示「boardのCSVで照らし合わせられないか？」
+        #   → board.py が売掛の請求書CSVから神栖横丁の売上を9月〜7月とも入れている
+        #     （7月は2,965,826）。テナント全店ぶんが入っているので、ここで読んだ
+        #     3店舗ぶん（{total:,}円）を足す必要は無い。足すと二重計上になる。
+        #     保留からも外した。
         for tab, d in stores.items():
             for item, amount in d.items():
                 if item in UNASSIGNED:
