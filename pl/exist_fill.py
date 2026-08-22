@@ -103,9 +103,13 @@ SKIP = {
         "新シートは11月の「その他経費」に230,709で入っている",
 }
 
-# 小計・利益・比率の行。新シートは数式で持っているので写さない
+# 小計・利益・比率の行。新シートは数式で持っているので写さない。
+# ★「期首|期末」を入れていたのは誤り（2026-08-21 に修正）。
+#   期首棚卸し・期末棚卸しは計算行ではなく入力行で、新シートでも入力セル。
+#   既存21期PLには5タブ×11か月ぶん入っていたのに、これで弾いてしまっていた。
+#   売上原価(a) は数式なのでこちらは除外したままでよい。
 import re
-_CALC = re.compile(r"合計|利益|比率|\(\d+\)|＝|=|期首|期末|売上原価\(a\)")
+_CALC = re.compile(r"合計|利益|比率|\(\d+\)|＝|=|売上原価\(a\)")
 
 # ★カード明細を費目別に割った月は、既存PLの一括額を写すと二重計上になる。
 #   既存PLは1枚の請求額をまるごと「JCBカード」「三井住友カード」の1行に入れている。
@@ -246,6 +250,25 @@ def check(wb=None):
             both.append(f"{tab} 「{plrow}」{m} に {int(v):,} が入っている")
     assert not both, ("カード明細を費目別に割った月なのに一括行にも入っている"
                       "（二重計上）:\n  " + "\n  ".join(both))
+    # ★棚卸しの連鎖: 前月の期末＝当月の期首。崩れると売上原価が狂う。
+    #   売上原価(a) = 仕入合計(2) + 期首棚卸し - 期末棚卸し なので、
+    #   ここがずれると売上総利益から下が全部おかしくなる。
+    chain = []
+    for tab in build2.RIDX:
+        if tab not in wb.sheetnames:
+            continue
+        rs = build2.RIDX[tab].get("期首棚卸し"), build2.RIDX[tab].get("期末棚卸し")
+        if None in rs:
+            continue
+        for i in range(len(MONTHS) - 1):
+            m, nx = MONTHS[i], MONTHS[i + 1]
+            end = wb[tab][f"{build2.MCOL[m]}{rs[1]}"].value
+            beg = wb[tab][f"{build2.MCOL[nx]}{rs[0]}"].value
+            if not end or not beg or isinstance(end, str) or isinstance(beg, str):
+                continue
+            if int(end) != int(beg):
+                chain.append(f"{tab}: {m}の期末{int(end):,} ≠ {nx}の期首{int(beg):,}")
+    assert not chain, "棚卸しの連鎖が切れている:\n  " + "\n  ".join(chain)
 
 
 def hold_rows(wb=None):
