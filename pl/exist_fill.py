@@ -141,6 +141,14 @@ def _target(tab, item):
     return ALIAS.get((tab, item), item)
 
 
+# 1件この額以下（税抜）の接待交際費は会議費に回す（利用者指示 2026-08-22）。
+# cards.py / engine.py と同じ扱いを、既存PLから写すぶんにも効かせる。
+# ★既存PLの1セルは1件とは限らない（その月ぶんの合計）。
+#   21期で当たったのは業務課9月の5,000だけで、これは1件ぶんと分かっている。
+#   月に何件も入った合計が5,000円以下になる月が出てきたら、ここを見直すこと。
+KAIGI_LIMIT = 5000
+
+
 def rows(wb):
     """(タブ, PL行, 月, 値, 元, メモ) を列挙。空いているセルだけ。"""
     import build2
@@ -166,6 +174,11 @@ def rows(wb):
                 note = "既存21期PLから転記"
                 if plrow != item:
                     note += f"（既存の行名「{item}」）"
+                if plrow == "接待交際費" and int(v) <= KAIGI_LIMIT:
+                    plrow = "会議費"
+                    note += "／5,000円以下なので会議費へ（利用者指示 2026-08-22）"
+                    if plrow not in build2.RIDX[tab]:
+                        continue
                 yield (tab, plrow, m, int(v), f"既存21期PL {tab}", note)
 
 
@@ -187,7 +200,12 @@ def conflicts(wb):
                 if (tab, plrow, m) in split:
                     continue
                 v = ex[tab][item].get(m)
-                c = ws[f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"].value
+                pl = plrow
+                if pl == "接待交際費" and v and int(v) <= KAIGI_LIMIT:
+                    pl = "会議費"                       # rows() と同じ読み替え
+                    if pl not in build2.RIDX[tab]:
+                        continue
+                c = ws[f"{build2.MCOL[m]}{build2.RIDX[tab][pl]}"].value
                 if not v or not c or isinstance(c, str):
                     continue
                 if int(c) != int(v):
