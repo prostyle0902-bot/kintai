@@ -271,13 +271,28 @@ def push(period, sid=None, dry=False):
     #   行を減らしたときに、前回の中身が下に居残る。実際に売上原価の行を
     #   81行削ったら、りゅうちゃんの【指標】以下が二重に残った（748セル）。
     #   values().clear は「値だけ」消す。書式は次の書式反映で上書きされる。
+    #   ★シートの今の大きさを見て、その内側だけを指定すること。
+    #     はみ出すと 400 "exceeds grid limits" で落ちる。明細ログが
+    #     1,527行しか無いのに2,202行目以降を消そうとして踏んだ（2026-08-22）。
+    grid = {s["properties"]["title"]:
+            (s["properties"]["gridProperties"]["rowCount"],
+             s["properties"]["gridProperties"]["columnCount"])
+            for s in svc.spreadsheets().get(
+                spreadsheetId=sid,
+                fields="sheets.properties").execute()["sheets"]}
     clear = []
     for n_ in names:
         ws = wb[n_]
-        clear.append(f"'{n_}'!A{ws.max_row + 1}:ZZ")
-        clear.append(f"'{n_}'!{get_column_letter(ws.max_column + 1)}1:ZZ")
-    svc.spreadsheets().values().batchClear(
-        spreadsheetId=sid, body={"ranges": clear}).execute()
+        rows_, cols_ = grid.get(n_, (0, 0))
+        if ws.max_row < rows_:
+            clear.append(f"'{n_}'!A{ws.max_row + 1}:"
+                         f"{get_column_letter(cols_)}{rows_}")
+        if ws.max_column < cols_:
+            clear.append(f"'{n_}'!{get_column_letter(ws.max_column + 1)}1:"
+                         f"{get_column_letter(cols_)}{rows_}")
+    if clear:
+        svc.spreadsheets().values().batchClear(
+            spreadsheetId=sid, body={"ranges": clear}).execute()
     print(f"  前回の残りを消しました（{len(clear)}範囲）")
 
     # ② 値と数式。★2回に分ける（_split_values のコメント参照）
