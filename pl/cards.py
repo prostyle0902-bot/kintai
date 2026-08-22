@@ -108,6 +108,9 @@ for _k, _v in _ADD.items():
     JCB_MASTER[_k] += _v
 
 
+# 1件この額以下（税抜）の接待交際費は会議費に回す（利用者指示 2026-08-22）
+KAIGI_LIMIT = 5000
+
 # 三井住友は件数が少ないので個別指定
 SMCC_MASTER = {
     "ハクロマーク製作所": "事務消耗品費",
@@ -263,5 +266,12 @@ def rows():
         for used, merchant, inc in det:
             plrow = _classify(issuer, merchant)
             ex = _ex(inc)
+            # ★1件5,000円以下の飲食費は会議費（利用者指示 2026-08-22）。
+            #   交際費のうち1人5,000円以下の飲食費は会議費に回せるという扱い。
+            #   ★判定は税抜。この損益計算書は税抜経理でそろえているため
+            #     （税込で判定すると6件・28,269円ぶん結果が変わる）。
+            #   ★人数は明細に出ないので、1件あたりで判定している。
+            if plrow == "接待交際費" and ex <= KAIGI_LIMIT:
+                plrow = "会議費"
             yield ("本部", merchant, plrow, ex, inc - ex,
                    f"freeeカード明細/21期/{fname}", month, used, issuer)

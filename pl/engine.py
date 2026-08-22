@@ -199,6 +199,11 @@ def classify(d):
 
         # 円未満切り捨て。floatだと 30800/1.1=27999.99… で1円ずれるため Decimal を使う
         tax_ex = int((Decimal(amt) / (1 + Decimal(rate) / 100)).to_integral_value(ROUND_FLOOR))
+        # ★1件5,000円以下（税抜）の接待交際費は会議費へ（利用者指示 2026-08-22）。
+        #   cards.py（JCB/三井住友）と同じ扱い。判定はこの損益計算書に合わせて税抜。
+        if plrow == "接待交際費" and tax_ex <= 5000:
+            plrow = "会議費"
+            biko = (biko + "／" if biko else "") + "1件5,000円以下なので会議費"
         base.update(判定=src, 税率=rate, 税抜=tax_ex, 消費税=amt - tax_ex,
                     PL行=plrow, 計上月=f"{month}月", 備考=biko, 一致キーワード=kw, 分類=cat)
         rows.append(base)
