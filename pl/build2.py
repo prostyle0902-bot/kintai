@@ -319,8 +319,13 @@ def build_summary(ws):
 
 
 def new_wb(period="21期"):
-    global PERIOD
+    global PERIOD, LAYOUTS, RIDX
     PERIOD = period
+    # ★LAYOUTS/RIDX はインポート時に21期で組んである。期を変えたら組み直す。
+    #   これが無いと22期でも21期のレイアウトが使われ、鹿島食品が
+    #   8%/10%に切り替わらない（2026-08-22 に踏んだ）。
+    LAYOUTS = {t: layout_for(t) for t in TABS}
+    RIDX = {t: ridx_for(LAYOUTS[t]) for t in TABS}
     wb = Workbook(); wb.remove(wb.active)
     build_summary(wb.create_sheet("全体サマリー"))
     for t in TABS:

@@ -267,6 +267,19 @@ def push(period, sid=None, dry=False):
     ids = _sync_tabs(svc, sid, names)
     print(f"  タブを合わせました（{len(ids)}枚）")
 
+    # ★書き込む前に、これから書く範囲より下と右を消す（2026-08-22 追加）。
+    #   行を減らしたときに、前回の中身が下に居残る。実際に売上原価の行を
+    #   81行削ったら、りゅうちゃんの【指標】以下が二重に残った（748セル）。
+    #   values().clear は「値だけ」消す。書式は次の書式反映で上書きされる。
+    clear = []
+    for n_ in names:
+        ws = wb[n_]
+        clear.append(f"'{n_}'!A{ws.max_row + 1}:ZZ")
+        clear.append(f"'{n_}'!{get_column_letter(ws.max_column + 1)}1:ZZ")
+    svc.spreadsheets().values().batchClear(
+        spreadsheetId=sid, body={"ranges": clear}).execute()
+    print(f"  前回の残りを消しました（{len(clear)}範囲）")
+
     # ② 値と数式。★2回に分ける（_split_values のコメント参照）
     #   先に RAW で全部書いてから、数式のセルだけ USER_ENTERED で上書きする。
     #   順番が逆だと、RAW が数式を "=SUM(...)" という文字列に戻してしまう。
