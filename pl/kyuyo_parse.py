@@ -108,6 +108,38 @@ def _row_y(words, label):
     return None
 
 
+def names(ym):
+    """{社員番号: 氏名}。氏名は空白を除いて返す（「飯 田  栄」→「飯田栄」）。"""
+    path = os.path.join(DIR, f"{ym}.pdf")
+    if not os.path.exists(path):
+        return None
+    out = {}
+    for p in range(1, _pages(path) + 1):
+        words = _words(path, p)
+        emps = _emp_cols(words)
+        if not emps:
+            continue
+        y = _row_y(words, "社員")
+        if y is None:
+            continue
+        # 氏名は1文字ずつ分かれていて、しかも姓と名の間が空く（「飯 田  栄」）。
+        # ★氏名も金額と同じで列の右端にそろっている。列幅は約72pt（実測）。
+        #   列iの帯を (右端-72, 右端+2] として、その中の文字を集める。
+        chars = sorted((x0, t) for x0, x1, yy, t in words
+                       if abs(yy - y) < 3.5 and t and t not in ("社員", "員", "社"))
+        buckets = {e: [] for _r, e in emps}
+        for x0, t in chars:
+            for right, emp in emps:
+                if right - 72 < x0 <= right + 2:
+                    buckets[emp].append(t)
+                    break
+        for emp, cs in buckets.items():
+            nm = "".join(cs).replace(" ", "").replace("\u3000", "")
+            if nm:
+                out[emp] = nm
+    return out
+
+
 def parse(ym):
     """{社員番号: (総支給額, 社会保険計)} と 総合計(総支給額, 社会保険計)。"""
     path = os.path.join(DIR, f"{ym}.pdf")
