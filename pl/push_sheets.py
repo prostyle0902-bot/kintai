@@ -26,6 +26,7 @@ fill2.py / build22.py が作る .xlsx を openpyxl で読んで、そのまま�
     ② 値と数式を書く   values().batchUpdate + USER_ENTERED
        USER_ENTERED にすると "=SUM(...)" が数式として解釈される
     ③ 書式を書く       spreadsheets().batchUpdate
+    ④ セルのメモを書く  spreadsheets().batchUpdate（note）
        数値書式（赤字マイナス）・太字・文字色・背景色・罫線・
        列幅・結合セル・ウィンドウ枠固定
 
@@ -235,6 +236,29 @@ def _format_requests(ws, sheet_id):
     return req
 
 
+def _note_requests(ws, sheet_id):
+    """セルのメモ（note）のリクエスト。
+
+    .xlsx のセルコメント（cellnote.py が付ける）をスプレッドシートのメモに写す。
+    ★「コメント」（スレッド）ではなく「メモ」に入れる。メモはAPIで書けて、
+      人が付けたコメントと混ざらない。
+    まず面ごと空にしてから付け直すので、消えた明細のメモが残らない。
+    """
+    req = [{"repeatCell": {"range": {"sheetId": sheet_id},
+                           "cell": {"note": ""}, "fields": "note"}}]
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row,
+                            min_col=1, max_col=ws.max_column):
+        for c in row:
+            if c.comment is None:
+                continue
+            req.append({"repeatCell": {
+                "range": {"sheetId": sheet_id,
+                          "startRowIndex": c.row - 1, "endRowIndex": c.row,
+                          "startColumnIndex": c.column - 1, "endColumnIndex": c.column},
+                "cell": {"note": c.comment.text}, "fields": "note"}})
+    return req
+
+
 def _chunks(seq, n):
     for i in range(0, len(seq), n):
         yield seq[i:i + n]
@@ -324,6 +348,18 @@ def push(period, sid=None, dry=False):
                                            body={"requests": part}).execute()
         total += len(req)
     print(f"  書式を書きました（{total:,}件）")
+
+    # ④ セルのメモ（「この数字なんだっけ？」をセルの上で解決するため）
+    total = 0
+    for n in names:
+        req = _note_requests(wb[n], ids[n])
+        if len(req) == 1:                   # 面を空にするだけ＝メモ無しのシート
+            continue
+        for part in _chunks(req, 500):
+            svc.spreadsheets().batchUpdate(spreadsheetId=sid,
+                                           body={"requests": part}).execute()
+        total += len(req) - 1
+    print(f"  セルのメモを書きました（{total:,}件）")
     print(f"\nhttps://docs.google.com/spreadsheets/d/{sid}/edit")
 
 

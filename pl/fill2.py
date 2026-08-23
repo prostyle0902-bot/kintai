@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa, shiina, exist_fill, inv8, nihonshokken, norow
+import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote
 
 STAMP = "2026-08-20 06:40"
 
@@ -508,7 +508,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                    STAMP, note])
     # ★損益に載せなかったスポンサー売掛相殺も記録として残す（転記先PL行は空欄）
     for tab, m, amt, src, item in yokocho.sponsor():
-        ws.append(["", tab, "神栖横丁", "社内請求", "", 10, "", "", "", m, src, STAMP,
+        # 転記先PL行に「その他経費」を書いておく。金額（税抜）は空のままなので、
+        # cellnote.py が「※PLに載せていないもの」としてメモの末尾に出してくれる。
+        ws.append(["", tab, "神栖横丁", "社内請求", "", 10, "", "", "その他経費", m, src, STAMP,
                    f"{item} {amt:,}（税抜）。★PLには載せていない（利用者確認 2026-08-23）。"
                    "スポンサーへの請求は横丁が出して入金も横丁に入り、"
                    "その分を各店舗への請求から差し引いている。店舗はレジを通していて"
@@ -528,7 +530,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in nr_rows:
         ws.append([[p[5] for p in norow.POSTINGS
                     if (p[0], p[1], p[2]) == (tab, plrow, m)][0], tab,
-                   "MEG design office" if "MEG" in plrow else plrow,
+                   "MEG design office" if "MEG" in plrow else "ヒラノ　タカシ"
+                   if "お米" in plrow else plrow,
                    "請求書" if "MEG" in plrow else "銀行明細",
                    "", 10 if "MEG" in plrow else "", int(val), "",
                    plrow, m, src, STAMP, note])
@@ -541,6 +544,11 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in kaihi_rows:
         ws.append(["2026-08-16", tab, note.split(" — ")[0], "請求書", "", 10, val, "",
                    plrow, m, src, STAMP, note.split(" — ", 1)[1]])
+    # ★既存21期PLからの穴埋めもログに出す（2026-08-23）。
+    #   これを出さないと、セルのメモ（cellnote.py）が付かないセルが1,000件残る。
+    for tab, plrow, m, val, src, note in ef_rows:
+        ws.append(["", tab, "（既存21期PL）", "既存PL", "", "", val, "", plrow, m, src,
+                   STAMP, note])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -618,6 +626,14 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         for c in row:
             c.number_format = build2.NUMFMT
     cs.freeze_panes = "A3"
+
+    # ===== セルのメモ（利用者提案 2026-08-23「コメント欄を利用してはどうかな」）=====
+    # 明細ログを (店舗, PL行, 月) で束ねて、数字が入っているセルにメモを付ける。
+    # 「この数字なんだっけ？」をセルの上で解決できるようにするため。
+    # ★明細ログが唯一の元ネタ。束ねた合計がセルの値と合わなければ★印が出る。
+    n_note, n_bad = cellnote.build(wb)
+    print("セルのメモ", n_note, "件"
+          + (f" ／★明細とセルの値が合わない {n_bad} 件" if n_bad else ""))
 
     wb.save(dst)
     print("転記セル数", posted, "／ 明細ログ", ws.max_row - 2, "行 ／ 保留", hs.max_row - 2, "件")
