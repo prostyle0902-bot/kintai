@@ -162,6 +162,13 @@ def not_posted_rows():
         yield (tab, plrow, m, int(v) if v else 0, why)
 
 
+# ★8月（21期の最終月）は既存21期PLを使わない（利用者指示 2026-08-23）。
+#   「8月は基本、CSVやPDFから全部数字入れてください。既存は無視してくださいね」
+#   いまのところ会計士の既存PLに8月の値は1つも無いが、あとから入っても
+#   写さないようにここで止める。足りないところは保留リストに出す。
+NO_EXIST_MONTHS = {"8月"}
+
+
 def _target(tab, item):
     """既存の行名 → 新シートの行名。写さないものは None。"""
     if (tab, item) in SKIP or _CALC.search(item):
@@ -194,6 +201,8 @@ def rows(wb):
                 v = ex[tab][item].get(m)
                 if not v:            # 未入力・0円は写さない
                     continue
+                if m in NO_EXIST_MONTHS:
+                    continue          # 書類だけで組む月（利用者指示 2026-08-23）
                 if (tab, plrow, m) in split:   # カード明細を費目別に割った月
                     continue
                 if (tab, item, m) in SKIP_CELL or (tab, plrow, m) in SKIP_CELL:
@@ -233,6 +242,8 @@ def conflicts(wb):
             if plrow is None or plrow not in build2.RIDX[tab]:
                 continue
             for m in MONTHS:
+                if m in NO_EXIST_MONTHS:
+                    continue          # 書類だけで組む月（利用者指示 2026-08-23）
                 if (tab, plrow, m) in split:
                     continue
                 if (tab, item, m) in SKIP_CELL or (tab, plrow, m) in SKIP_CELL:
@@ -264,6 +275,8 @@ def lump_months(wb):
             if r is None:
                 continue
             for m in MONTHS:
+                if m in NO_EXIST_MONTHS:
+                    continue          # 書類だけで組む月（利用者指示 2026-08-23）
                 if (tab, plrow, m) in split:
                     continue
                 if (tab, plrow, m) in SKIP_CELL:

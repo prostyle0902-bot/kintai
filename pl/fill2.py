@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers
-import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote
+import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8
 
 STAMP = "2026-08-20 06:40"
 
@@ -586,6 +586,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in norow.hold_rows():
         hs.append(["新設行", m, tab, item, "", reason])
+    # ★8月は書類だけで組む（利用者指示 2026-08-23「既存は無視してくださいね」）。
+    #   まだ届いていない元データを保留リストに出して、何を待っているかを見えるようにする。
+    for m, tab, item, reason in status8.hold_rows():
+        hs.append(["8月待ち", m, tab, item, "", reason])
     for m, tab, item, reason in exist_fill.hold_rows(wb):
         hs.append(["既存PL", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
