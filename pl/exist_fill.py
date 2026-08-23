@@ -142,6 +142,26 @@ def split_by_cards():
     return out
 
 
+def not_posted_rows():
+    """わざと写さなかったセル (タブ, 行, 月, 既存PLの額, 理由) を列挙。
+
+    明細ログに「載せなかった記録」として出し、セルのメモに理由が出るようにする。
+    空欄を見て「なぜ入っていないのか」を探さずに済ませるため（2026-08-23）。
+    """
+    ex, _ = exist_pl.load()
+    for tab, plrow, m in sorted(split_by_cards()):
+        v = ex.get(tab, {}).get(plrow, {}).get(m)
+        if not v:
+            continue
+        yield (tab, plrow, m, int(v),
+               f"既存21期PLの「{plrow}」{m}は {int(v):,}円 の一括額。"
+               "カード明細を費目別に割った月なので写していない。"
+               "写すと同じ支払いを2回数えることになる（実測で税込1円まで一致）")
+    for (tab, plrow, m), why in SKIP_CELL.items():
+        v = ex.get(tab, {}).get(plrow, {}).get(m)
+        yield (tab, plrow, m, int(v) if v else 0, why)
+
+
 def _target(tab, item):
     """既存の行名 → 新シートの行名。写さないものは None。"""
     if (tab, item) in SKIP or _CALC.search(item):

@@ -187,7 +187,11 @@ def load():
             f"{os.path.basename(path)}: 小計の10% {d['小計']*10/100:,.1f} ≠ 消費税 {d['消費税']:,}"
         assert d["小計"] + d["消費税"] == d["税込"], \
             f"{os.path.basename(path)}: 小計＋消費税 ≠ 合計 {d['税込']:,}"
-        d["src"] = f"買掛/21期/{ym}月/（横丁の請求書）{os.path.basename(path)}"
+        # ★Dropbox上の本当のパスを入れる。ファイル名が月ごとにバラバラなので
+        #   yokocho_src.py に実物のパスを持っている（セルのメモに出すため）。
+        from yokocho_src import SRC
+        key = os.path.basename(path)[:-4]
+        d["src"] = SRC.get(key, f"買掛/21期/{ym}月/{os.path.basename(path)}")
         data[YM2MONTH[ym]][FILE2TAB[store]] = d
     return dict(data)
 

@@ -549,6 +549,12 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in ef_rows:
         ws.append(["", tab, "（既存21期PL）", "既存PL", "", "", val, "", plrow, m, src,
                    STAMP, note])
+    # ★わざと写さなかったセルも記録に残す（2026-08-23）。金額（税抜）は空にするので、
+    #   cellnote.py が「※PLに載せていないもの」としてメモの末尾に出す。
+    #   空欄を見て「なぜ入っていないのか」を探さずに済むようにするため。
+    for tab, plrow, m, v, why in exist_fill.not_posted_rows():
+        ws.append(["", tab, "（既存21期PL）", "既存PL", "", "", "", "", plrow, m,
+                   f"既存21期PL {tab}", STAMP, why])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",

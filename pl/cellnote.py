@@ -28,6 +28,8 @@
 金額の合計がセルの値と合わないときはメモの先頭に★を出す（取りこぼしの検知）。
 """
 import collections
+import os
+import re
 
 # 1件あたりの備考の長さ。長いメモはスプレッドシート側で読みにくい
 MAX_NOTE = 260
@@ -38,6 +40,74 @@ MAX_ITEMS = 12
 
 COL = {"日付": 0, "店舗": 1, "取引先": 2, "摘要": 3, "税込": 4, "税率": 5,
        "税抜": 6, "消費税": 7, "PL行": 8, "月": 9, "元ファイル": 10, "備考": 12}
+
+
+# ---- 出どころの言い換え（利用者要望 2026-08-23「ソースがわかるとありがたい」）----
+# ログの「元ファイル名」はモジュールごとに書き方がバラバラなので、
+# 「どこを開けば実物にたどり着けるか」が分かる形にそろえる。
+DROPBOX = "Dropbox "                     # ※請求書※ など Dropbox の共有フォルダ
+REPO = "このリポジトリ pl/"               # 手元に置いてあるCSV
+
+# 千葉銀行の口座番号 → 何の口座か（銀行明細のファイル名だけでは分からない）
+ACCOUNT = {
+    "3351509": "本体（ビルメンのメイン口座）", "3543920": "神栖横丁",
+    "3543939": "焼きたて屋", "3546725": "さわら十三里屋",
+    "3548060": "タコとハイボール", "3555848": "もも焼きJAPAN",
+    "3556801": "りゅうちゃん", "3563077": "韓国酒場ハナ",
+}
+# 既存21期PLのスプレッドシート（タブごとに別ファイル）
+EXIST_SHEET = {
+    "りゅうちゃん": "1N5QF8UO_", "もも焼きJAPAN": "16a9y8Ex", "韓国酒場ハナ": "1MbrqksG",
+    "さわら十三里屋": "1K1U0hql", "タコとハイボール": "10PZ-wKL", "焼きたて屋": "1OB3yLta",
+    "神栖横丁": "1aI4rq96", "鳥害対策課": "1q8C6Syu", "業務課": "1JKy9P6_", "本部": "1xO2MPtc",
+}
+
+_BANK = re.compile(r"小見川支店_普通_(\d{7})_(\d{4})(\d{2})")
+
+
+def source(src):
+    """ログの「元ファイル名」→ 実物にたどり着ける書き方。"""
+    s = " ".join(str(src or "").split())
+    if not s:
+        return ""
+    if s.startswith("/"):                       # すでにDropboxのフルパス
+        return DROPBOX + s
+    m = _BANK.search(s)
+    if m:
+        acct, y, mo = m.groups()
+        who = ACCOUNT.get(acct, "")
+        return (f"千葉銀行 小見川支店 普通 {acct}"
+                + (f"（{who}）" if who else "")
+                + f" {y}年{int(mo)}月の明細CSV ／ {REPO}bank/{os.path.basename(s)}")
+    if s.startswith("NBG"):
+        return f"PayPay銀行の明細CSV ／ {REPO}bank/{s}"
+    if s.startswith("銀行明細/"):
+        return ("千葉銀行の店舗口座＋PayPay銀行の明細CSV ／ "
+                f"{REPO}bank/（{s.split('/')[-1]}）")
+    if s.startswith("bank/"):
+        return f"{REPO}{s}"
+    if s.startswith("買掛/"):
+        return DROPBOX + "/※請求書※/" + s
+    if s.startswith("freeeカード明細/"):
+        return DROPBOX + "/※請求書※/" + s
+    if s.startswith("statement-"):
+        return (f"freeeの経費精算CSV ／ {REPO}csv/{s}"
+                "（Dropbox /※請求書※/freeeカード明細/21期/ と同じもの）")
+    if s.startswith("既存21期PL"):
+        tab = s.replace("既存21期PL", "").strip()
+        u = EXIST_SHEET.get(tab)
+        return ("会計士さんの既存21期PLスプレッドシート"
+                + (f"「{tab}」タブ" if tab else "")
+                + (f"（ID {u}…）" if u else ""))
+    if s.startswith("既存PLスプシ"):
+        return "会計士さんの既存21期PLスプレッドシート（毎月同額の自動引落・自動振込）"
+    if s.startswith("かめや"):
+        return DROPBOX + "/※請求書※/" + s.replace("かめや（焼きたて屋本部）", "かめや")
+    if s.startswith("Drive "):
+        return "Google Drive " + s[len("Drive "):]
+    if s.startswith("給与集計"):
+        return DROPBOX + "/※プロスタイル給与※/ " + s.split("（")[0]
+    return s
 
 
 def _trim(s, n):
@@ -80,7 +150,7 @@ def _one(tab, plrow, m, items, cell_value):
         if x["日付"]:
             b[0] += f"  {_trim(x['日付'], 16)}"
         if x["元ファイル"]:
-            b.append(f"   {_trim(x['元ファイル'], 90)}")
+            b.append(f"   出どころ: {_trim(source(x['元ファイル']), 150)}")
         if x["備考"]:
             b.append(f"   {_trim(x['備考'], MAX_NOTE)}")
         return b
