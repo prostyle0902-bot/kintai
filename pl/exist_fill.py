@@ -169,7 +169,13 @@ def rows(wb):
                 if (tab, plrow, m) in split:   # カード明細を費目別に割った月
                     continue
                 c = ws[f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
-                if c.value:          # 書類から入っている。絶対に上書きしない
+                # ★書類から入っている。絶対に上書きしない。
+                #   0 も「書類を足したらちょうど0になった」という結論なので守る。
+                #   例: 韓国酒場ハナ 6月のその他経費は
+                #       ChatGPT +2,727（freee）と横丁のその他値引き ▲2,727 で 0。
+                #       `if c.value:` だと0を未入力と見て既存PLの▲2,727を写してしまい、
+                #       ChatGPTの費用が消えていた（2026-08-23 に直した）。
+                if c.value is not None:
                     continue
                 note = "既存21期PLから転記"
                 if plrow != item:

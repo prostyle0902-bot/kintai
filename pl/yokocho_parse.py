@@ -71,12 +71,28 @@ ITEM2ROW = {
     "備品購入費代（レジサーマル等）": "消耗品費",
     "備品購入費等": "消耗品費",
     "備品購入費代": "消耗品費",
-    # ★スポンサー売掛相殺・その他値引きは【費用のマイナス】（利用者判断 2026-08-20
-    #   「そのままでいい。費用のマイナスで」）。雑収入にはしない。
-    #   既存21期PLにも前例がある（韓国酒場ハナ 5月 ▲2,727）。
-    "スポンサー売掛相殺": "その他経費",
+    # ★スポンサー売掛相殺は【損益に載せない】（利用者確認 2026-08-23）。
+    #   お金の流れはこう:
+    #       ① 当日   店舗: 売掛金／売上      … 店舗はレジを通すので売上は計上済み
+    #       ② 集金   横丁: 現金／店舗への預り金 … スポンサーへは横丁が請求する
+    #       ③ 相殺   店舗: 買掛金（横丁へ）／売掛金 … 貸借だけの動き
+    #   ③に損益は出ない。売掛金を家賃の支払いと相殺して回収しただけ。
+    #   費用のマイナスにすると「売上を立てたうえに費用も減る」ことになり、
+    #   相殺の分だけ店舗の利益が多く出てしまう（21期で計 1,084,693円）。
+    #   会計士の既存21期PLも4店舗とも相殺を入れておらず、家賃は総額だった。
+    #   ★2026-08-20 はいったん「そのままでいい。費用のマイナスで」としていたが、
+    #     2026-08-23 に流れを確認して外した。
+    #   ★神栖横丁側はいまのままでよい。boardのテナント請求が【相殺後の小計】で、
+    #     そこにスポンサー請求が足されるので、合計はちょうど本来の家賃収入になる。
+    #       横丁の売上 ＝ (家賃 − 相殺) ＋ 相殺 ＝ 家賃
+    #     テナント請求を総額に直すときは、スポンサー請求を売上から外さないと二重になる。
+    "スポンサー売掛相殺": None,
+    # その他値引きは家賃そのものの値引きなので【費用のマイナス】のままでよい。
     "その他値引き": "その他経費",
 }
+
+# ITEM2ROW の値が None ＝「請求書には載るがPLには載せない」。
+# 小計の検算には要るので読み取りはする。
 # 「共益費/〜」と「日常清掃（等）」はまとめて 地代家賃（共益費） へ
 KYOEKI = "地代家賃（共益費）"
 
@@ -90,10 +106,14 @@ _TAX = re.compile(r"消費税\s+(-?[\d,]+)\s*$")
 _TOTAL = re.compile(r"合計\s+(-?[\d,]+)\s*$")
 
 
+_UNKNOWN = object()
+
+
 def _row_of(item):
+    """摘要 → PL行。None は「PLには載せない」。未知の摘要は _UNKNOWN。"""
     if item.startswith("共益費/") or item.startswith("日常清掃"):
         return KYOEKI
-    return ITEM2ROW.get(item)
+    return ITEM2ROW.get(item, _UNKNOWN)
 
 
 def _read(path):
@@ -109,9 +129,9 @@ def _read(path):
             amount = int(m.group(4).replace(",", ""))
             if amount == 0:
                 continue
-            assert _row_of(item) or item in ZERO_ONLY, \
+            assert _row_of(item) is not _UNKNOWN, \
                 f"{os.path.basename(path)}: 知らない摘要「{item}」に {amount:,}円 付いている"
-            assert _row_of(item), \
+            assert item not in ZERO_ONLY, \
                 f"{os.path.basename(path)}: 「{item}」は0のはずなのに {amount:,}円 ある"
             out["items"][item] = out["items"].get(item, 0) + amount
             continue
@@ -218,7 +238,7 @@ if __name__ == "__main__":
             for tab, d in stores.items():
                 by = collections.Counter()
                 for item, amt in d["items"].items():
-                    by[_row_of(item)] += amt
+                    by[_row_of(item) or "（PLに載せない：売掛金の相殺）"] += amt
                 print(f"   {tab:<14} No.{d['No']}  小計{d['小計']:>9,}  "
                       f"税込{d['税込']:>9,}")
                 for row, v in by.items():

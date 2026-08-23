@@ -92,15 +92,33 @@ KYOEKI_ITEMS = [
 
 
 def rows():
-    """(タブ, PL行, 月, 税抜金額, 元ファイル) を列挙。店舗側の費用だけ。"""
+    """(タブ, PL行, 月, 税抜金額, 元ファイル) を列挙。店舗側の費用だけ。
+
+    ★スポンサー売掛相殺は損益に載せない（_row_of が None を返す）。
+      売掛金と買掛金の相殺で、売上は当日レジで計上済み。sponsor() で取れる。
+    """
     for month, stores in DATA.items():
         for tab, d in stores.items():
             by_row = {}
             for item, amount in d["摘要別"].items():
-                by_row.setdefault(_row_of(item), 0)
-                by_row[_row_of(item)] += amount
+                plrow = _row_of(item)
+                if plrow is None:          # PLに載せないもの（相殺）
+                    continue
+                by_row[plrow] = by_row.get(plrow, 0) + amount
             for plrow, amount in by_row.items():
                 yield tab, plrow, month, amount, d["src"]
+
+
+def sponsor():
+    """(タブ, 月, 金額, 元ファイル) を列挙。損益に載せないスポンサー売掛相殺。
+
+    明細ログに「載せなかった」記録として出すために使う。
+    """
+    for month, stores in DATA.items():
+        for tab, d in stores.items():
+            for item, amount in d["摘要別"].items():
+                if _row_of(item) is None:
+                    yield tab, month, amount, d["src"], item
 
 
 def detail(tab, plrow, month):
@@ -108,7 +126,8 @@ def detail(tab, plrow, month):
     d = DATA.get(month, {}).get(tab)
     if not d:
         return ""
-    parts = [f"{k} {v:,}" for k, v in d["摘要別"].items() if _row_of(k) == plrow]
+    parts = [f"{k} {v:,}" for k, v in d["摘要別"].items()
+             if plrow is not None and _row_of(k) == plrow]
     return "／".join(parts)
 
 
@@ -157,6 +176,13 @@ if __name__ == "__main__":
         print(f"{tab:<14}{plrow:<22}"
               + "".join(f"{v.get(m,0):>10,}" for m in months)
               + f"{sum(v.values()):>11,}")
+    sp = collections.defaultdict(int)
+    for tab, m, amt, _src, _item in sponsor():
+        sp[tab] += amt
+    print(f"\n★損益に載せていないスポンサー売掛相殺（売掛金の相殺・貸借だけ）"
+          f" 計 {sum(sp.values()):,}")
+    for tab, v in sorted(sp.items()):
+        print(f"   {tab:<14}{v:>12,}")
     print("\n保留:")
     for m, tab, item, why in hold_rows():
         print(f"  [{m}] {item} … {why}")
