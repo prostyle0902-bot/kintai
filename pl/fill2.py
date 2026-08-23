@@ -598,12 +598,21 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     cs = wb.create_sheet("既存PLとの食い違い")
     cs.cell(1, 1, "既存21期PLと金額が違うセル（新シートは書類の値を採っている。"
                   "上書きはしていない）").font = Font(bold=True, size=12)
-    for j, h in enumerate(["タブ", "行", "月", "新シート（書類）", "既存21期PL", "差"], 1):
+    for j, h in enumerate(["タブ", "行", "月", "新シート（書類）", "既存21期PL", "差",
+                           "備考"], 1):
         c = cs.cell(2, j, h); c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="ED7D31")
+    # ★利用者に判断してもらった食い違いは、そのむね書いておく。
+    #   毎回「未解決の差」に見えてしまうと、本当に見るべきものが埋もれる。
+    yoko_cells = {(t, p, m) for t, p, m, _v, _s in yokocho.rows()}
     for tab, plrow, m, new, old in sorted(ef_conf, key=lambda x: -abs(x[3] - x[4])):
-        cs.append([tab, plrow, m, new, old, new - old])
-    for col, w in zip("ABCDEF", (14, 26, 6, 16, 16, 14)):
+        biko = ""
+        if (tab, plrow, m) in yoko_cells:
+            d = yokocho.DATA[m][tab]
+            biko = (f"神栖横丁の請求書 No.{d['No']} を採用（利用者指示 2026-08-23"
+                    f"「請求書で合わせて」）。内訳: {yokocho.detail(tab, plrow, m)}")
+        cs.append([tab, plrow, m, new, old, new - old, biko])
+    for col, w in zip("ABCDEFG", (14, 26, 6, 16, 16, 14, 90)):
         cs.column_dimensions[col].width = w
     for row in cs.iter_rows(min_row=3, min_col=4, max_col=6):
         for c in row:

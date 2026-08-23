@@ -103,6 +103,14 @@ SKIP = {
         "新シートは11月の「その他経費」に230,709で入っている",
 }
 
+# ★1セルだけ写さないもの。(タブ, 行, 月) -> 理由。SKIP は行まるごと、こちらは1か月だけ。
+SKIP_CELL = {
+    ("韓国酒場ハナ", "その他経費", "12月"):
+        "既存21期PLに ＋54,200（プラス）で入っているが、横丁の12月分請求書"
+        "に該当する項目が無く、カード明細・銀行明細にも見当たらない。"
+        "何の費用か決められないので写さない。利用者判断「保留」（2026-08-23）",
+}
+
 # 小計・利益・比率の行。新シートは数式で持っているので写さない。
 # ★「期首|期末」を入れていたのは誤り（2026-08-21 に修正）。
 #   期首棚卸し・期末棚卸しは計算行ではなく入力行で、新シートでも入力セル。
@@ -168,6 +176,8 @@ def rows(wb):
                     continue
                 if (tab, plrow, m) in split:   # カード明細を費目別に割った月
                     continue
+                if (tab, item, m) in SKIP_CELL or (tab, plrow, m) in SKIP_CELL:
+                    continue        # 1セルだけ写さないもの（SKIP_CELL）
                 c = ws[f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
                 # ★書類から入っている。絶対に上書きしない。
                 #   0 も「書類を足したらちょうど0になった」という結論なので守る。
@@ -205,6 +215,8 @@ def conflicts(wb):
             for m in MONTHS:
                 if (tab, plrow, m) in split:
                     continue
+                if (tab, item, m) in SKIP_CELL or (tab, plrow, m) in SKIP_CELL:
+                    continue        # 1セルだけ写さないもの（SKIP_CELL）
                 v = ex[tab][item].get(m)
                 pl = plrow
                 if pl == "接待交際費" and v and int(v) <= KAIGI_LIMIT:
@@ -234,6 +246,8 @@ def lump_months(wb):
             for m in MONTHS:
                 if (tab, plrow, m) in split:
                     continue
+                if (tab, plrow, m) in SKIP_CELL:
+                    continue        # 1セルだけ写さないもの（SKIP_CELL）
                 v = wb[tab][f"{build2.MCOL[m]}{r}"].value
                 if v and not isinstance(v, str):
                     out.append((tab, plrow, m, int(v)))
@@ -320,6 +334,10 @@ def hold_rows(wb=None):
                         "明細（JCBは20xxxxmeisai.csv、三井住友は20xxxx.csv）を "
                         "※請求書※/freeeカード明細/21期/ に入れてもらえれば、"
                         "cards.py が費目別に割り直してこの行は空になる"))
+    for (tab, plrow, m), why in SKIP_CELL.items():
+        v = ex.get(tab, {}).get(plrow, {}).get(m)
+        out.append((m, tab, f"既存PL「{plrow}」{m}"
+                    + (f"（{int(v):,}円）" if v else ""), why))
     return out + _skip_holds(ex)
 
 
