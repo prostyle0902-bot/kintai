@@ -225,16 +225,35 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     print("かめやセル", len(kame_rows), "／現金過不足→雑損失", len(kame_cash),
           "セル 計", f"{sum(x[3] for x in kame_cash):+,}")
 
-    # ===== 神栖横丁 → 入居店舗への社内請求 =====
-    yokocho.check()
+    # 横丁の請求書だけが埋める行。ほかの元データと重なったら事故なので止める。
+    YOKO_EXCLUSIVE = {"地代家賃（賃料）", "地代家賃（駐車場利用料）", "地代家賃（共益費）",
+                      "広告宣伝費（共通宣伝費）", "水道光熱費（電気料金）", "水道光熱費（水道料金）"}
+    # ===== 神栖横丁 → 入居店舗への社内請求（21期10か月ぶん）=====
+    # 請求書PDF40枚（10か月×4店舗）を yokocho_parse.py が読み、
+    # yokocho_data.py に起こしてある。2026-08-22 に7月だけ→10か月に増やした。
+    # ★このブロックは fixed_costs より前に置くこと。
+    #   fixed_costs は「埋まっているセルは飛ばす」ので、請求書のほうが優先される。
+    #   飛ばしたぶんは fixed_costs.check(wb) が定額と一致するか検算してくれる。
+    yokocho.check(wb)
     F_YOKO = PatternFill("solid", fgColor="DDEBF7")
     yoko_rows = list(yokocho.rows())
     for tab, plrow, m, val, src in yoko_rows:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "横丁社内請求")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + val; c.fill = F_YOKO; c.number_format = build2.NUMFMT
-    print("横丁社内請求セル", len(yoko_rows))
+        # ★家賃・駐車場・共益費・共通販促費・電気・水道は横丁の請求書だけが持つ行。
+        #   ここに来る前に埋まっていたら二重計上なので止める
+        #   （inv6.py が6月ぶんを持っていたのを 2026-08-22 に外した）。
+        #   その他経費・消耗品費は他の元データも入る行なので足しこむ
+        #   （例: 韓国酒場ハナ 6月の ChatGPT 2,727 はカード明細から）。
+        if plrow in YOKO_EXCLUSIVE:
+            assert not c.value, (f"{tab} {plrow} {m} に既に {c.value} が入っている。"
+                                 f"横丁の請求書 {val:,} を足すと二重計上になる")
+        c.value = int(c.value or 0) + val
+        c.fill = F_YOKO; c.number_format = build2.NUMFMT
+    print("横丁社内請求セル", len(yoko_rows), "／計",
+          f"{sum(x[3] for x in yoko_rows):,}",
+          "／", len({x[2] for x in yoko_rows}), "か月ぶん")
 
     # ===== 神栖横丁の口座振替（電気・ガス・水道・電話・USENほか）=====
     # 請求書が2606月・2607月しか無い費目を、横丁の口座の引落から埋める。
@@ -478,8 +497,15 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in kame_cash:
         ws.append(["", tab, "かめや", "合計精算書", "", "", val, "", plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src in yoko_rows:
-        ws.append(["2026-07-31", tab, "神栖横丁", "社内請求", "", 10, val, "", plrow, m, src,
-                   STAMP, "神栖横丁が入居店舗へ出す合計請求書。神栖横丁側の売上は保留"])
+        d = yokocho.DATA[m][tab]
+        note = (f"神栖横丁が入居店舗へ出す請求書 No.{d['No']}（内訳: "
+                f"{yokocho.detail(tab, plrow, m)}）。"
+                f"請求書の小計{d['小計']:,}／税込{d['税込']:,}。"
+                "神栖横丁側の売上は board.py が売掛CSVから入れている")
+        if d.get("相殺の税抜補正"):
+            note += "／★" + d["相殺の税抜補正"]
+        ws.append(["", tab, "神栖横丁", "社内請求", "", 10, val, "", plrow, m, src,
+                   STAMP, note])
     for tab, plrow, m, val, src, note in yb_rows:
         ws.append([f"21期 {m}", tab, note.split("。")[0], "口座振替", "", 10, int(val), "",
                    plrow, m, src, STAMP, note])
