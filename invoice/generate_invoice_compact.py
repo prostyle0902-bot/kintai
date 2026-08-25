@@ -38,12 +38,55 @@ SEAL_RED = HexColor("#c93a2f")
 W, H = A4  # 595.27 x 841.89 pt
 
 
-def draw_invoice_page(c, config, year, month):
-    issuer = config["issuer"]
+TEMPLATE_FORM = "invoiceTemplate"
+
+# 明細テーブルの座標（共通部分と可変部分で同じ値を使う）
+TABLE_X = 20 * mm
+TABLE_TOP = H - 140 * mm
+ROW_H = 11 * mm
+
+
+def draw_variable_text(c, config, year, month):
+    """年月に依存する文言だけを描画する（請求書番号・発行日・摘要の対象月）。"""
     last_day = calendar.monthrange(year, month)[1]
+    c.setFont(FONT, 9)
+    c.setFillColor(GRAY)
+    c.drawRightString(W - 20 * mm, H - 47 * mm, f"請求書番号：RY-{year:04d}{month:02d}")
+    c.drawRightString(W - 20 * mm, H - 52 * mm, f"発行日：{year}年{month}月{last_day}日")
+    c.setFillColor(INK)
+    c.setFont(FONT, 10)
+    c.drawString(TABLE_X + 4 * mm, TABLE_TOP - 2 * ROW_H + 4 * mm,
+                 f"{config['line_item']}（{year}年{month}月分）")
+
+
+def draw_template_form(c, config):
+    """毎ページ共通の枠・固定文言をForm XObjectとして一度だけ定義する。
+
+    複数ページ生成時、各ページはこのXObjectを参照するだけで済むため、
+    ページ数が増えてもファイルサイズがほとんど増えない（メール添付時の
+    base64サイズを抑える目的）。
+    """
+    c.beginForm(TEMPLATE_FORM)
+    draw_invoice_page(c, config, None, None, static_only=True)
+    c.endForm()
+
+
+def draw_invoice_page(c, config, year, month, static_only=False, use_form=False):
+    """請求書1ページ分を描画する。
+
+    static_only=True: 年月に依存しない共通部分のみ描画（テンプレート定義用）。
+    use_form=True: 共通部分はForm XObjectを参照し、年月依存の文言のみ描画。
+    """
+    issuer = config["issuer"]
     amount = config["amount"]
     amount_fmt = f"￥{amount:,}"
     tax_label = "税込" if config.get("tax_included", True) else "税抜"
+
+    if use_form:
+        c.doForm(TEMPLATE_FORM)
+        draw_variable_text(c, config, year, month)
+        c.showPage()
+        return
 
     c.setFillColor(INK)
     c.setStrokeColor(INK)
@@ -53,11 +96,9 @@ def draw_invoice_page(c, config, year, month):
     title = "請　求　書"
     c.drawCentredString(W / 2, H - 30 * mm, title)
 
-    # 右上メタ
-    c.setFont(FONT, 9)
-    c.setFillColor(GRAY)
-    c.drawRightString(W - 20 * mm, H - 47 * mm, f"請求書番号：RY-{year:04d}{month:02d}")
-    c.drawRightString(W - 20 * mm, H - 52 * mm, f"発行日：{year}年{month}月{last_day}日")
+    # 右上メタ（年月依存のため、テンプレート定義時は描かない）
+    if not static_only:
+        draw_variable_text(c, config, year, month)
 
     # 宛先（左）
     c.setFillColor(INK)
@@ -135,7 +176,6 @@ def draw_invoice_page(c, config, year, month):
     y1 = ty - 2 * row_h
     c.rect(tx, y1, tw, row_h, stroke=1, fill=0)
     c.setFont(FONT, 10)
-    c.drawString(tx + 4 * mm, y1 + 4 * mm, f"{config['line_item']}（{year}年{month}月分）")
     c.drawCentredString(col_qty + 10 * mm, y1 + 4 * mm, "1式")
     c.drawRightString(tx + tw - 4 * mm, y1 + 4 * mm, amount_fmt)
     # 合計行
@@ -167,7 +207,8 @@ def draw_invoice_page(c, config, year, month):
     c.drawString(tx + 5 * mm, ny - 27.5 * mm,
                  "　 記載内容に相違がある場合はお申し出ください。")
 
-    c.showPage()
+    if not static_only:  # テンプレート定義中はページを閉じない
+        c.showPage()
 
 
 def parse_months(spec):
@@ -212,8 +253,14 @@ def main():
     pdfmetrics.registerFont(UnicodeCIDFont(FONT))
     c = canvas.Canvas(output, pagesize=A4)
     c.setTitle(f"請求書 {config['issuer']['store']}")
-    for y, m in months:
-        draw_invoice_page(c, config, y, m)
+    if len(months) > 1:
+        # 複数月はテンプレートを共有してファイルサイズを抑える
+        draw_template_form(c, config)
+        for y, m in months:
+            draw_invoice_page(c, config, y, m, use_form=True)
+    else:
+        for y, m in months:
+            draw_invoice_page(c, config, y, m)
     c.save()
     print(output)
 
