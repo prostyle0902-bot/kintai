@@ -7,7 +7,7 @@
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
+    font-family: 'IPAexGothic', 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
     color: #1a1a18;
     width: 210mm;
     padding: 22mm 20mm 10mm;
@@ -27,8 +27,18 @@
   .parties { display: flex; justify-content: space-between; margin-bottom: 12mm; }
   .to .name { font-size: 14pt; font-weight: 600; border-bottom: 1.5px solid #1a1a18; padding-bottom: 2mm; margin-bottom: 3mm; }
   .to .sub { font-size: 9.5pt; color: #555; }
-  .from { text-align: left; font-size: 10pt; }
+  .from { text-align: left; font-size: 10pt; position: relative; padding-right: 20mm; }
   .from .store { font-weight: 600; }
+  .from .addr { font-size: 9pt; color: #333; }
+  .seal {
+    position: absolute; right: 0; top: 1mm;
+    width: 16mm; height: 16mm;
+    border: 0.55mm solid #c93a2f; border-radius: 50%;
+    color: #c93a2f;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 5.2mm; font-weight: 600; line-height: 1.08;
+    opacity: 0.85;
+  }
   .total-box {
     display: flex; align-items: baseline; gap: 8mm;
     border: 1.5px solid #1a1a18; padding: 5mm 8mm; margin-bottom: 10mm; width: 60%;
@@ -62,8 +72,11 @@
     </div>
     <div class="from">
       <div class="store">{{ISSUER_STORE}}</div>
-      <div>{{ISSUER_TITLE}}　{{ISSUER_NAME}}</div>
-      <div style="font-size: 9pt; color: #555;">（{{ISSUER_NOTE}}）</div>
+      <div>{{ISSUER_TITLE}}　{{ISSUER_NAME}}（{{ISSUER_NOTE}}）</div>
+      <div class="addr">〒{{ISSUER_POSTAL}}</div>
+      <div class="addr">{{ISSUER_ADDRESS}}</div>
+      <div class="addr">TEL：{{ISSUER_PHONE}}</div>
+      <div class="seal"><span>{{SEAL_CHAR1}}</span><span>{{SEAL_CHAR2}}</span></div>
     </div>
   </div>
 

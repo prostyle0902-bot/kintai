@@ -26,6 +26,19 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JST = ZoneInfo("Asia/Tokyo")
 
 
+def ensure_cjk_font():
+    """日本語フォント（Noto Sans CJK）が無い環境ではPDFが肥大化するため、可能なら導入する。"""
+    try:
+        out = subprocess.run(["fc-list", ":lang=ja", "family"], capture_output=True, text=True, timeout=30)
+        if "IPAexGothic" in out.stdout:
+            return
+        # 単体TTFのフォントはType0で埋め込まれPDFが小さくなる（TTC形式はType3化して肥大する）
+        subprocess.run(["apt-get", "install", "-y", "fonts-ipaexfont-gothic"],
+                       capture_output=True, timeout=300)
+    except Exception:
+        pass  # フォントが無くても生成自体は可能（サイズが大きくなるだけ）
+
+
 def find_chromium():
     candidates = [os.environ.get("CHROME_BIN")]
     pw_root = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/opt/pw-browsers")
@@ -57,6 +70,11 @@ def build_html(config, year, month):
         "{{ISSUER_TITLE}}": issuer["title"],
         "{{ISSUER_NAME}}": issuer["name"],
         "{{ISSUER_NOTE}}": issuer["note"],
+        "{{ISSUER_POSTAL}}": issuer.get("postal", ""),
+        "{{ISSUER_ADDRESS}}": issuer.get("address", ""),
+        "{{ISSUER_PHONE}}": issuer.get("phone", ""),
+        "{{SEAL_CHAR1}}": issuer.get("seal_text", "")[:1],
+        "{{SEAL_CHAR2}}": issuer.get("seal_text", "")[1:2],
         "{{LINE_ITEM}}": config["line_item"],
         "{{PERIOD_LABEL}}": f"{year}年{month}月",
         "{{TOTAL_FMT}}": f"{config['amount']:,}",
@@ -68,6 +86,7 @@ def build_html(config, year, month):
 
 
 def render_pdf(html, output_path):
+    ensure_cjk_font()
     chromium = find_chromium()
     with tempfile.TemporaryDirectory() as tmpdir:
         html_path = os.path.join(tmpdir, "invoice.html")
@@ -85,6 +104,16 @@ def render_pdf(html, output_path):
         subprocess.run(cmd, check=True, capture_output=True, timeout=120)
     if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
         raise RuntimeError("PDFの生成に失敗しました。")
+    try:  # pikepdfがあれば再圧縮してサイズを削減（無くても可）
+        import pikepdf
+        tmp = output_path + ".opt"
+        with pikepdf.open(output_path) as pdf:
+            pdf.save(tmp, compress_streams=True,
+                     object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                     recompress_flate=True)
+        os.replace(tmp, output_path)
+    except Exception:
+        pass
 
 
 def main():
