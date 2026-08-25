@@ -5,10 +5,15 @@
 
 ## ファイル構成
 
-- `config.json` — 発行者・宛先・金額・送信先などの設定。金額や名義の変更はここを編集する。
-- `template.html` — 請求書のレイアウト（A4・1ページ）。
-- `generate_invoice.py` — テンプレートに値を差し込み、ヘッドレスChromiumでPDF化するスクリプト。
+- `config.json` — 発行者・宛先・金額・送信先などの設定。金額や名義・住所の変更はここを編集する。
+- `template.html` — 請求書のレイアウト（A4・1ページ、発行者住所・印影入り）。
+- `generate_invoice.py` — テンプレートに値を差し込み、ヘッドレスChromiumでPDF化するスクリプト（高品質版）。
+- `generate_invoice_compact.py` — reportlab + 非埋め込みCIDフォントで生成する軽量版（1ページ数KB）。
+  **メール添付にはこちらを使う**（トークン・サイズ効率のため）。`--months 2025-09:2026-07` で期間一括生成も可能。
 - `output/` — 生成されたPDFの出力先（Git管理外）。
+
+依存: 軽量版は `pip install reportlab` が必要。高品質版はヘッドレスChromiumと
+日本語フォント（`apt-get install fonts-ipaexfont-gothic`。スクリプトが自動導入を試みる）。
 
 ## 使い方
 
