@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>請求書 {{INVOICE_NO}}</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
+    color: #1a1a18;
+    width: 210mm;
+    padding: 22mm 20mm 10mm;
+    font-size: 10.5pt;
+    line-height: 1.6;
+  }
+  h1 {
+    text-align: center;
+    font-size: 22pt;
+    font-weight: 600;
+    letter-spacing: 1.2em;
+    text-indent: 1.2em;
+    margin-bottom: 14mm;
+  }
+  .meta { text-align: right; font-size: 9.5pt; color: #444; margin-bottom: 8mm; }
+  .meta div { margin-bottom: 1mm; }
+  .parties { display: flex; justify-content: space-between; margin-bottom: 12mm; }
+  .to .name { font-size: 14pt; font-weight: 600; border-bottom: 1.5px solid #1a1a18; padding-bottom: 2mm; margin-bottom: 3mm; }
+  .to .sub { font-size: 9.5pt; color: #555; }
+  .from { text-align: left; font-size: 10pt; }
+  .from .store { font-weight: 600; }
+  .total-box {
+    display: flex; align-items: baseline; gap: 8mm;
+    border: 1.5px solid #1a1a18; padding: 5mm 8mm; margin-bottom: 10mm; width: 60%;
+  }
+  .total-box .label { font-size: 11pt; }
+  .total-box .value { font-size: 18pt; font-weight: 700; }
+  .total-box .tax { font-size: 9pt; color: #555; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8mm; }
+  th, td { border: 1px solid #999; padding: 3mm 4mm; }
+  th { background: #f0f0ee; font-weight: 600; font-size: 9.5pt; }
+  td.amount, th.amount { text-align: right; width: 32mm; }
+  td.qty, th.qty { text-align: center; width: 20mm; }
+  tr.total-row td { font-weight: 700; background: #fafaf8; }
+  .notes { font-size: 9pt; color: #444; border: 1px solid #ccc; padding: 4mm 5mm; }
+  .notes .title { font-weight: 600; margin-bottom: 1.5mm; }
+  .notes p { margin-bottom: 1mm; }
+</style>
+</head>
+<body>
+  <h1>請求書</h1>
+
+  <div class="meta">
+    <div>請求書番号：{{INVOICE_NO}}</div>
+    <div>発行日：{{ISSUE_DATE}}</div>
+  </div>
+
+  <div class="parties">
+    <div class="to">
+      <div class="name">{{RECIPIENT}} 御中</div>
+      <div class="sub">下記のとおりご請求申し上げます。</div>
+    </div>
+    <div class="from">
+      <div class="store">{{ISSUER_STORE}}</div>
+      <div>{{ISSUER_TITLE}}　{{ISSUER_NAME}}</div>
+      <div style="font-size: 9pt; color: #555;">（{{ISSUER_NOTE}}）</div>
+    </div>
+  </div>
+
+  <div class="total-box">
+    <span class="label">ご請求金額</span>
+    <span class="value">&yen;{{TOTAL_FMT}}</span>
+    <span class="tax">{{TAX_LABEL}}</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>摘要</th>
+        <th class="qty">数量</th>
+        <th class="amount">金額</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{LINE_ITEM}}（{{PERIOD_LABEL}}分）</td>
+        <td class="qty">1式</td>
+        <td class="amount">&yen;{{TOTAL_FMT}}</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="2">合計（{{TAX_LABEL}}）</td>
+        <td class="amount">&yen;{{TOTAL_FMT}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="notes">
+    <div class="title">備考</div>
+    <p>※ 発行者は適格請求書発行事業者（インボイス制度）の登録を行っていないため、本書は適格請求書には該当しません。</p>
+    <p>※ 本書は支払側（{{RECIPIENT}}）にて作成した支払明細を兼ねる書類です。記載内容に相違がある場合はお申し出ください。</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "issuer": {
+    "name": "河野 竜二",
+    "store": "大衆酒場りゅうちゃん",
+    "title": "店長",
+    "note": "個人事業主"
+  },
+  "recipient": "Prostyle株式会社",
+  "line_item": "店舗運営業務委託料",
+  "amount": 300000,
+  "tax_included": true,
+  "invoice_registered": false,
+  "email_to": "seikyu@prostyle-co.com"
+}
