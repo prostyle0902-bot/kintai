@@ -4,7 +4,7 @@
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
-import rikuji, eneos, yokocho_bank, store_bank, transfers
+import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll8
 
 STAMP = "2026-08-20 06:40"
@@ -268,6 +268,24 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_YBK; c.number_format = build2.NUMFMT
     print("横丁口座振替セル", len(yb_rows), "／計", f"{sum(x[3] for x in yb_rows):,}",
           "／請求書と食い違った月", len(yb_bad))
+
+    # ===== 本部（本体口座）の口座振替（水道・電気代 地域創生・ガス代・保険料）=====
+    # 利用者指示 2026-08-25「反映して」。千葉銀行3351509（本体）から拾う。
+    # ★計上月＝引落月、金額＝税抜。決め方は honbu_bank.py の冒頭を参照
+    #   （既存21期PLと4通り総当たりで検証した）。
+    # ★exist_fill より前に置くこと。9月〜3月は既存PL由来の値が入っていたが、
+    #   書類（口座明細）を正として置き換える。差は「既存PLとの食い違い」に出る。
+    F_BANK = PatternFill("solid", fgColor="E7E6E6")   # 口座振替は横丁口座と同じ色
+    honbu_bank.check(wb)
+    hb_rows = list(honbu_bank.rows())
+    for tab, plrow, m, val, src, note in hb_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "本部口座")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        assert not c.value, (f"{tab} {plrow} {m} に既に {c.value} が入っている。"
+                             f"本部口座の {val:,} を足すと二重計上になる")
+        c.value = val; c.fill = F_BANK; c.number_format = build2.NUMFMT
+    print("本部口座振替セル", len(hb_rows), "／計", f"{sum(x[3] for x in hb_rows):,}")
 
     # ===== 店舗口座の口座振替（ガス代・鈴喜）=====
     # 店舗ごとに口座が分かれている。ただし11月から支払いがPayPay銀行に移ったので、
@@ -536,6 +554,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, val, src, note in yb_rows:
         ws.append([f"21期 {m}", tab, note.split("。")[0], "口座振替", "", 10, int(val), "",
                    plrow, m, src, STAMP, note])
+    for tab, plrow, m, val, src, note in hb_rows:
+        ws.append([f"21期 {m}", tab, "千葉銀行3351509（本体）", "口座振替",
+                   "", "", int(val), "", plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, note in sb_rows:
         ws.append([f"21期 {m}", tab, note.split("。")[0], "口座振替", "", "", int(val), "",
                    plrow, m, src, STAMP, note])
@@ -599,6 +620,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["横丁口座", m, tab, item, "", reason])
     for m, tab, item, reason in store_bank.hold_rows():
         hs.append(["店舗口座", m, tab, item, "", reason])
+    for m, tab, item, reason in honbu_bank.hold_rows():
+        hs.append(["本部口座", m, tab, item, "", reason])
     for m, tab, item, reason in namefa.hold_rows():
         hs.append(["なめがた", m, tab, item, "", reason])
     for m, tab, item, reason in shiina.hold_rows():
