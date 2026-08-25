@@ -2,8 +2,14 @@
   "note": "処理済み台帳。キーはDropboxのfile_id（支払い済フォルダへ移動されてもIDは変わらない）。baselineは2026-08-25の仕組み導入時点で既にフォルダにあったファイル＝利用者が手で転記済みとみなしスキップ。",
   "baseline_at": "2026-08-25T13:00:00Z",
   "watch": {
-    "21期": {"root": "ns:7987961616//買掛/21期", "months_from": "2607月"},
-    "22期": {"root": "ns:7987961616//買掛/22期", "months_from": "2609月"}
+    "21期": {
+      "root": "ns:7987961616//買掛/21期",
+      "months_from": "2607月"
+    },
+    "22期": {
+      "root": "ns:7987961616//買掛/22期",
+      "months_from": "2609月"
+    }
   },
   "baseline": {
     "id:BKWmtQDznicAAAAAAAHjWg": "2607月/鳥害対策/日本鳩対策センター.pdf",
@@ -80,5 +86,115 @@
     "id:BKWmtQDznicAAAAAAAIh8A": "2608月/本部/JBQ.pdf",
     "id:BKWmtQDznicAAAAAAAHj2g": "2608月/本部/ピカピカ　振替.pdf"
   },
-  "processed": {}
+  "processed": {
+    "2026-08-25_21期7月_利用者指示による転記": {
+      "when": "2026-08-25",
+      "note": "突き合わせで見つかった差異を利用者の指示で反映。対象ファイルはbaselineに入っているが、実際には未転記だったもの",
+      "written": [
+        {
+          "cell": "O49",
+          "store": "ハナ",
+          "vendor": "神栖横丁家賃",
+          "amount": 212501,
+          "src": "合計請求書 No.8210"
+        },
+        {
+          "cell": "M49",
+          "store": "りゅうちゃん",
+          "vendor": "神栖横丁家賃",
+          "amount": 397580,
+          "src": "合計請求書 No.8215"
+        },
+        {
+          "cell": "I49",
+          "store": "もも焼きJAPAN",
+          "vendor": "神栖横丁家賃",
+          "amount": 265647,
+          "src": "合計請求書 No.8219"
+        },
+        {
+          "cell": "K49",
+          "store": "タコハイ",
+          "vendor": "神栖横丁家賃",
+          "amount": 291753,
+          "src": "合計請求書 No.8214"
+        },
+        {
+          "cell": "C27",
+          "store": "業務課",
+          "vendor": "高塚誠",
+          "amount": 11000,
+          "src": "本部/高塚誠.pdf"
+        },
+        {
+          "cell": "B5,C5",
+          "store": "業務課",
+          "vendor": "ナビット",
+          "amount": 66000,
+          "src": "本部/ナビット　8月末.pdf"
+        },
+        {
+          "cell": "B62,C62",
+          "store": "業務課",
+          "vendor": "陸事総合協同組合",
+          "amount": 138805,
+          "src": "業務/0000042400_高速_請求書_202607.pdf"
+        },
+        {
+          "cell": "B63,C63",
+          "store": "業務課",
+          "vendor": "ENEOS",
+          "amount": 129993,
+          "src": "業務/ENEOS_202609.csv"
+        }
+      ],
+      "corrected": [
+        {
+          "cell": "E29",
+          "store": "鳥害対策課",
+          "vendor": "日本鳩対策センター",
+          "from": 1003398,
+          "to": 1103738,
+          "reason": "税抜→税込"
+        },
+        {
+          "cell": "O6",
+          "store": "ハナ",
+          "vendor": "日本食研",
+          "from": 31515,
+          "to": 34036,
+          "reason": "店計(税抜)→税込"
+        },
+        {
+          "cell": "K6",
+          "store": "タコハイ",
+          "vendor": "日本食研",
+          "from": 5056,
+          "to": 5460,
+          "reason": "店計(税抜)→税込"
+        },
+        {
+          "cell": "I9",
+          "store": "もも焼きJAPAN",
+          "vendor": "日本食研",
+          "from": 6087,
+          "to": 6257,
+          "reason": "税込6,574からポイント利用-317"
+        }
+      ],
+      "not_written": [
+        {
+          "vendor": "NTTファイナンス",
+          "amount": 8287,
+          "reason": "利用者指示により入れない"
+        },
+        {
+          "vendor": "エクセレントリーダーズ",
+          "amount": 22000,
+          "reason": "利用者指示により入れない（今後発生しないため）"
+        }
+      ],
+      "grand_total_after": 7262017
+    }
+  }
 }
