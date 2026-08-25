@@ -1,0 +1,5 @@
+sa*.json
+*.key.json
+entries*.json
+/tmp/
+__pycache__/
