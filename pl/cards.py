@@ -133,6 +133,9 @@ FILES = [
     ("202606meisai.csv", "JCB", "5月", 511265),
     ("202607meisai.csv", "JCB", "6月", 538175),
     ("202608meisai.csv", "JCB", "7月", 624249),
+    # ★2026-08-25 追加。8月は既存21期PLに値が無いので照合先も無い（第4要素はNone）。
+    #   支払 2026/09/10・支払金額合計 421,284（国内331,654＋海外89,630）。
+    ("202609meisai.csv", "JCB", "8月", None),
     ("202510.csv", "三井住友", "9月", 30000),
     ("202511.csv", "三井住友", "10月", 77377),
     # ★11月だけ既存21期PLは30,771で、明細の合計行30,071と700円違う。
@@ -186,6 +189,20 @@ def _read_jcb(path):
         yield (r[2].strip(),                                   # ご利用日（無いこともある）
                unicodedata.normalize("NFKC", r[3]).strip(),    # ご利用先
                int(r[8].replace(",", "")))                     # お支払い金額(税込)
+
+
+def _jcb_total(path):
+    """JCB明細の「今回のお支払金額合計」。明細の和と突き合わせる検算に使う。
+
+    ★既存21期PLより強い検算。ファイル自身が持っている数字なので、
+      既存PLが無い月（8月）でも効く。12枚とも明細の和と一致することを実測済み
+      （2026-08-25）。
+    """
+    raw = open(path, "rb").read().decode("cp932")
+    for r in csv.reader(io.StringIO(raw)):
+        if len(r) >= 4 and "今回のお支払金額合計" in r[2]:
+            return int(r[3].replace(",", ""))
+    return None
 
 
 def _read_smcc(path):
@@ -262,7 +279,15 @@ def rows():
         reader = _read_jcb if issuer == "JCB" else _read_smcc
         det = list(reader(path))
         total = sum(v for _, _, v in det)
-        assert total == expect, f"{fname}: 明細合計 {total:,} ≠ 検算値 {expect:,}"
+        # ★JCBは明細の和が「今回のお支払金額合計」と合うことを、まずファイル自身で検算する。
+        #   既存21期PLが無い月（8月）でも効く。
+        if issuer == "JCB":
+            head = _jcb_total(path)
+            assert head is None or total == head, \
+                f"{fname}: 明細合計 {total:,} ≠ 今回のお支払金額合計 {head:,}"
+        # 既存21期PLの一括額とも合うこと（既存PLに値がある月だけ）。
+        assert expect is None or total == expect, \
+            f"{fname}: 明細合計 {total:,} ≠ 検算値 {expect:,}"
         for used, merchant, inc in det:
             plrow = _classify(issuer, merchant)
             ex = _ex(inc)
