@@ -1,0 +1,711 @@
+<title>Prostyle 事業戦略ロードマップ</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#f1f2ef; --surface:#fbfbfa; --sunk:#e9ebe6;
+    --ink:#16201f; --body:#333d3a; --muted:#6a736f; --faint:#8d958f;
+    --rule:rgba(22,32,31,.14); --rule-strong:rgba(22,32,31,.30);
+    --sea:#0f6e56; --sea-soft:rgba(15,110,86,.10); --sea-line:rgba(15,110,86,.28);
+    --seg-a:#185fa5; --seg-b:#993c1d; --seg-c:#8a6d1f; --seg-d:#6a736f;
+    --fact:#0f6e56; --hypo:#185fa5; --blank:#92650a;
+    --serif:'Noto Serif JP',"Hiragino Mincho ProN",'Yu Mincho',serif;
+    --sans:'Noto Sans JP',-apple-system,'Hiragino Sans','Yu Gothic',sans-serif;
+    --mono:'IBM Plex Mono','Noto Sans JP',ui-monospace,monospace;
+    --meas:74ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0f1513; --surface:#18201e; --sunk:#131a18;
+      --ink:#e7ebe8; --body:#c3ccc7; --muted:#8e9994; --faint:#727c78;
+      --rule:rgba(231,235,232,.16); --rule-strong:rgba(231,235,232,.32);
+      --sea:#54b697; --sea-soft:rgba(84,182,151,.12); --sea-line:rgba(84,182,151,.30);
+      --seg-a:#6ba7e0; --seg-b:#dc8a68; --seg-c:#cfa93f; --seg-d:#8e9994;
+      --fact:#54b697; --hypo:#6ba7e0; --blank:#cfa93f;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0f1513; --surface:#18201e; --sunk:#131a18;
+    --ink:#e7ebe8; --body:#c3ccc7; --muted:#8e9994; --faint:#727c78;
+    --rule:rgba(231,235,232,.16); --rule-strong:rgba(231,235,232,.32);
+    --sea:#54b697; --sea-soft:rgba(84,182,151,.12); --sea-line:rgba(84,182,151,.30);
+    --seg-a:#6ba7e0; --seg-b:#dc8a68; --seg-c:#cfa93f; --seg-d:#8e9994;
+    --fact:#54b697; --hypo:#6ba7e0; --blank:#cfa93f;
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+  body{
+    background:var(--ground); color:var(--body);
+    font-family:var(--sans); font-size:15px; line-height:1.85;
+    font-feature-settings:"palt" 1;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px; margin:0 auto; padding:0 24px 120px}
+  .col{max-width:var(--meas)}
+
+  /* ---- masthead ---- */
+  .mast{padding:72px 0 40px; border-bottom:1px solid var(--rule-strong)}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.20em;
+    text-transform:uppercase; color:var(--sea); display:flex; align-items:center; gap:12px;
+  }
+  .eyebrow::after{content:""; flex:1; height:1px; background:var(--sea-line)}
+  h1{
+    font-family:var(--serif); font-weight:700; color:var(--ink);
+    font-size:clamp(30px,5.2vw,46px); line-height:1.34; letter-spacing:.01em;
+    margin:20px 0 0; text-wrap:balance;
+  }
+  .lede{margin:18px 0 0; max-width:var(--meas); font-size:15.5px; color:var(--body)}
+  .mast-meta{
+    display:flex; flex-wrap:wrap; gap:0 32px; margin-top:32px;
+    font-family:var(--mono); font-size:11.5px; color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .mast-meta b{color:var(--ink); font-weight:600}
+
+  /* ---- nav ---- */
+  nav{
+    position:sticky; top:0; z-index:20; background:var(--ground);
+    border-bottom:1px solid var(--rule); margin-bottom:8px;
+  }
+  nav ol{
+    display:flex; gap:2px; list-style:none; margin:0; padding:0;
+    overflow-x:auto; scrollbar-width:none;
+  }
+  nav ol::-webkit-scrollbar{display:none}
+  nav a{
+    display:block; padding:12px 14px; white-space:nowrap; text-decoration:none;
+    font-family:var(--mono); font-size:11px; letter-spacing:.09em; color:var(--muted);
+    border-bottom:2px solid transparent;
+  }
+  nav a:hover{color:var(--sea); border-bottom-color:var(--sea-line)}
+  nav a:focus-visible{outline:2px solid var(--sea); outline-offset:-2px}
+  nav a span{font-family:var(--sans); letter-spacing:0; margin-left:7px}
+
+  /* ---- sections ---- */
+  section{padding-top:64px}
+  .step-head{border-top:2px solid var(--ink); padding-top:14px; margin-bottom:6px}
+  .step-no{
+    font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.22em;
+    color:var(--sea); text-transform:uppercase;
+  }
+  h2{
+    font-family:var(--serif); font-weight:600; color:var(--ink);
+    font-size:clamp(23px,3.4vw,30px); line-height:1.45; margin:6px 0 0; letter-spacing:.01em;
+  }
+  .step-note{
+    margin:14px 0 0; padding-left:16px; border-left:2px solid var(--sea-line);
+    font-size:13.5px; color:var(--muted); max-width:var(--meas);
+  }
+  h3{
+    font-family:var(--sans); font-weight:700; color:var(--ink);
+    font-size:15px; letter-spacing:.02em; margin:48px 0 14px;
+    display:flex; align-items:baseline; gap:11px;
+  }
+  h3::before{
+    content:""; width:14px; height:1px; background:var(--sea); flex:none; transform:translateY(-4px);
+  }
+  h4{font-family:var(--sans); font-weight:700; font-size:13px; color:var(--ink); margin:0 0 8px; letter-spacing:.03em}
+  p{margin:0 0 15px; max-width:var(--meas)}
+  section > p, section > ul{max-width:var(--meas)}
+  strong{color:var(--ink); font-weight:700}
+  a{color:var(--sea)}
+
+  ul{margin:0 0 15px; padding-left:0; list-style:none}
+  ul li{position:relative; padding-left:18px; margin-bottom:7px}
+  ul li::before{
+    content:""; position:absolute; left:2px; top:.82em; width:5px; height:1px; background:var(--sea-line);
+  }
+
+  /* ---- chips ---- */
+  .chip{
+    display:inline-block; font-family:var(--mono); font-size:10px; font-weight:600;
+    letter-spacing:.10em; padding:2px 7px; border-radius:2px; vertical-align:.12em;
+    border:1px solid currentColor; white-space:nowrap;
+  }
+  .c-fact{color:var(--fact)} .c-hypo{color:var(--hypo)} .c-blank{color:var(--blank)}
+
+  .legend{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); margin:26px 0 0;
+  }
+  .legend div{background:var(--surface); padding:16px 18px}
+  .legend p{margin:9px 0 0; font-size:12.5px; color:var(--muted); line-height:1.7}
+
+  /* ---- callout / quote ---- */
+  .pull{
+    margin:32px 0; padding:24px 26px; background:var(--surface);
+    border:1px solid var(--rule); border-left:3px solid var(--sea);
+  }
+  .pull p{margin:0; font-family:var(--serif); font-size:17.5px; line-height:1.8; color:var(--ink)}
+  .pull .sub{font-family:var(--sans); font-size:13px; color:var(--muted); margin-top:12px; line-height:1.75}
+
+  .flag{
+    margin:26px 0; padding:18px 20px; background:var(--sunk);
+    border:1px solid var(--rule); border-left:3px solid var(--blank);
+  }
+  .flag h4{color:var(--blank)}
+  .flag p:last-child{margin-bottom:0}
+
+  /* ---- requirement checklist ---- */
+  .reqs{display:grid; gap:0; margin:24px 0 0; max-width:var(--meas)}
+  .reqs li{
+    display:flex; align-items:baseline; gap:14px; padding:11px 0;
+    border-bottom:1px dashed var(--rule); margin:0;
+  }
+  .reqs li::before{display:none}
+  .reqs .tick{color:var(--sea); font-family:var(--mono); font-size:12px; flex:none}
+  .reqs .ref{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); flex:none}
+
+  /* ---- segment cards ---- */
+  .segs{display:grid; grid-template-columns:repeat(auto-fit,minmax(212px,1fr)); gap:14px; margin:22px 0 0}
+  .seg{background:var(--surface); border:1px solid var(--rule); border-top:3px solid var(--sc); padding:18px}
+  .seg .lbl{font-family:var(--mono); font-size:10px; letter-spacing:.16em; color:var(--sc); font-weight:600}
+  .seg .nm{font-family:var(--serif); font-weight:600; font-size:17px; color:var(--ink); margin:7px 0 2px}
+  .seg .num{
+    font-family:var(--mono); font-size:30px; font-weight:500; color:var(--ink);
+    font-variant-numeric:tabular-nums; line-height:1.2; margin-top:10px;
+  }
+  .seg .num em{font-style:normal; font-size:12px; color:var(--muted); margin-left:4px}
+  .bar{height:3px; background:var(--sunk); margin:12px 0 12px; overflow:hidden}
+  .bar i{display:block; height:100%; background:var(--sc)}
+  .seg .det{font-size:11.5px; line-height:1.75; color:var(--muted)}
+
+  /* ---- tables ---- */
+  .tw{overflow-x:auto; margin:20px 0 0; border:1px solid var(--rule); background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13px; min-width:520px}
+  caption{
+    caption-side:top; text-align:left; padding:13px 18px; background:var(--sunk);
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; color:var(--muted);
+    text-transform:uppercase; border-bottom:1px solid var(--rule);
+  }
+  th,td{padding:11px 16px; text-align:left; vertical-align:top; border-bottom:1px solid var(--rule); line-height:1.7}
+  thead th{
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.10em;
+    color:var(--muted); text-transform:uppercase; white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:none}
+  td.n,th.n{text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+  td.k{font-weight:700; color:var(--ink); white-space:nowrap}
+  .id{font-family:var(--mono); font-size:11px; color:var(--faint); white-space:nowrap}
+  .fill{display:inline-block; min-width:74px; border-bottom:1px dotted var(--blank); height:1.1em}
+
+  /* ---- two-col compare ---- */
+  .duo{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--rule); border:1px solid var(--rule); margin:22px 0 0}
+  .duo > div{background:var(--surface); padding:20px}
+  .duo h4{font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; margin-bottom:13px}
+  .duo .keep h4{color:var(--sea)} .duo .drop h4{color:var(--seg-b)}
+  .duo ul{margin:0; font-size:13px}
+  .duo li{margin-bottom:9px; line-height:1.7}
+  .duo .drop li::before{background:var(--seg-b); opacity:.5}
+  @media(max-width:640px){.duo{grid-template-columns:1fr}}
+
+  /* ---- goals ---- */
+  .goals{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:22px 0 0}
+  .goal{background:var(--surface); border:1px solid var(--rule); padding:20px; display:flex; flex-direction:column}
+  .goal .hz{font-family:var(--mono); font-size:10px; letter-spacing:.16em; color:var(--sea); font-weight:600}
+  .goal .yr{font-family:var(--serif); font-size:19px; color:var(--ink); font-weight:600; margin:6px 0 16px}
+  .goal dl{margin:0; display:grid; gap:13px}
+  .goal dt{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; color:var(--faint);
+    text-transform:uppercase; margin-bottom:3px;
+  }
+  .goal dd{margin:0; font-size:13px; line-height:1.72}
+
+  /* ---- the route: STEP4 timeline ---- */
+  .route{margin:28px 0 0; overflow-x:auto; padding-bottom:4px}
+  .route-inner{min-width:660px}
+  .scale{display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--rule-strong); position:relative}
+  .scale .tick{padding:0 0 9px; position:relative}
+  .scale .tick::after{
+    content:""; position:absolute; left:0; bottom:-1px; width:1px; height:9px; background:var(--rule-strong);
+  }
+  .scale .tick:last-child span.end{
+    position:absolute; right:0; bottom:-1px; width:1px; height:9px; background:var(--rule-strong);
+  }
+  .scale .q{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.14em; color:var(--sea)}
+  .scale .dt{font-family:var(--mono); font-size:10.5px; color:var(--faint); font-variant-numeric:tabular-nums; display:block; margin-top:3px}
+  .ports{display:grid; grid-template-columns:repeat(4,1fr); position:relative}
+  .ports::before{
+    content:""; position:absolute; top:10px; left:0; right:0; height:1px;
+    background:repeating-linear-gradient(to right,var(--sea-line) 0 6px,transparent 6px 11px);
+  }
+  .port{position:relative; padding:0 14px 0 0}
+  .port .dot{
+    width:9px; height:9px; border-radius:50%; background:var(--ground);
+    border:2px solid var(--sea); position:relative; z-index:1; margin:3.5px 0 14px;
+  }
+  .port .th{font-family:var(--serif); font-size:20px; font-weight:600; color:var(--ink); line-height:1.35}
+  .port .gl{font-size:12px; color:var(--muted); line-height:1.72; margin-top:7px; padding-right:8px}
+
+  .qsec{margin-top:40px}
+  .qhead{display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--rule-strong); padding-bottom:9px}
+  .qhead .q{font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.16em; color:var(--sea)}
+  .qhead .th{font-family:var(--serif); font-size:17px; font-weight:600; color:var(--ink)}
+  .qhead .dt{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums}
+
+  /* ---- checklist ---- */
+  .signs{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); margin:20px 0 0;
+  }
+  .signs div{background:var(--surface); padding:15px 18px; display:flex; align-items:flex-start; gap:12px; font-size:13px; line-height:1.7}
+  .signs .box{width:13px; height:13px; border:1px solid var(--rule-strong); flex:none; margin-top:5px}
+
+  footer{margin-top:80px; padding-top:26px; border-top:1px solid var(--rule-strong); font-size:12px; color:var(--faint)}
+  footer p{max-width:var(--meas); margin-bottom:9px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Prostyle Inc. — 事業戦略ロードマップ</div>
+  <h1>いつまでに／何を／<br>どの順番でやるか</h1>
+  <p class="lede">中長期の目標を達成するための設計図です。単なるスケジュール表ではなく、戦略と現場をつなぐ航路図として持ちます。<strong>正解集ではありません。迷ったときに立ち返る地図です。</strong></p>
+  <div class="mast-meta">
+    <div>最終更新 <b>2026-08-28</b></div>
+    <div>次回レビュー <b>2026-11 末</b></div>
+    <div>対象 <b>全社 4セグメント / 58名</b></div>
+    <div>作成フレーム <b>@issi_com</b></div>
+  </div>
+</header>
+
+<nav aria-label="目次">
+  <ol>
+    <li><a href="#s0">00<span>位置づけ</span></a></li>
+    <li><a href="#s1">01<span>現状分析</span></a></li>
+    <li><a href="#s2">02<span>目標設定</span></a></li>
+    <li><a href="#s3">03<span>戦略策定</span></a></li>
+    <li><a href="#s4">04<span>行動計画</span></a></li>
+    <li><a href="#s5">05<span>進捗管理</span></a></li>
+  </ol>
+</nav>
+
+<!-- ============ 00 ============ -->
+<section id="s0">
+  <div class="step-head">
+    <div class="step-no">Step 00</div>
+    <h2>この文書の位置づけ</h2>
+  </div>
+  <p class="step-note">事業戦略ロードマップとは、中長期の目標を達成するために「いつまでに／何を／どの順番で」やるかを整理した設計図。満たすべき5つの要件は次のとおり。</p>
+
+  <ul class="reqs">
+    <li><span class="tick">✓</span> 中長期目標を明確にする <span class="ref">STEP 02</span></li>
+    <li><span class="tick">✓</span> 優先順位を決める <span class="ref">STEP 03</span></li>
+    <li><span class="tick">✓</span> 行動を時系列で整理する <span class="ref">STEP 04</span></li>
+    <li><span class="tick">✓</span> 必要リソース（人・金・時間）を見える化する <span class="ref">STEP 04</span></li>
+    <li><span class="tick">✓</span> KPI（評価指標）まで紐づける <span class="ref">STEP 04 / 05</span></li>
+  </ul>
+
+  <div class="pull">
+    <p>完璧な計画を作ろうとしないこと。更新前提で持つことで、戦略ははじめて機能する。</p>
+    <div class="sub">つまりこの文書は、書き上げた時点では未完成で正しい。四半期ごとに書き換わっていくことが、機能している証拠になります。</div>
+  </div>
+
+  <h3>記述の3分類</h3>
+  <p>本書の記述は3種類に分けています。混同すると STEP 01 が薄くなり、その後が全部ブレます。</p>
+  <div class="legend">
+    <div>
+      <span class="chip c-fact">事実</span>
+      <p>社内システム（勤怠アプリのマスタ）から確認できる、裏取り済みの情報。</p>
+    </div>
+    <div>
+      <span class="chip c-hypo">仮説</span>
+      <p>事実から推定したもの。<strong>検証されるまで意思決定の根拠にしない。</strong></p>
+    </div>
+    <div>
+      <span class="chip c-blank">未取得</span>
+      <p>数字がまだない。担当者と期限を決めて埋める欄。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 ============ -->
+<section id="s1">
+  <div class="step-head">
+    <div class="step-no">Step 01</div>
+    <h2>現状分析 — 市場・競合・自社</h2>
+  </div>
+  <p class="step-note">事実ベース（数字・データ）で見る。「なぜ今この戦い方なのか」の根拠を作る。ここが薄いと、その後が全部ブレる。</p>
+
+  <h3>人員構成 <span class="chip c-fact">事実</span></h3>
+  <p>就業人員 <strong>58名</strong>（正社員・準社員系 12名／パート・アルバイト 46名）。勤怠アプリのマスタから確認できる配置は次のとおりです。</p>
+
+  <div class="segs">
+    <div class="seg" style="--sc:var(--seg-a)">
+      <div class="lbl">Segment 1</div>
+      <div class="nm">人材・業務請負</div>
+      <div class="num">16<em>名 / 27.6%</em></div>
+      <div class="bar"><i style="width:27.6%"></i></div>
+      <div class="det">ニッセーデリカ 9・市川東病院 3・ちば醤油 1・海事・横河 1・香取神宮 1・神宮／亀甲堂／ゆう屋 1</div>
+    </div>
+    <div class="seg" style="--sc:var(--seg-b)">
+      <div class="lbl">Segment 2</div>
+      <div class="nm">飲食</div>
+      <div class="num">27<em>名 / 46.6%</em></div>
+      <div class="bar"><i style="width:46.6%"></i></div>
+      <div class="det">神栖横丁 15（りゅうちゃん 8・バッシング 4・横丁清掃 2・タコハイ 1）・十三里屋 4・焼きたて屋 2・飲食事業部 6</div>
+    </div>
+    <div class="seg" style="--sc:var(--seg-c)">
+      <div class="lbl">Segment 3</div>
+      <div class="nm">ステイ</div>
+      <div class="num">7<em>名 / 12.1%</em></div>
+      <div class="bar"><i style="width:12.1%"></i></div>
+      <div class="det">トータルステイ 7</div>
+    </div>
+    <div class="seg" style="--sc:var(--seg-d)">
+      <div class="lbl">Segment 4</div>
+      <div class="nm">本社・管理</div>
+      <div class="num">8<em>名 / 13.8%</em></div>
+      <div class="bar"><i style="width:13.8%"></i></div>
+      <div class="det">業務課 5・バックオフィス 1・本社 PA 2。ほかに季節営業のビアガーデン（兼務）</div>
+    </div>
+  </div>
+
+  <h3>商圏と拠点 <span class="chip c-fact">事実</span></h3>
+  <div class="tw">
+    <table>
+      <caption>GPS 打刻の登録座標より</caption>
+      <thead><tr><th>エリア</th><th>拠点</th><th class="n">人員</th></tr></thead>
+      <tbody>
+        <tr><td class="k">茨城県 神栖・鹿嶋</td><td>神栖横丁、焼きたて屋（鹿嶋）、トータルステイ、海事・横河、ビアガーデン</td><td class="n">25</td></tr>
+        <tr><td class="k">千葉県 香取市周辺</td><td>本社、ちば醤油、香取神宮、十三里屋</td><td class="n">8</td></tr>
+        <tr><td class="k">千葉県 西部（飛び地）</td><td>市川東病院</td><td class="n">3</td></tr>
+        <tr><td class="k">拠点判定なし</td><td>直行直帰・複数現場（ニッセーデリカ 9 ほか）</td><td class="n">10</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>業務特性 <span class="chip c-fact">事実</span></h3>
+  <p>打刻ロジックそのものが、この会社の働き方を映しています。</p>
+  <ul>
+    <li><strong>深夜またぎ勤務が常態。</strong> 業務日付は 5時基準、時刻は 24:00〜28:59 表記で運用。飲食・宿泊のシフト構造そのもの。</li>
+    <li><strong>直行直帰が一定数ある。</strong> GPS 拠点判定を免除している人員が 10名。ニッセーデリカ 9名がその大半。</li>
+    <li><strong>多拠点・少人数分散。</strong> 1拠点あたり 1〜9名。管理者が常駐できない拠点が大半。</li>
+    <li><strong>勤怠は内製 Web アプリ＋Google Apps Script で運用中。</strong> 外部 SaaS に依存せず、自社で作って回している。</li>
+  </ul>
+
+  <h3>強み <span class="chip c-fact">事実</span></h3>
+  <ul>
+    <li>業態ポートフォリオが分散している（人材請負／飲食／宿泊）。単一業態の景気変動に全滅しない構造。</li>
+    <li>客先常駐先が食品製造・医療・神社・重工と業種横断。特定業界の不況に連動しにくい。</li>
+    <li><strong>社内 DX を内製できる。</strong> GPS 判定や深夜またぎ処理まで自社実装している。同規模の同業で、これができる会社は多くない。</li>
+    <li>神栖横丁で複数業態を面で持っている（相互送客が効く立地）。</li>
+  </ul>
+
+  <h3>弱み <span class="chip c-hypo">仮説</span></h3>
+  <ul>
+    <li>バックオフィスが 1名。売上・原価・人時の集計が属人化している可能性が高い。<strong>STEP 05 のレビューが回らない直接原因になる。</strong></li>
+    <li>ニッセーデリカ 9名（PA の約2割）が単一客先に集中。<strong>取引先依存リスク。</strong>契約変動が即座に人員余剰になる。</li>
+    <li>市川東病院 3名は他拠点から約 60km 離れた飛び地。管理コストが人員数に対して割高。</li>
+    <li>拠点あたり人員が少なく、欠員時のバックアップが効かない（＝現場に負荷が集中する構造）。</li>
+  </ul>
+
+  <h3>市場環境 <span class="chip c-hypo">仮説</span></h3>
+  <p>いずれも一次情報での裏取りが必要です。ここを事実に変えるのが Q1 の仕事。</p>
+  <ul>
+    <li>労働力人口の減少と最低賃金の継続上昇 →<strong>人件費は上がり続ける前提</strong>で設計する必要がある。PA 46名の構成上、賃金改定の影響がダイレクト。</li>
+    <li>鹿島臨海工業地帯の事業所需要 → 人材請負・社員寮／ステイ需要の下支え。</li>
+    <li>成田・香取神宮の観光／インバウンド動線 → 飲食・ステイの上振れ要因。</li>
+    <li>地方飲食は人手不足で「営業したくても開けられない」局面。<strong>採用力＝売上上限</strong>になっている可能性。</li>
+  </ul>
+
+  <h3>埋めるべき数字 <span class="chip c-blank">未取得</span></h3>
+  <p>STEP 02 以降の精度は、この表が埋まるかどうかで決まります。<strong>まずここを埋めるのが最初の実務です。</strong></p>
+  <div class="tw">
+    <table>
+      <caption>現状分析 — 未取得項目 12件</caption>
+      <thead><tr><th class="n">#</th><th>項目</th><th>現状値</th><th>出所</th><th>担当</th><th>期限</th></tr></thead>
+      <tbody>
+        <tr><td class="n">1</td><td class="k">全社 売上高（直近12か月）</td><td><span class="fill"></span></td><td>経理</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">2</td><td class="k">セグメント別 売上</td><td><span class="fill"></span></td><td>経理</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">3</td><td class="k">セグメント別 粗利率</td><td><span class="fill"></span></td><td>経理</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">4</td><td class="k">営業利益・利益率</td><td><span class="fill"></span></td><td>経理</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">5</td><td class="k">労働分配率</td><td><span class="fill"></span></td><td>経理</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">6</td><td class="k">人時売上高（セグメント別）</td><td><span class="fill"></span></td><td><strong>勤怠データ×売上</strong></td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">7</td><td class="k">客先別 売上構成比（上位3社）</td><td><span class="fill"></span></td><td>経理</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">8</td><td class="k">飲食 — 店舗別 客数・客単価</td><td><span class="fill"></span></td><td>POS</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">9</td><td class="k">ステイ — 稼働率・ADR</td><td><span class="fill"></span></td><td>予約台帳</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">10</td><td class="k">採用単価・定着率</td><td><span class="fill"></span></td><td>採用記録</td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">11</td><td class="k">離職率（年間）</td><td><span class="fill"></span></td><td><strong>勤怠マスタ差分</strong></td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+        <tr><td class="n">12</td><td class="k">打刻忘れ申請の件数／月</td><td><span class="fill"></span></td><td><strong>GAS スプレッドシート</strong></td><td><span class="fill"></span></td><td><span class="fill"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="flag">
+    <h4>先に気づいておきたいこと</h4>
+    <p>#6・#11・#12 は、<strong>すでに勤怠アプリに貯まっているデータから今日にでも出せます。</strong>新しい仕組みは要りません。ここから始めるのが最短です。</p>
+  </div>
+</section>
+
+<!-- ============ 02 ============ -->
+<section id="s2">
+  <div class="step-head">
+    <div class="step-no">Step 02</div>
+    <h2>目標設定 — 長期・中期・短期</h2>
+  </div>
+  <p class="step-note">長期 → 中期 → 短期がつながる形にする。定量と定性の両方を置く。期首の定義は要確認のため、暫定的にカレンダー基準で記載。</p>
+
+  <div class="goals">
+    <div class="goal">
+      <div class="hz">Long — 3〜5年</div>
+      <div class="yr">〜 2031</div>
+      <dl>
+        <dt>定量</dt><dd>全社売上 <span class="fill"></span> 億円 ／ 営業利益率 <span class="fill"></span>%</dd>
+        <dt>定量</dt><dd>単一客先への売上依存度を <strong>15% 未満</strong>に</dd>
+        <dt>定性</dt><dd>「神栖・鹿嶋で人を出せる会社といえば Prostyle」の第一想起を取る</dd>
+        <dt>定性</dt><dd>特定個人がいなくても意思決定が回る（判断軸が文書化されている）</dd>
+      </dl>
+    </div>
+    <div class="goal">
+      <div class="hz">Mid — 1〜2年</div>
+      <div class="yr">〜 2028.08</div>
+      <dl>
+        <dt>定量</dt><dd>セグメント別 粗利率を可視化し、最低粗利ラインを下回る拠点をゼロに</dd>
+        <dt>定量</dt><dd>人時売上高を対現状 <strong>+15%</strong></dd>
+        <dt>定量</dt><dd>6か月定着率 <span class="fill"></span>% → <span class="fill"></span>%</dd>
+        <dt>定性</dt><dd>拠点長が数字を見て自分で判断できる（月次で数字が現場に返る）</dd>
+        <dt>定性</dt><dd>勤怠アプリを「打刻」から「経営ダッシュボード」へ</dd>
+      </dl>
+    </div>
+    <div class="goal">
+      <div class="hz">Short — 6〜12か月</div>
+      <div class="yr">〜 2027.02</div>
+      <dl>
+        <dt>定量</dt><dd>STEP 01 の未取得 12項目を <strong>100% 充足</strong></dd>
+        <dt>定量</dt><dd>打刻忘れ申請を月間 <span class="fill"></span> 件以下（まず現状値の計測から）</dd>
+        <dt>定量</dt><dd>拠点別の人時集計を毎月自動で出す</dd>
+        <dt>定性</dt><dd>全拠点長が優先順位を同じ言葉で説明できる</dd>
+        <dt>定性</dt><dd>バックオフィス業務の属人化を解消（手順書化）</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section id="s3">
+  <div class="step-head">
+    <div class="step-no">Step 03</div>
+    <h2>戦略策定 — 戦略と戦術を分ける</h2>
+  </div>
+  <p class="step-note">戦略＝どこで勝つか。戦術＝どう実行するか。優先順位とは、何に集中し、何を捨てるかを決めること。</p>
+
+  <h3>どこで勝つか</h3>
+  <div class="pull">
+    <p>神栖・鹿嶋＋千葉北東部という限定商圏で、人材・飲食・ステイを面で押さえ、人の稼働を業態間で融通できる会社になる。</p>
+    <div class="sub">この会社の他社にない資産は、業態が分かれていることではなく、<strong>同一商圏に複数業態を持っていること</strong>です。飲食の閑散時間帯と請負先の繁忙、季節営業（ビアガーデン）と通年業務。これを人員で相互補完できれば、人手不足下で「稼働率」という同業が持てない武器になります。<br>裏を返すと、<strong>商圏を広げる方向は勝ち筋ではありません。</strong></div>
+  </div>
+
+  <h3>集中すること / 捨てること</h3>
+  <div class="duo">
+    <div class="keep">
+      <h4>集中する</h4>
+      <ul>
+        <li>神栖・鹿嶋の面の密度を上げる（既存拠点の徒歩圏で増やす）</li>
+        <li>業態をまたいだ人員融通の仕組み化</li>
+        <li>客先依存度の平準化（ニッセーデリカ以外の柱を作る）</li>
+        <li>勤怠データの経営指標化（内製資産の活用）</li>
+        <li>バックオフィスの脱属人化</li>
+      </ul>
+    </div>
+    <div class="drop">
+      <h4>捨てる・やらない</h4>
+      <ul>
+        <li>商圏外への新規出店・新規客先開拓</li>
+        <li>拠点ごとの個別最適な採用</li>
+        <li>「単価が良いから」だけの単一大口受注の上積み</li>
+        <li>新規の勤怠 SaaS 導入・乗り換え</li>
+        <li>増員でしのぐ発想</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="flag">
+    <h4>要判断 — 市川東病院（3名／飛び地）</h4>
+    <p>面の戦略から外れています。①撤退、②近隣に第2案件を作って千葉西部を第2商圏化、③現状維持で管理コストだけ削る、の三択。<strong>放置が一番コストが高いので、Q1 で判断してください。</strong></p>
+  </div>
+
+  <h3>選択肢の整理</h3>
+  <div class="tw">
+    <table>
+      <caption>論点ごとの二択と現時点の推奨</caption>
+      <thead><tr><th>論点</th><th>選択肢 A</th><th>選択肢 B</th><th>推奨と理由</th></tr></thead>
+      <tbody>
+        <tr><td class="k">基幹システム</td><td>内製を続ける</td><td>SaaS へ移行</td><td><strong>A</strong> — すでに動いていて要件に合う。移行コストは利益を生まない</td></tr>
+        <tr><td class="k">採用</td><td>拠点別に個別採用</td><td>全社プール＋配置</td><td><strong>B</strong> — 業態間融通の前提条件</td></tr>
+        <tr><td class="k">飲食の成長</td><td>新規出店</td><td>既存店の時間帯稼働改善</td><td><strong>B</strong> — 出店は人員を食い、面の密度も上がらない</td></tr>
+        <tr><td class="k">ステイ</td><td>現状維持</td><td>稼働率を測って値付け見直し</td><td><strong>B</strong> — まず測る。7名で回す資産の収益性が不明</td></tr>
+        <tr><td class="k">客先依存</td><td>依存先を深耕</td><td>第2・第3の柱を育てる</td><td><strong>B</strong> — ただし商圏内で</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>リスクシナリオ</h3>
+  <p>後で焦らないために、先に置いておきます。予兆の欄が、日々見るべきものです。</p>
+  <div class="tw">
+    <table>
+      <caption>リスク / 影響 / 予兆 / 初動</caption>
+      <thead><tr><th>リスク</th><th>影響</th><th>予兆（監視指標）</th><th>発動時の初動</th></tr></thead>
+      <tbody>
+        <tr><td class="k">最大客先の契約縮小・終了</td><td>PA 約2割の稼働喪失</td><td>発注数量の月次推移、担当者の交代</td><td>業態間配置転換で吸収（＝集中領域の仕組みが効く）</td></tr>
+        <tr><td class="k">最低賃金改定</td><td>労働分配率の悪化</td><td>改定答申（毎年夏）</td><td>価格改定とシフト設計の同時見直し</td></tr>
+        <tr><td class="k">採用充足せず店を開けられない</td><td>飲食の売上上限が下がる</td><td>応募数、欠員日数</td><td>営業時間の意図的な絞り込み（無理に開けない）</td></tr>
+        <tr><td class="k">バックオフィス 1名の離職・不在</td><td>給与・請求が止まる</td><td>—</td><td><strong>手順書化が唯一の予防策</strong></td></tr>
+        <tr><td class="k">勤怠アプリ／GAS の障害</td><td>全社の打刻が止まる</td><td>送信エラー率</td><td>紙運用の代替手順をあらかじめ用意</td></tr>
+        <tr><td class="k">荒天による多拠点の同時休業</td><td>売上直撃</td><td>気象警報</td><td>休業判断の基準を事前に決めておく</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 04 ============ -->
+<section id="s4">
+  <div class="step-head">
+    <div class="step-no">Step 04</div>
+    <h2>行動計画 — ロードマップ化</h2>
+  </div>
+  <p class="step-note">「誰が・何を・いつまでに・何で測るか」を決める。ここまで落ちて、初めて“実行できる戦略”になる。</p>
+
+  <div class="route">
+    <div class="route-inner">
+      <div class="scale">
+        <div class="tick"><span class="q">Q1</span><span class="dt">2026.09 – 11</span></div>
+        <div class="tick"><span class="q">Q2</span><span class="dt">2026.12 – 2027.02</span></div>
+        <div class="tick"><span class="q">Q3</span><span class="dt">2027.03 – 05</span></div>
+        <div class="tick"><span class="q">Q4</span><span class="dt">2027.06 – 08</span><span class="end"></span></div>
+      </div>
+      <div class="ports">
+        <div class="port">
+          <div class="dot"></div>
+          <div class="th">測る</div>
+          <div class="gl">数字がない状態を終わらせる</div>
+        </div>
+        <div class="port">
+          <div class="dot"></div>
+          <div class="th">仕組みにする</div>
+          <div class="gl">数字が毎月、自動で現場に返る</div>
+        </div>
+        <div class="port">
+          <div class="dot"></div>
+          <div class="th">融通する</div>
+          <div class="gl">業態間の人員配置転換を実運用に乗せる</div>
+        </div>
+        <div class="port">
+          <div class="dot"></div>
+          <div class="th">効かせる</div>
+          <div class="gl">粗利率・人時売上高で成果が出る</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="qsec">
+    <div class="qhead"><span class="q">Q1</span><span class="th">測る</span><span class="dt">2026.09 – 11</span></div>
+    <div class="tw">
+      <table>
+        <thead><tr><th class="n">#</th><th>何を</th><th>誰が</th><th>いつまでに</th><th>KPI</th><th>リソース</th></tr></thead>
+        <tbody>
+          <tr><td class="n">1.1</td><td class="k">未取得 12項目を埋める</td><td><span class="fill"></span></td><td class="n">10/31</td><td>充足率 100%</td><td>経理データ＋約20時間</td></tr>
+          <tr><td class="n">1.2</td><td class="k">拠点別 人時を集計（既存 GAS を活用）</td><td><span class="fill"></span></td><td class="n">10/15</td><td>集計が出る／出ない</td><td>内製・追加費用なし</td></tr>
+          <tr><td class="n">1.3</td><td class="k">打刻忘れ申請を拠点別に集計</td><td><span class="fill"></span></td><td class="n">09/30</td><td>件数／月の現状値</td><td>既存スプレッドシート</td></tr>
+          <tr><td class="n">1.4</td><td class="k">客先別売上構成比を出し依存度を確認</td><td><span class="fill"></span></td><td class="n">10/31</td><td>上位3社の構成比</td><td>経理</td></tr>
+          <tr><td class="n">1.5</td><td class="k">市川東病院の扱いを判断</td><td><span class="fill"></span></td><td class="n">11/30</td><td>意思決定の完了</td><td>経営会議 1回</td></tr>
+          <tr><td class="n">1.6</td><td class="k">バックオフィス業務の棚卸しと手順書 第1版</td><td><span class="fill"></span></td><td class="n">11/30</td><td>手順書の本数</td><td>BO＋役員の時間</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="qsec">
+    <div class="qhead"><span class="q">Q2</span><span class="th">仕組みにする</span><span class="dt">2026.12 – 2027.02</span></div>
+    <div class="tw">
+      <table>
+        <thead><tr><th class="n">#</th><th>何を</th><th>誰が</th><th>いつまでに</th><th>KPI</th><th>リソース</th></tr></thead>
+        <tbody>
+          <tr><td class="n">2.1</td><td class="k">月次で拠点別 人時売上高・粗利が自動で出る</td><td><span class="fill"></span></td><td class="n">01/31</td><td>集計リードタイム ≤ 3営業日</td><td>内製開発</td></tr>
+          <tr><td class="n">2.2</td><td class="k">拠点長への月次数字返し（レビュー会）を定例化</td><td><span class="fill"></span></td><td class="n">12月 開始</td><td>実施率 100%</td><td>月1時間×拠点数</td></tr>
+          <tr><td class="n">2.3</td><td class="k">最低粗利ラインを設定し未達拠点を特定</td><td><span class="fill"></span></td><td class="n">02/28</td><td>該当拠点数</td><td>経営会議</td></tr>
+          <tr><td class="n">2.4</td><td class="k">採用を全社プール化（募集窓口の一本化）</td><td><span class="fill"></span></td><td class="n">02/28</td><td>応募数、配置までの日数</td><td>採用費 <span class="fill"></span></td></tr>
+          <tr><td class="n">2.5</td><td class="k">ステイの稼働率・ADR を計測し値付け見直し</td><td><span class="fill"></span></td><td class="n">01/31</td><td>稼働率、ADR</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="qsec">
+    <div class="qhead"><span class="q">Q3</span><span class="th">融通する</span><span class="dt">2027.03 – 05</span></div>
+    <div class="tw">
+      <table>
+        <thead><tr><th class="n">#</th><th>何を</th><th>誰が</th><th>いつまでに</th><th>KPI</th><th>リソース</th></tr></thead>
+        <tbody>
+          <tr><td class="n">3.1</td><td class="k">業態間の配置転換ルールを定義（誰がどこに出られるか）</td><td><span class="fill"></span></td><td class="n">03/31</td><td>兼務可能人員数</td><td>—</td></tr>
+          <tr><td class="n">3.2</td><td class="k">勤怠アプリを複数拠点対応に（1人が複数拠点で打刻できる設計）</td><td><span class="fill"></span></td><td class="n">04/30</td><td>対応拠点数</td><td>内製開発</td></tr>
+          <tr><td class="n">3.3</td><td class="k">ビアガーデン季節要員を通年人員で賄う試行</td><td><span class="fill"></span></td><td class="n">05/31</td><td>外部採用に頼らず充足できた割合</td><td>—</td></tr>
+          <tr><td class="n">3.4</td><td class="k">客先依存度を下げる第2の柱の受注</td><td><span class="fill"></span></td><td class="n">05/31</td><td>新規客先の売上</td><td>営業工数</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="qsec">
+    <div class="qhead"><span class="q">Q4</span><span class="th">効かせる</span><span class="dt">2027.06 – 08</span></div>
+    <div class="tw">
+      <table>
+        <thead><tr><th class="n">#</th><th>何を</th><th>誰が</th><th>いつまでに</th><th>KPI</th><th>リソース</th></tr></thead>
+        <tbody>
+          <tr><td class="n">4.1</td><td class="k">人時売上高 +15%（対 Q1 実測値）</td><td><span class="fill"></span></td><td class="n">08/31</td><td>人時売上高</td><td>—</td></tr>
+          <tr><td class="n">4.2</td><td class="k">最低粗利ライン未達拠点をゼロに</td><td><span class="fill"></span></td><td class="n">08/31</td><td>該当拠点数 = 0</td><td>—</td></tr>
+          <tr><td class="n">4.3</td><td class="k">中期目標の再設計（本書を全面更新）</td><td><span class="fill"></span></td><td class="n">08/31</td><td>更新完了</td><td>経営合宿</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 ============ -->
+<section id="s5">
+  <div class="step-head">
+    <div class="step-no">Step 05</div>
+    <h2>進捗管理と改善 — PDCA</h2>
+  </div>
+  <p class="step-note">作って終わりにしない。定期レビューが本体。変化が速い領域ほど、見直し頻度を上げる。</p>
+
+  <h3>レビューの型</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>サイクル</th><th>頻度</th><th>参加者</th><th>見るもの</th></tr></thead>
+      <tbody>
+        <tr><td class="k">月次</td><td>毎月 第1週</td><td>役員＋拠点長</td><td>KPI 実績、遅れているアクション、現場の詰まり</td></tr>
+        <tr><td class="k">四半期</td><td>各 Q の末</td><td>経営</td><td>フェーズのゴール達成可否、本書の更新</td></tr>
+        <tr><td class="k">年次</td><td>2027.08</td><td>経営</td><td>中期目標の再設計</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>判断ルール — 迷ったらこれに戻る</h3>
+  <ul>
+    <li><strong>遅れたら</strong> — 「リソースを追加する」か「手順を見直す」かの二択で決める。担当者の頑張りに期待して据え置くのが、一番まずい。</li>
+    <li><strong>上振れたら</strong> — 目標を据え置かず、次の成長戦略に更新する。</li>
+    <li><strong>定量だけで見ない</strong> — 顧客の声・現場の詰まりという定性情報を必ず1つは挙げる。数字が良くても現場が壊れていたら失敗。</li>
+    <li><strong>優先順位に迷ったら</strong> — STEP 03 の「捨てる」列に当たっていないかを先に確認する。</li>
+  </ul>
+
+  <h3>詰まりサインの自己点検 — 毎月チェック</h3>
+  <p>以下が出ていたら、ロードマップが機能していない兆候です。</p>
+  <div class="signs">
+    <div><span class="box"></span> やることが増え続けている</div>
+    <div><span class="box"></span> 判断に毎回迷う</div>
+    <div><span class="box"></span> 特定の人や拠点に負荷が集中している</div>
+    <div><span class="box"></span> 長期の話になると曖昧になる</div>
+    <div><span class="box"></span> 部門ごとに言っていることがズレる</div>
+    <div><span class="box"></span> 「結局どれ優先？」で止まる</div>
+  </div>
+</section>
+
+<footer>
+  <p><strong>更新履歴</strong> — 2026-08-28 初版。STEP 01 は勤怠アプリのマスタから確認できる事実で構成し、財務数値は未取得欄として残置。</p>
+  <p>作成フレームは 事業戦略スクール【知足】(@issi_com)「事業戦略ロードマップの作り方」に基づく。人員数・拠点は社内勤怠システムの集計値のみを使用し、個人を特定する情報は含めていない。</p>
+</footer>
+
+</div>
