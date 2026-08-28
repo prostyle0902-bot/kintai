@@ -12,6 +12,7 @@
     --serif:'Noto Serif JP',"Hiragino Mincho ProN",'Yu Mincho',serif;
     --sans:'Noto Sans JP',-apple-system,'Hiragino Sans','Yu Gothic',sans-serif;
     --mono:'IBM Plex Mono','Noto Sans JP',ui-monospace,monospace;
+    --ph0:#dfe6e3; --ph0t:#46514d; --ph1:#b6c9c2; --ph1t:#22322c; --ph2:#4f8b78; --ph2t:#ffffff; --ph3:#0f5a4b; --ph3t:#ffffff;
     --meas:74ch;
   }
   @media (prefers-color-scheme:dark){
@@ -22,6 +23,7 @@
       --sea:#54b697; --sea-soft:rgba(84,182,151,.12); --sea-line:rgba(84,182,151,.30);
       --seg-a:#6ba7e0; --seg-b:#dc8a68; --seg-c:#cfa93f; --seg-d:#8e9994;
       --fact:#54b697; --hypo:#6ba7e0; --blank:#cfa93f;
+      --ph0:#28322f; --ph0t:#aab5b0; --ph1:#3a5850; --ph1t:#d3e0da; --ph2:#4f8b78; --ph2t:#07120f; --ph3:#7fc9ae; --ph3t:#07120f;
     }
   }
   :root[data-theme="dark"]{
@@ -31,6 +33,7 @@
     --sea:#54b697; --sea-soft:rgba(84,182,151,.12); --sea-line:rgba(84,182,151,.30);
     --seg-a:#6ba7e0; --seg-b:#dc8a68; --seg-c:#cfa93f; --seg-d:#8e9994;
     --fact:#54b697; --hypo:#6ba7e0; --blank:#cfa93f;
+    --ph0:#28322f; --ph0t:#aab5b0; --ph1:#3a5850; --ph1t:#d3e0da; --ph2:#4f8b78; --ph2t:#07120f; --ph3:#7fc9ae; --ph3t:#07120f;
   }
 
   *,*::before,*::after{box-sizing:border-box}
@@ -83,7 +86,7 @@
   nav a span{font-family:var(--sans); letter-spacing:0; margin-left:7px}
 
   /* ---- sections ---- */
-  section{padding-top:64px}
+  section{padding-top:64px; scroll-margin-top:56px}
   .step-head{border-top:2px solid var(--ink); padding-top:14px; margin-bottom:6px}
   .step-no{
     font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.22em;
@@ -212,37 +215,93 @@
   }
   .goal dd{margin:0; font-size:13px; line-height:1.72}
 
-  /* ---- the route: STEP4 timeline ---- */
-  .route{margin:28px 0 0; overflow-x:auto; padding-bottom:4px}
-  .route-inner{min-width:660px}
-  .scale{display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--rule-strong); position:relative}
-  .scale .tick{padding:0 0 9px; position:relative}
-  .scale .tick::after{
-    content:""; position:absolute; left:0; bottom:-1px; width:1px; height:9px; background:var(--rule-strong);
-  }
-  .scale .tick:last-child span.end{
-    position:absolute; right:0; bottom:-1px; width:1px; height:9px; background:var(--rule-strong);
-  }
-  .scale .q{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.14em; color:var(--sea)}
-  .scale .dt{font-family:var(--mono); font-size:10.5px; color:var(--faint); font-variant-numeric:tabular-nums; display:block; margin-top:3px}
-  .ports{display:grid; grid-template-columns:repeat(4,1fr); position:relative}
-  .ports::before{
-    content:""; position:absolute; top:10px; left:0; right:0; height:1px;
-    background:repeating-linear-gradient(to right,var(--sea-line) 0 6px,transparent 6px 11px);
-  }
-  .port{position:relative; padding:0 14px 0 0}
-  .port .dot{
-    width:9px; height:9px; border-radius:50%; background:var(--ground);
-    border:2px solid var(--sea); position:relative; z-index:1; margin:3.5px 0 14px;
-  }
-  .port .th{font-family:var(--serif); font-size:20px; font-weight:600; color:var(--ink); line-height:1.35}
-  .port .gl{font-size:12px; color:var(--muted); line-height:1.72; margin-top:7px; padding-right:8px}
-
   .qsec{margin-top:40px}
   .qhead{display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--rule-strong); padding-bottom:9px}
   .qhead .q{font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.16em; color:var(--sea)}
   .qhead .th{font-family:var(--serif); font-size:17px; font-weight:600; color:var(--ink)}
   .qhead .dt{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums}
+
+
+  /* ---- phase gantt (PHASE0-3 swimlane chart) ---- */
+  .gantt{overflow-x:auto; margin:28px 0 0; padding-bottom:8px}
+  .g{min-width:844px}
+  .g-head{display:grid; grid-template-columns:198px repeat(4,1fr); gap:6px; margin-bottom:6px}
+  .g-kgi{
+    grid-column:1/3; background:var(--sea-soft); border:1px solid var(--sea-line);
+    display:flex; align-items:center; justify-content:center; padding:9px 12px;
+    font-size:11.5px; font-weight:700; color:var(--ink); text-align:center;
+    line-height:1.65; word-break:keep-all;
+  }
+  .g-kgi .fill{border-bottom-color:var(--sea); min-width:50px}
+  .g-arrow{
+    grid-column:3/4; display:flex; align-items:center; padding:0 10px;
+  }
+  .g-arrow i{
+    display:block; flex:1; height:6px; background:var(--sunk);
+    clip-path:polygon(0 22%, calc(100% - 14px) 22%, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, calc(100% - 14px) 78%, 0 78%);
+  }
+  .g-kgi2{
+    border:1px solid var(--rule-strong); background:var(--surface);
+    display:flex; align-items:center; justify-content:center; padding:9px 12px;
+    font-size:12px; font-weight:700; color:var(--ink);
+  }
+  .g-line{display:grid; grid-template-columns:198px repeat(4,1fr); gap:6px; margin-bottom:5px; align-items:stretch}
+  .g-lbl{
+    background:var(--sunk); display:flex; align-items:center; justify-content:center;
+    font-size:11.5px; font-weight:700; color:var(--ink); padding:7px 10px; text-align:center;
+  }
+  .g-lbl.wide{background:linear-gradient(90deg,var(--sea-soft),var(--sunk))}
+  .ph{
+    border-radius:999px; padding:6px 12px; text-align:center;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.04em;
+    font-variant-numeric:tabular-nums; display:flex; align-items:center; justify-content:center;
+  }
+  .ph0{background:var(--ph0); color:var(--ph0t)}
+  .ph1{background:var(--ph1); color:var(--ph1t)}
+  .ph2{background:var(--ph2); color:var(--ph2t)}
+  .ph3{background:var(--ph3); color:var(--ph3t)}
+  .g-th{
+    text-align:center; font-size:12.5px; font-weight:700; color:var(--ink);
+    padding:7px 10px; border-bottom:1px solid var(--rule);
+  }
+  .g-box{
+    border:1px solid var(--rule-strong); background:var(--surface); text-align:center;
+    padding:7px 10px; font-size:11.5px; font-weight:600; color:var(--ink);
+  }
+  .g-pill{
+    border:1px solid var(--rule); border-radius:999px; background:var(--surface); text-align:center;
+    padding:6px 9px; font-size:10.5px; color:var(--muted); line-height:1.6;
+    word-break:keep-all; display:flex; align-items:center; justify-content:center;
+  }
+  .g-pill .fill{min-width:34px}
+  .g-box .fill{min-width:46px}
+  .g-group{display:grid; grid-template-columns:80px 1fr; gap:6px; margin-top:6px}
+  .g-cat{
+    background:var(--sunk); border-left:3px solid var(--sea);
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:11.5px; font-weight:700; color:var(--ink); padding:12px 8px; line-height:1.55;
+  }
+  .g-body{display:grid; grid-template-columns:112px repeat(4,1fr); gap:5px 6px; align-content:start}
+  .g-sub{
+    grid-column:1; background:var(--sunk); display:flex; align-items:center;
+    padding:8px 10px; font-size:11.5px; font-weight:700; color:var(--ink); line-height:1.55;
+  }
+  .g-sub.cont{background:transparent}
+  .bar{
+    --notch:12px;
+    background:var(--sunk); color:var(--ink); border-left:3px solid var(--rule-strong);
+    font-size:11.5px; line-height:1.5; padding:8px 22px 8px 11px; min-height:36px;
+    display:flex; align-items:center;
+    clip-path:polygon(0 0, calc(100% - var(--notch)) 0, 100% 50%, calc(100% - var(--notch)) 100%, 0 100%);
+  }
+  .bar.key{background:var(--sea-soft); border-left-color:var(--sea); font-weight:700}
+  .bar.late{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--rule-strong); color:var(--muted)}
+  .g-final{
+    background:var(--sunk); border:1px solid var(--rule); border-top:3px solid var(--sea);
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-family:var(--serif); font-size:15px; font-weight:600; color:var(--ink); line-height:1.65; padding:16px 12px;
+  }
+  .g-note{font-size:11.5px; color:var(--faint); margin:10px 0 0; font-family:var(--mono)}
 
   /* ---- checklist ---- */
   .signs{
@@ -567,37 +626,113 @@
   </div>
   <p class="step-note">「誰が・何を・いつまでに・何で測るか」を決める。ここまで落ちて、初めて“実行できる戦略”になる。</p>
 
-  <div class="route">
-    <div class="route-inner">
-      <div class="scale">
-        <div class="tick"><span class="q">Q1</span><span class="dt">2026.09 – 11</span></div>
-        <div class="tick"><span class="q">Q2</span><span class="dt">2026.12 – 2027.02</span></div>
-        <div class="tick"><span class="q">Q3</span><span class="dt">2027.03 – 05</span></div>
-        <div class="tick"><span class="q">Q4</span><span class="dt">2027.06 – 08</span><span class="end"></span></div>
+  <div class="gantt">
+    <div class="g">
+
+      <div class="g-head">
+        <div class="g-kgi">全体KGI：売上 <span class="fill"></span>億円 ／ 営業利益率 <span class="fill"></span>%</div>
+        <div class="g-arrow"><i></i></div>
+        <div class="g-kgi2">稼働KGI：<span class="fill"></span></div>
+        <div class="g-kgi2">粗利KGI：<span class="fill"></span></div>
       </div>
-      <div class="ports">
-        <div class="port">
-          <div class="dot"></div>
-          <div class="th">測る</div>
-          <div class="gl">数字がない状態を終わらせる</div>
-        </div>
-        <div class="port">
-          <div class="dot"></div>
-          <div class="th">仕組みにする</div>
-          <div class="gl">数字が毎月、自動で現場に返る</div>
-        </div>
-        <div class="port">
-          <div class="dot"></div>
-          <div class="th">融通する</div>
-          <div class="gl">業態間の人員配置転換を実運用に乗せる</div>
-        </div>
-        <div class="port">
-          <div class="dot"></div>
-          <div class="th">効かせる</div>
-          <div class="gl">粗利率・人時売上高で成果が出る</div>
+
+      <div class="g-line">
+        <div class="g-lbl wide">2026年度 ／ 2027年度</div>
+        <div class="ph ph0">PHASE0　2026.09–11</div>
+        <div class="ph ph1">PHASE1　2026.12–27.02</div>
+        <div class="ph ph2">PHASE2　2027.03–05</div>
+        <div class="ph ph3">PHASE3　2027.06–08</div>
+      </div>
+
+      <div class="g-line">
+        <div class="g-lbl">テーマ</div>
+        <div class="g-th">測る</div>
+        <div class="g-th">仕組みにする</div>
+        <div class="g-th">融通する</div>
+        <div class="g-th">効かせる</div>
+      </div>
+
+      <div class="g-line">
+        <div class="g-lbl">Q毎の売上目標</div>
+        <div class="g-box"><span class="fill"></span> 万／Q</div>
+        <div class="g-box"><span class="fill"></span> 万／Q</div>
+        <div class="g-box"><span class="fill"></span> 万／Q</div>
+        <div class="g-box"><span class="fill"></span> 万／Q</div>
+      </div>
+
+      <div class="g-line">
+        <div class="g-lbl">現場KPI ※人時売上高基準</div>
+        <div class="g-pill">人時 <span class="fill"></span>円／申請 <span class="fill"></span>件</div>
+        <div class="g-pill">人時 <span class="fill"></span>円／申請 <span class="fill"></span>件</div>
+        <div class="g-pill">人時 <span class="fill"></span>円／兼務 <span class="fill"></span>名</div>
+        <div class="g-pill">人時 +15%　未達拠点 0</div>
+      </div>
+
+      <!-- Group A : 事業戦略の実装 (2 rows) -->
+      <div class="g-group">
+        <div class="g-cat">事業戦略の<br>実装</div>
+        <div class="g-body">
+          <div class="g-sub" style="grid-row:1">現状把握</div>
+          <div class="bar key" style="grid-row:1; grid-column:2/3">未取得12項目の充足／拠点別 人時の集計</div>
+          <div class="bar" style="grid-row:1; grid-column:3/5">最低粗利ラインの設定・戦略の再定義</div>
+
+          <div class="g-sub" style="grid-row:2">実装と検証</div>
+          <div class="bar late" style="grid-row:2; grid-column:3/6">月次レビューでの効果検証</div>
         </div>
       </div>
+
+      <!-- Group B : 経営基盤 (8 rows) -->
+      <div class="g-group">
+        <div class="g-cat">経営基盤</div>
+        <div class="g-body">
+          <div class="g-sub" style="grid-row:1/3">数字の可視化</div>
+          <div class="bar key" style="grid-row:1; grid-column:2/3">打刻忘れ申請・人時の現状値を出す</div>
+          <div class="bar" style="grid-row:2; grid-column:3/5">月次自動集計 → 拠点長への数字返し</div>
+
+          <div class="g-sub" style="grid-row:3/5">勤怠システム</div>
+          <div class="bar key" style="grid-row:3; grid-column:2/3">既存 GAS の集計を活用</div>
+          <div class="bar" style="grid-row:4; grid-column:3/5">人時売上高ダッシュボード化／複数拠点対応</div>
+
+          <div class="g-sub" style="grid-row:5">客先ポートフォリオ</div>
+          <div class="bar key" style="grid-row:5; grid-column:2/3">客先別 構成比の把握</div>
+          <div class="bar" style="grid-row:5; grid-column:3/5">市川東病院の判断実行 → 第2の柱の受注</div>
+
+          <div class="g-sub" style="grid-row:6">飲食</div>
+          <div class="bar" style="grid-row:6; grid-column:3/5">時間帯稼働の分析 → シフト設計の見直し</div>
+
+          <div class="g-sub" style="grid-row:7">ステイ</div>
+          <div class="bar" style="grid-row:7; grid-column:3/4">稼働率・ADR 計測</div>
+          <div class="bar" style="grid-row:7; grid-column:4/5">値付け見直し</div>
+
+          <div class="g-sub" style="grid-row:8">バックオフィス</div>
+          <div class="bar key" style="grid-row:8; grid-column:2/3">業務の棚卸し</div>
+          <div class="bar" style="grid-row:8; grid-column:3/5">手順書化・脱属人化の検証</div>
+
+          <div class="g-final" style="grid-row:1/9; grid-column:5/6">各施策を徹底し<br>粗利率を最大化</div>
+        </div>
+      </div>
+
+      <!-- Group C : 人員デリバリー体制の構築 (3 rows) -->
+      <div class="g-group">
+        <div class="g-cat">人員<br>デリバリー<br>体制の構築</div>
+        <div class="g-body">
+          <div class="g-sub" style="grid-row:1">採用</div>
+          <div class="bar key" style="grid-row:1; grid-column:2/3">採用計画の策定</div>
+          <div class="bar" style="grid-row:1; grid-column:3/5">全社プール化（募集窓口の一本化）</div>
+
+          <div class="g-sub" style="grid-row:2">配置</div>
+          <div class="bar" style="grid-row:2; grid-column:3/5">必要人材要件の整理 → 配置転換ルールの定義</div>
+
+          <div class="g-sub" style="grid-row:3">評価・定着</div>
+          <div class="bar" style="grid-row:3; grid-column:2/4">評価制度の策定</div>
+          <div class="bar" style="grid-row:3; grid-column:4/5">ビアガーデン季節要員の内製化</div>
+
+          <div class="g-final" style="grid-row:1/4; grid-column:5/6">各施策を徹底した<br>稼働率の最大化</div>
+        </div>
+      </div>
+
     </div>
+    <p class="g-note">※ 濃い網掛けのバー＝ PHASE0 で着手する起点タスク。画面が狭い場合は横スクロールで全フェーズを表示。</p>
   </div>
 
   <div class="qsec">
