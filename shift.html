@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prostyle シフト作成</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="シフト作成" />
+<meta name="theme-color" content="#783c14" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6b68;
+    --text-danger: #a32d2d;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --accent: #783c14;
+    --sat: #185FA5;
+    --sun: #a32d2d;
+    --closed: #efece6;
+  }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+  }
+  .app { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .logo-title { font-size: 19px; font-weight: 600; color: var(--accent); letter-spacing: .06em; }
+  .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  select, input[type=text], input[type=number], input[type=month] {
+    padding: 8px 10px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    background: var(--surface); font-size: 14px; font-family: inherit; color: var(--text-primary);
+  }
+  input[type=number] { width: 74px; }
+
+  .btn { padding: 9px 16px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    background: var(--surface); color: var(--text-primary); font-size: 13px; font-family: inherit;
+    cursor: pointer; transition: all .12s; white-space: nowrap; }
+  .btn:hover { background: #f0efeb; }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: #8d4a1c; }
+  .btn.ghost { border-color: var(--border); color: var(--text-secondary); background: transparent; }
+  .btn.danger { color: var(--text-danger); border-color: rgba(163,45,45,.35); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; overflow-x: auto; }
+  .tab { padding: 10px 16px; border: none; background: transparent; font-size: 14px; font-family: inherit;
+    color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: .35rem; }
+  .card-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.6; }
+
+  .field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 1rem; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; color: var(--text-secondary); }
+  .dow-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+  .dow-chip { width: 34px; height: 34px; border-radius: var(--radius-md); border: 0.5px solid var(--border-md);
+    background: var(--surface); font-size: 13px; font-family: inherit; cursor: pointer; color: var(--text-secondary); }
+  .dow-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .dow-chip.on.mini { background: #d8cec2; border-color: #c7bbab; color: #4a3520; }
+
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg); background: var(--surface); }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 0.5px solid var(--border); padding: 7px 8px; text-align: center; white-space: nowrap; }
+  thead th { background: #faf9f6; font-weight: 600; font-size: 12px; color: var(--text-secondary); position: sticky; top: 0; z-index: 2; }
+  .col-name { text-align: left; min-width: 120px; position: sticky; left: 0; background: var(--surface); z-index: 1;
+    border-right: 0.5px solid var(--border); font-weight: 500; }
+  thead .col-name { background: #faf9f6; z-index: 3; }
+  tbody tr:last-child td { border-bottom: none; }
+  .d-sat { color: var(--sat); }
+  .d-sun { color: var(--sun); }
+  .cell-closed { background: var(--closed); color: #a09a90; }
+  .cell-on { background: #E1F5EE; color: #0F6E56; font-weight: 700; cursor: pointer; }
+  .cell-off { color: #cfcbc4; cursor: pointer; }
+  .cell-off:hover { background: #f4f3ef; }
+  .cell-req-off { background: #FAECE7; color: #993C1D; cursor: pointer; }
+  .cell-req-want { background: #FFF6E0; color: #92650a; cursor: pointer; }
+  .cell-conflict { outline: 2px solid var(--text-danger); outline-offset: -2px; }
+  .cell-total { background: #faf9f6; font-weight: 600; }
+  .cell-short { background: #FAECE7; color: #993C1D; font-weight: 700; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-secondary); margin-top: .6rem; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+
+  .alert { border-radius: var(--radius-md); padding: 10px 14px; font-size: 12.5px; line-height: 1.7; margin-bottom: 1rem; }
+  .alert.warn { background: #FAECE7; color: #7d3116; border: 0.5px solid rgba(153,60,29,.2); }
+  .alert.ok { background: #E1F5EE; color: #0F6E56; border: 0.5px solid rgba(15,110,86,.2); }
+  .alert.info { background: #EEF3F9; color: #1c4d80; border: 0.5px solid rgba(24,95,165,.18); }
+  .alert ul { margin: 4px 0 0 1.1rem; }
+
+  .staff-row { display: grid; grid-template-columns: 1.4fr .8fr .8fr .8fr 2.4fr auto; gap: 10px; align-items: center;
+    padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .staff-row:last-of-type { border-bottom: none; }
+  .staff-head { font-size: 11.5px; color: var(--text-secondary); padding-bottom: 6px; border-bottom: 0.5px solid var(--border); }
+  .staff-row input[type=text] { width: 100%; }
+  .staff-row .mini-dow { display: flex; gap: 3px; }
+  .staff-row .dow-chip { width: 27px; height: 27px; font-size: 11px; }
+  .inactive { opacity: .45; }
+
+  .daily { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .daily-h { text-align: center; font-size: 11px; color: var(--text-secondary); padding: 4px 0; font-weight: 600; }
+  .daily-c { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-md);
+    min-height: 84px; padding: 6px; font-size: 11.5px; }
+  .daily-c.blank { background: transparent; border: none; }
+  .daily-c.closed { background: var(--closed); color: #a09a90; }
+  .daily-c .dnum { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .daily-c .nm { display: block; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 2px 4px; margin-bottom: 3px; }
+  .daily-c .hol { font-size: 10px; color: var(--sun); }
+  .daily-c .short { color: var(--text-danger); font-weight: 600; }
+
+  .muted { color: var(--text-secondary); font-size: 12px; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+
+  @media (max-width: 720px) {
+    .staff-row { grid-template-columns: 1fr 1fr; }
+    .staff-head { display: none; }
+    .staff-row .lbl { display: inline; }
+  }
+  .lbl { display: none; font-size: 10.5px; color: var(--text-secondary); margin-right: 4px; }
+
+  @media print {
+    body { background: #fff; }
+    .no-print { display: none !important; }
+    .app { max-width: none; padding: 0; }
+    .scroll { border: none; overflow: visible; }
+    th, td { padding: 4px 3px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="head no-print">
+    <div>
+      <div class="logo-title">Prostyle シフト作成</div>
+      <div class="logo-sub">店舗・現場別 自動シフト作成</div>
+    </div>
+    <div class="toolbar">
+      <select id="store-select" onchange="onStoreChange()"></select>
+      <input type="month" id="month-input" onchange="onMonthChange()" />
+    </div>
+  </div>
+
+  <div class="tabs no-print">
+    <button class="tab active" data-panel="p-shift" onclick="showTab(this)">シフト表</button>
+    <button class="tab" data-panel="p-request" onclick="showTab(this)">希望休</button>
+    <button class="tab" data-panel="p-staff" onclick="showTab(this)">スタッフ</button>
+    <button class="tab" data-panel="p-store" onclick="showTab(this)">店舗設定</button>
+  </div>
+
+  <!-- ===== シフト表 ===== -->
+  <div class="panel active" id="p-shift">
+    <div class="card no-print">
+      <div class="card-title" id="shift-heading">シフト自動作成</div>
+      <div class="card-desc" id="shift-rule"></div>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn primary" onclick="doGenerate()">この月のシフトを自動作成</button>
+        <button class="btn" onclick="doGenerate(true)">別パターンで作り直す</button>
+        <button class="btn ghost" onclick="clearShift()">シフトを消去</button>
+        <button class="btn ghost" onclick="exportCsv()">CSV出力</button>
+        <button class="btn ghost" onclick="window.print()">印刷</button>
+      </div>
+    </div>
+
+    <div id="shift-alerts"></div>
+
+    <div class="scroll" id="shift-table-wrap"></div>
+    <div class="legend no-print">
+      <span><i style="background:#E1F5EE"></i>出勤（クリックで手修正）</span>
+      <span><i style="background:#FAECE7"></i>希望休</span>
+      <span><i style="background:#FFF6E0"></i>出勤希望</span>
+      <span><i style="background:#efece6"></i>定休日</span>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">日別シフト</div>
+      <div class="card-desc">当日の出勤者を日ごとに確認できます。掲示用の印刷にも使えます。</div>
+      <div id="daily-view"></div>
+    </div>
+  </div>
+
+  <!-- ===== 希望休 ===== -->
+  <div class="panel" id="p-request">
+    <div class="card">
+      <div class="card-title">希望休の入力</div>
+      <div class="card-desc">
+        セルをクリックするたびに <b>空欄 → 希望休(×) → 出勤希望(◎) → 空欄</b> と切り替わります。<br />
+        希望休は必ず休みになります。出勤希望はその日に優先的に割り当てます。入力は自動保存されます。
+      </div>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn ghost" onclick="clearRequests()">この月の希望をすべて消去</button>
+      </div>
+    </div>
+    <div class="scroll" id="request-table-wrap"></div>
+    <div class="legend">
+      <span><i style="background:#FAECE7"></i>× 希望休</span>
+      <span><i style="background:#FFF6E0"></i>◎ 出勤希望</span>
+      <span><i style="background:#efece6"></i>定休日</span>
+    </div>
+  </div>
+
+  <!-- ===== スタッフ ===== -->
+  <div class="panel" id="p-staff">
+    <div class="card">
+      <div class="card-title">スタッフ設定</div>
+      <div class="card-desc">
+        <b>月の希望日数</b>：0 なら他のスタッフと自動で均等割り。数値を入れるとその日数を目安に組みます。<br />
+        <b>上限</b>：月にこれ以上は入れない日数（0＝上限なし）。<b>週上限</b>：1週間（月〜日）の勤務日数上限（0＝なし）。<br />
+        <b>勤務可能曜日</b>：オフにした曜日には割り当てません。
+      </div>
+      <div class="staff-row staff-head">
+        <div>氏名</div><div>月の希望日数</div><div>上限</div><div>週上限</div><div>勤務可能曜日</div><div></div>
+      </div>
+      <div id="staff-list"></div>
+      <div class="row-actions">
+        <button class="btn" onclick="addStaff()">＋ スタッフを追加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 店舗設定 ===== -->
+  <div class="panel" id="p-store">
+    <div class="card">
+      <div class="card-title">店舗・現場の設定</div>
+      <div class="card-desc">店舗ごとに定休日と必要人数を設定します。ここを変えれば他の店舗・現場にもそのまま使えます。</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>店舗・現場名</label>
+          <input type="text" id="st-name" oninput="updateStore('name', this.value)" />
+        </div>
+        <div class="field">
+          <label>平日の必要人数</label>
+          <input type="number" id="st-weekday" min="0" max="20" oninput="updateStore('weekdayStaff', +this.value)" />
+        </div>
+        <div class="field">
+          <label>土日の必要人数</label>
+          <input type="number" id="st-weekend" min="0" max="20" oninput="updateStore('weekendStaff', +this.value)" />
+        </div>
+        <div class="field">
+          <label>連勤の上限（日）</label>
+          <input type="number" id="st-maxcons" min="1" max="31" oninput="updateStore('maxConsecutive', +this.value)" />
+        </div>
+      </div>
+      <div class="field" style="margin-top:1rem">
+        <label>定休日（選んだ曜日は休業）</label>
+        <div class="dow-picker" id="st-closed"></div>
+      </div>
+      <div class="field" style="margin-top:1rem">
+        <label>祝日の扱い</label>
+        <div class="dow-picker">
+          <button class="btn sm" id="st-hol-btn" onclick="toggleHolidayRule()"></button>
+        </div>
+        <div class="muted" id="st-hol-note"></div>
+      </div>
+      <div class="field" style="margin-top:1rem">
+        <label>定休日が祝日にあたるとき</label>
+        <div class="dow-picker">
+          <button class="btn sm" id="st-holopen-btn" onclick="toggleHolidayOpen()"></button>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button class="btn" onclick="addStore()">＋ 店舗・現場を追加</button>
+        <button class="btn" onclick="duplicateStore()">この設定を複製</button>
+        <button class="btn danger" onclick="deleteStore()">この店舗を削除</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">データの保存</div>
+      <div class="card-desc">入力内容はこの端末のブラウザに自動保存されます。端末を変える場合や引き継ぎにはバックアップを使ってください。</div>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn ghost" onclick="exportJson()">バックアップを書き出す</button>
+        <button class="btn ghost" onclick="document.getElementById('import-file').click()">バックアップを読み込む</button>
+        <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="importJson(this)" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   Prostyle シフト自動作成
+   店舗ごとの定休日・必要人数と希望休から月間シフトを組み立てる
+   ========================================================= */
+
+const DOW = ['日','月','火','水','木','金','土'];
+const LS_KEY = 'prostyle_shift_v1';
+
+/* ---------- 既定データ（さわら十三里屋） ---------- */
+function defaultDB() {
+  return {
+    version: 1,
+    activeStoreId: 's_sawara13',
+    stores: [{
+      id: 's_sawara13',
+      name: 'さわら十三里屋',
+      closedDays: [2],          // 火曜定休
+      weekdayStaff: 1,          // 平日1人
+      weekendStaff: 2,          // 土日2人
+      holidayAsWeekend: true,   // 祝日は土日と同じ人数
+      openOnClosedHoliday: false, // 定休日が祝日でも休業
+      maxConsecutive: 5,
+      staff: [
+        newStaff('八木 秀子'),
+        newStaff('籾山 結泉'),
+        newStaff('下河邊 なお子'),
+        newStaff('小堀 真桜'),
+      ],
+    }],
+    requests: {}, // key: storeId|YYYY-MM|staffId -> { day: 'off'|'want' }
+    shifts: {},   // key: storeId|YYYY-MM -> { '1': [staffId,...] }
+  };
+}
+
+function newStaff(name) {
+  return {
+    id: 'u_' + Math.random().toString(36).slice(2, 9),
+    name: name,
+    targetDays: 0,                 // 月の希望日数（0＝自動均等）
+    maxDays: 0,                    // 月の上限（0＝なし）
+    maxPerWeek: 0,                 // 週の上限（0＝なし）
+    availableDays: [0,1,2,3,4,5,6],
+    active: true,
+  };
+}
+
+/* ---------- 永続化 ---------- */
+let DB = loadDB();
+let currentYM = todayYM();
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return defaultDB();
+    const d = JSON.parse(raw);
+    if (!d || !Array.isArray(d.stores) || !d.stores.length) return defaultDB();
+    d.requests = d.requests || {};
+    d.shifts = d.shifts || {};
+    d.stores.forEach(normalizeStore);
+    if (!d.stores.some(s => s.id === d.activeStoreId)) d.activeStoreId = d.stores[0].id;
+    return d;
+  } catch (e) {
+    return defaultDB();
+  }
+}
+
+function normalizeStore(s) {
+  s.closedDays = Array.isArray(s.closedDays) ? s.closedDays : [];
+  s.weekdayStaff = num(s.weekdayStaff, 1);
+  s.weekendStaff = num(s.weekendStaff, 2);
+  s.maxConsecutive = Math.max(1, num(s.maxConsecutive, 5));
+  s.holidayAsWeekend = s.holidayAsWeekend !== false;
+  s.openOnClosedHoliday = s.openOnClosedHoliday === true;
+  s.staff = Array.isArray(s.staff) ? s.staff : [];
+  s.staff.forEach(u => {
+    u.targetDays = num(u.targetDays, 0);
+    u.maxDays = num(u.maxDays, 0);
+    u.maxPerWeek = num(u.maxPerWeek, 0);
+    if (!Array.isArray(u.availableDays)) u.availableDays = [0,1,2,3,4,5,6];
+    u.active = u.active !== false;
+  });
+}
+
+function num(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }
+function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
+
+function store() { return DB.stores.find(s => s.id === DB.activeStoreId) || DB.stores[0]; }
+function activeStaff() { return store().staff.filter(u => u.active); }
+
+function todayYM() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+}
+function ymParts(ym) { const [y, m] = ym.split('-').map(Number); return { y: y, m: m }; }
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+
+function reqKey(staffId) { return store().id + '|' + currentYM + '|' + staffId; }
+function shiftKey() { return store().id + '|' + currentYM; }
+function getReq(staffId) { return DB.requests[reqKey(staffId)] || {}; }
+function setReq(staffId, day, val) {
+  const k = reqKey(staffId);
+  const o = DB.requests[k] || (DB.requests[k] = {});
+  if (val) o[day] = val; else delete o[day];
+  saveDB();
+}
+function getShift() { return DB.shifts[shiftKey()] || null; }
+function setShift(v) { DB.shifts[shiftKey()] = v; saveDB(); }
+
+/* =========================================================
+   日本の祝日
+   ========================================================= */
+function nthMonday(y, m, nth) {
+  const first = new Date(y, m - 1, 1).getDay();      // 0=日
+  return 1 + ((8 - first) % 7) + (nth - 1) * 7;      // 第nth月曜の日
+}
+function vernalEquinox(y) {
+  return Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+}
+function autumnalEquinox(y) {
+  return Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+}
+
+const holidayCache = {};
+function holidaysOf(y) {
+  if (holidayCache[y]) return holidayCache[y];
+  const H = {};
+  const put = (m, d, name) => { if (d >= 1 && d <= daysInMonth(y, m)) H[m + '-' + d] = name; };
+
+  put(1, 1, '元日');
+  put(1, nthMonday(y, 1, 2), '成人の日');
+  put(2, 11, '建国記念の日');
+  if (y >= 2020) put(2, 23, '天皇誕生日');
+  put(3, vernalEquinox(y), '春分の日');
+  put(4, 29, '昭和の日');
+  put(5, 3, '憲法記念日');
+  put(5, 4, 'みどりの日');
+  put(5, 5, 'こどもの日');
+  put(7, nthMonday(y, 7, 3), '海の日');
+  put(8, 11, '山の日');
+  put(9, nthMonday(y, 9, 3), '敬老の日');
+  put(9, autumnalEquinox(y), '秋分の日');
+  put(10, nthMonday(y, 10, 2), 'スポーツの日');
+  put(11, 3, '文化の日');
+  put(11, 23, '勤労感謝の日');
+
+  // 国民の休日：前後を祝日に挟まれた平日（敬老の日と秋分の日の間など）
+  for (let m = 1; m <= 12; m++) {
+    for (let d = 1; d <= daysInMonth(y, m); d++) {
+      if (H[m + '-' + d]) continue;
+      const cur = new Date(y, m - 1, d);
+      if (cur.getDay() === 0) continue;
+      const prev = new Date(y, m - 1, d - 1);
+      const next = new Date(y, m - 1, d + 1);
+      const kp = (prev.getMonth() + 1) + '-' + prev.getDate();
+      const kn = (next.getMonth() + 1) + '-' + next.getDate();
+      if (H[kp] && H[kn]) H[m + '-' + d] = '国民の休日';
+    }
+  }
+  // 振替休日：日曜が祝日なら、その後の最初の平日
+  const subs = {};
+  Object.keys(H).forEach(k => {
+    const [m, d] = k.split('-').map(Number);
+    if (new Date(y, m - 1, d).getDay() !== 0) return;
+    let t = new Date(y, m - 1, d + 1);
+    while (H[(t.getMonth() + 1) + '-' + t.getDate()] || subs[(t.getMonth() + 1) + '-' + t.getDate()]) {
+      t = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1);
+    }
+    if (t.getFullYear() === y) subs[(t.getMonth() + 1) + '-' + t.getDate()] = '振替休日';
+  });
+  Object.assign(H, subs);
+
+  holidayCache[y] = H;
+  return H;
+}
+function holidayName(y, m, d) { return holidaysOf(y)[m + '-' + d] || null; }
+
+/* =========================================================
+   月のカレンダー（営業日と必要人数）
+   ========================================================= */
+function buildCalendar() {
+  const st = store();
+  const { y, m } = ymParts(currentYM);
+  const last = daysInMonth(y, m);
+  const cal = [];
+  for (let d = 1; d <= last; d++) {
+    const dow = new Date(y, m - 1, d).getDay();
+    const hol = holidayName(y, m, d);
+    let closed = st.closedDays.includes(dow);
+    if (closed && hol && st.openOnClosedHoliday) closed = false;
+    const weekendLike = dow === 0 || dow === 6 || (st.holidayAsWeekend && !!hol);
+    const need = closed ? 0 : (weekendLike ? st.weekendStaff : st.weekdayStaff);
+    cal.push({ day: d, dow: dow, holiday: hol, closed: closed, weekendLike: weekendLike, need: need });
+  }
+  return cal;
+}
+
+// 月曜起点の週番号（週上限の判定に使う）
+function weekIndex(y, m, d) {
+  const dt = new Date(y, m - 1, d);
+  const base = new Date(y, m - 1, 1);
+  const shift = (base.getDay() + 6) % 7;   // 1日が週の何日目か（月曜=0）
+  return Math.floor((d - 1 + shift) / 7);
+}
+
+/* =========================================================
+   シフト自動作成
+   ========================================================= */
+function generate(seed) {
+  const st = store();
+  const cal = buildCalendar();
+  const staff = activeStaff();
+  const { y, m } = ymParts(currentYM);
+  const warnings = [];
+
+  if (!staff.length) {
+    return { assign: {}, warnings: ['出勤できるスタッフが登録されていません。'], counts: {} };
+  }
+
+  const rnd = mulberry32(seed || Math.floor(Math.random() * 1e9));
+
+  // 希望（休み・出勤希望）
+  const req = {};
+  staff.forEach(u => { req[u.id] = getReq(u.id); });
+
+  const eligible = (u, c) => {
+    if (c.closed) return false;
+    if (!u.availableDays.includes(c.dow)) return false;
+    if (req[u.id][c.day] === 'off') return false;
+    return true;
+  };
+
+  const totalSlots = cal.reduce((a, c) => a + c.need, 0);
+
+  // 各スタッフの目標日数
+  const capacity = {};
+  staff.forEach(u => {
+    let cap = cal.filter(c => eligible(u, c)).length;
+    if (u.maxDays > 0) cap = Math.min(cap, u.maxDays);
+    capacity[u.id] = cap;
+  });
+  const target = allocateTargets(staff, capacity, totalSlots);
+
+  // 割り当て状態
+  const assign = {};                 // day -> [staffId]
+  cal.forEach(c => { assign[c.day] = []; });
+  const count = {};                  // staffId -> 出勤日数
+  const weekCount = {};              // staffId -> {weekIdx: 日数}
+  staff.forEach(u => { count[u.id] = 0; weekCount[u.id] = {}; });
+
+  const worksOn = (id, d) => d >= 1 && d <= cal.length && assign[d] && assign[d].includes(id);
+  const runLength = (id, d) => {
+    let n = 1;
+    for (let i = d - 1; i >= 1 && worksOn(id, i); i--) n++;
+    for (let i = d + 1; i <= cal.length && worksOn(id, i); i++) n++;
+    return n;
+  };
+
+  const canTake = (u, c) => {
+    if (!eligible(u, c)) return false;
+    if (assign[c.day].includes(u.id)) return false;
+    if (u.maxDays > 0 && count[u.id] >= u.maxDays) return false;
+    if (u.maxPerWeek > 0) {
+      const w = weekIndex(y, m, c.day);
+      if ((weekCount[u.id][w] || 0) >= u.maxPerWeek) return false;
+    }
+    if (runLength(u.id, c.day) > st.maxConsecutive) return false;
+    return true;
+  };
+
+  const place = (u, c) => {
+    assign[c.day].push(u.id);
+    count[u.id]++;
+    const w = weekIndex(y, m, c.day);
+    weekCount[u.id][w] = (weekCount[u.id][w] || 0) + 1;
+  };
+  const remove = (u, c) => {
+    assign[c.day] = assign[c.day].filter(x => x !== u.id);
+    count[u.id]--;
+    const w = weekIndex(y, m, c.day);
+    weekCount[u.id][w] = (weekCount[u.id][w] || 0) - 1;
+  };
+
+  // 1) 出勤希望（◎）を先に確定
+  const openDays = cal.filter(c => c.need > 0);
+  const wantList = [];
+  openDays.forEach(c => staff.forEach(u => {
+    if (req[u.id][c.day] === 'want' && eligible(u, c)) wantList.push({ u: u, c: c });
+  }));
+  wantList.sort(() => rnd() - 0.5);
+  wantList.forEach(({ u, c }) => {
+    if (assign[c.day].length < c.need && canTake(u, c)) place(u, c);
+  });
+
+  // 2) 候補が少ない日から埋める（詰みにくくする）
+  const order = openDays.slice().sort((a, b) => {
+    const ca = staff.filter(u => eligible(u, a)).length;
+    const cb = staff.filter(u => eligible(u, b)).length;
+    if (ca !== cb) return ca - cb;
+    if (b.need !== a.need) return b.need - a.need;
+    return a.day - b.day;
+  });
+
+  order.forEach(c => {
+    while (assign[c.day].length < c.need) {
+      const cands = staff.filter(u => canTake(u, c));
+      if (!cands.length) break;
+      cands.sort((a, b) => score(a, c) - score(b, c));
+      place(cands[0], c);
+    }
+  });
+
+  function score(u, c) {
+    const t = Math.max(target[u.id], 0.5);
+    let s = count[u.id] / t;                                  // 目標に対する充足率（低いほど優先）
+    if (worksOn(u.id, c.day - 1)) s += 0.10;                  // 連勤はやや避ける
+    if (worksOn(u.id, c.day + 1)) s += 0.10;
+    if (worksOn(u.id, c.day - 7)) s += 0.04;                  // 同じ曜日の偏りを緩める
+    if (req[u.id][c.day] === 'want') s -= 1.0;                // 出勤希望は最優先
+    s += rnd() * 0.02;
+    return s;
+  }
+
+  // 3) 均し：目標より多い人から少ない人へ入れ替え
+  balance();
+  function balance() {
+    for (let loop = 0; loop < 400; loop++) {
+      let moved = false;
+      const over = staff.slice().sort((a, b) => (count[b.id] - target[b.id]) - (count[a.id] - target[a.id]));
+      const under = staff.slice().sort((a, b) => (count[a.id] - target[a.id]) - (count[b.id] - target[b.id]));
+      outer:
+      for (const o of over) {
+        if (count[o.id] - target[o.id] <= 0.5) break;
+        for (const un of under) {
+          if (un.id === o.id) continue;
+          if (target[un.id] - count[un.id] <= 0.5) break;
+          for (const c of openDays) {
+            if (!assign[c.day].includes(o.id)) continue;
+            if (req[o.id][c.day] === 'want') continue;
+            remove(o, c);
+            if (canTake(un, c)) { place(un, c); moved = true; break outer; }
+            place(o, c);
+          }
+        }
+      }
+      if (!moved) break;
+    }
+  }
+
+  // 4) 不足の警告
+  const shortDays = openDays.filter(c => assign[c.day].length < c.need);
+  if (shortDays.length) {
+    warnings.push('人員が足りない日があります：' +
+      shortDays.map(c => c.day + '日(' + DOW[c.dow] + ') ' + assign[c.day].length + '/' + c.need + '人').join('、'));
+  }
+  staff.forEach(u => {
+    const offs = Object.keys(req[u.id]).filter(d => req[u.id][d] === 'off').length;
+    if (capacity[u.id] === 0 && offs > 0) warnings.push(u.name + ' さんは希望休と勤務可能曜日の条件で出勤できる日がありません。');
+  });
+  const unmetWants = [];
+  staff.forEach(u => {
+    Object.keys(req[u.id]).forEach(d => {
+      if (req[u.id][d] === 'want' && !assign[+d].includes(u.id)) unmetWants.push(u.name + '（' + d + '日）');
+    });
+  });
+  if (unmetWants.length) warnings.push('出勤希望に応えられなかった日：' + unmetWants.join('、'));
+
+  return { assign: assign, warnings: warnings, counts: count, targets: target };
+}
+
+// 目標日数の配分：希望日数が入っている人を優先し、残りを均等割り
+function allocateTargets(staff, capacity, totalSlots) {
+  const target = {};
+  const fixed = staff.filter(u => u.targetDays > 0);
+  const auto = staff.filter(u => u.targetDays <= 0);
+  let rest = totalSlots;
+  fixed.forEach(u => {
+    const t = Math.min(u.targetDays, capacity[u.id]);
+    target[u.id] = t;
+    rest -= t;
+  });
+  if (auto.length) {
+    let pool = auto.slice();
+    let remain = Math.max(rest, 0);
+    // 上限（capacity）に収まらない人を確定させながら、残りを均等に配る
+    for (let i = 0; i < 10 && pool.length; i++) {
+      const share = remain / pool.length;
+      const capped = pool.filter(u => capacity[u.id] < share);
+      if (!capped.length) { pool.forEach(u => target[u.id] = share); break; }
+      capped.forEach(u => { target[u.id] = capacity[u.id]; remain -= capacity[u.id]; });
+      pool = pool.filter(u => capacity[u.id] >= share);
+      if (!pool.length) break;
+      if (i === 9) pool.forEach(u => target[u.id] = remain / pool.length);
+    }
+  } else if (rest > 0 && fixed.length) {
+    // 希望日数の合計が必要枠に届かない場合は比例配分で伸ばす
+    const sum = fixed.reduce((a, u) => a + target[u.id], 0) || 1;
+    fixed.forEach(u => { target[u.id] = Math.min(capacity[u.id], target[u.id] + rest * (target[u.id] / sum)); });
+  }
+  staff.forEach(u => { if (!(u.id in target)) target[u.id] = 0; });
+  return target;
+}
+
+// 再現性のある擬似乱数
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* =========================================================
+   画面：シフト表
+   ========================================================= */
+function doGenerate(reroll) {
+  const res = generate(reroll ? Math.floor(Math.random() * 1e9) : 20240101);
+  const data = {};
+  Object.keys(res.assign).forEach(d => { if (res.assign[d].length) data[d] = res.assign[d]; });
+  setShift({ days: data, warnings: res.warnings, generatedAt: new Date().toISOString() });
+  renderShift();
+}
+
+function clearShift() {
+  if (!confirm('この月のシフトを消去します。よろしいですか？')) return;
+  delete DB.shifts[shiftKey()];
+  saveDB();
+  renderShift();
+}
+
+function toggleCell(staffId, day) {
+  const cal = buildCalendar();
+  const c = cal[day - 1];
+  if (!c || c.closed) return;
+  const sh = getShift() || { days: {}, warnings: [] };
+  const cur = sh.days[day] ? sh.days[day].slice() : [];
+  const i = cur.indexOf(staffId);
+  if (i >= 0) cur.splice(i, 1);
+  else cur.push(staffId);
+  if (cur.length) sh.days[day] = cur; else delete sh.days[day];
+  sh.manual = true;
+  setShift(sh);
+  renderShift();
+}
+
+function renderShift() {
+  const st = store();
+  const cal = buildCalendar();
+  const staff = activeStaff();
+  const sh = getShift();
+  const { y, m } = ymParts(currentYM);
+
+  document.getElementById('shift-heading').textContent = st.name + '　' + y + '年' + m + '月';
+  const closedTxt = st.closedDays.length ? st.closedDays.map(d => DOW[d] + '曜').join('・') + '定休' : '定休日なし';
+  const openCount = cal.filter(c => !c.closed).length;
+  const slots = cal.reduce((a, c) => a + c.need, 0);
+  document.getElementById('shift-rule').innerHTML =
+    closedTxt + '／平日 ' + st.weekdayStaff + '人・土日' + (st.holidayAsWeekend ? '祝' : '') + ' ' + st.weekendStaff + '人'
+    + '／連勤上限 ' + st.maxConsecutive + '日<br />営業日 ' + openCount + '日・のべ必要人数 ' + slots + '人'
+    + (staff.length ? '（スタッフ ' + staff.length + '名・1人あたり約 ' + (slots / staff.length).toFixed(1) + '日）' : '（スタッフ未登録）');
+
+  // 警告
+  const alerts = [];
+  if (!staff.length) {
+    alerts.push('<div class="alert warn">スタッフが登録されていません。「スタッフ」タブから追加してください。</div>');
+  } else if (!sh) {
+    alerts.push('<div class="alert info">まだシフトを作成していません。希望休を入力してから「この月のシフトを自動作成」を押してください。</div>');
+  } else {
+    const w = liveWarnings(cal, staff, sh);
+    if (w.length) {
+      alerts.push('<div class="alert warn"><b>確認してください</b><ul>' + w.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul></div>');
+    } else {
+      alerts.push('<div class="alert ok">条件をすべて満たしたシフトができました。</div>');
+    }
+  }
+  document.getElementById('shift-alerts').innerHTML = alerts.join('');
+
+  // 表
+  let h = '<table><thead><tr><th class="col-name">スタッフ</th>';
+  cal.forEach(c => {
+    h += '<th class="' + dowClass(c) + '" title="' + (c.holiday || '') + '">' + c.day
+      + '<br /><span style="font-weight:400">' + DOW[c.dow] + '</span></th>';
+  });
+  h += '<th>出勤</th><th>目安</th></tr></thead><tbody>';
+
+  const counts = {};
+  staff.forEach(u => counts[u.id] = 0);
+  const res = staff.length ? generateTargetsOnly(cal, staff) : {};
+
+  staff.forEach(u => {
+    const req = getReq(u.id);
+    h += '<tr><td class="col-name">' + esc(u.name) + '</td>';
+    cal.forEach(c => {
+      const on = sh && sh.days[c.day] && sh.days[c.day].includes(u.id);
+      if (on) counts[u.id]++;
+      let cls, txt;
+      if (c.closed) { cls = 'cell-closed'; txt = '－'; }
+      else if (on) { cls = 'cell-on' + (req[c.day] === 'off' ? ' cell-conflict' : ''); txt = '○'; }
+      else if (req[c.day] === 'off') { cls = 'cell-req-off'; txt = '×'; }
+      else if (req[c.day] === 'want') { cls = 'cell-req-want'; txt = '◎'; }
+      else { cls = 'cell-off'; txt = '・'; }
+      const click = c.closed ? '' : ' onclick="toggleCell(\'' + u.id + '\',' + c.day + ')"';
+      h += '<td class="' + cls + '"' + click + '>' + txt + '</td>';
+    });
+    h += '<td class="cell-total">' + counts[u.id] + '</td>';
+    h += '<td class="muted">' + (res[u.id] !== undefined ? Math.round(res[u.id] * 10) / 10 : '-') + '</td>';
+    h += '</tr>';
+  });
+
+  // 日別合計
+  h += '<tr><td class="col-name">合計 / 必要</td>';
+  cal.forEach(c => {
+    if (c.closed) { h += '<td class="cell-closed">休</td>'; return; }
+    const n = sh && sh.days[c.day] ? sh.days[c.day].length : 0;
+    const cls = n < c.need ? 'cell-short' : (n > c.need ? 'cell-req-want' : 'cell-total');
+    h += '<td class="' + cls + '">' + n + '/' + c.need + '</td>';
+  });
+  h += '<td class="cell-total">' + Object.values(counts).reduce((a, b) => a + b, 0) + '</td><td></td></tr>';
+  h += '</tbody></table>';
+
+  document.getElementById('shift-table-wrap').innerHTML = h;
+  renderDaily(cal, sh);
+}
+
+// 表示用の目安日数だけを計算する
+function generateTargetsOnly(cal, staff) {
+  const capacity = {};
+  staff.forEach(u => {
+    const req = getReq(u.id);
+    let cap = cal.filter(c => !c.closed && u.availableDays.includes(c.dow) && req[c.day] !== 'off').length;
+    if (u.maxDays > 0) cap = Math.min(cap, u.maxDays);
+    capacity[u.id] = cap;
+  });
+  return allocateTargets(staff, capacity, cal.reduce((a, c) => a + c.need, 0));
+}
+
+function liveWarnings(cal, staff, sh) {
+  const st = store();
+  const { y, m } = ymParts(currentYM);
+  const w = [];
+  const short = [], over = [];
+  cal.forEach(c => {
+    if (c.closed) return;
+    const n = sh.days[c.day] ? sh.days[c.day].length : 0;
+    if (n < c.need) short.push(c.day + '日(' + DOW[c.dow] + ') ' + n + '/' + c.need + '人');
+    if (n > c.need) over.push(c.day + '日(' + DOW[c.dow] + ') ' + n + '/' + c.need + '人');
+  });
+  if (short.length) w.push('人員が足りない日：' + short.join('、'));
+  if (over.length) w.push('必要人数より多い日：' + over.join('、'));
+
+  staff.forEach(u => {
+    const req = getReq(u.id);
+    const days = cal.filter(c => sh.days[c.day] && sh.days[c.day].includes(u.id)).map(c => c.day);
+    const conflicts = days.filter(d => req[d] === 'off');
+    if (conflicts.length) w.push(u.name + ' さんの希望休に出勤が入っています：' + conflicts.join('、') + '日');
+    // 連勤
+    let run = 0, maxRun = 0;
+    for (let d = 1; d <= cal.length; d++) {
+      if (days.includes(d)) { run++; maxRun = Math.max(maxRun, run); } else run = 0;
+    }
+    if (maxRun > st.maxConsecutive) w.push(u.name + ' さんが ' + maxRun + '連勤になっています（上限 ' + st.maxConsecutive + '日）。');
+    if (u.maxDays > 0 && days.length > u.maxDays) w.push(u.name + ' さんの勤務日数が上限を超えています（' + days.length + '/' + u.maxDays + '日）。');
+    if (u.maxPerWeek > 0) {
+      const wk = {};
+      days.forEach(d => { const i = weekIndex(y, m, d); wk[i] = (wk[i] || 0) + 1; });
+      if (Object.values(wk).some(v => v > u.maxPerWeek)) w.push(u.name + ' さんの週の勤務日数が上限を超えています（上限 ' + u.maxPerWeek + '日）。');
+    }
+    const badDow = days.filter(d => !u.availableDays.includes(new Date(y, m - 1, d).getDay()));
+    if (badDow.length) w.push(u.name + ' さんの勤務できない曜日に出勤が入っています：' + badDow.join('、') + '日');
+  });
+  return w;
+}
+
+function renderDaily(cal, sh) {
+  const { y, m } = ymParts(currentYM);
+  const staff = store().staff;
+  const nameOf = id => { const u = staff.find(x => x.id === id); return u ? u.name : '?'; };
+  const firstDow = new Date(y, m - 1, 1).getDay();
+
+  let h = '<div class="daily">';
+  DOW.forEach((d, i) => {
+    h += '<div class="daily-h ' + (i === 0 ? 'd-sun' : i === 6 ? 'd-sat' : '') + '">' + d + '</div>';
+  });
+  for (let i = 0; i < firstDow; i++) h += '<div class="daily-c blank"></div>';
+  cal.forEach(c => {
+    const ids = (sh && sh.days[c.day]) || [];
+    let cls = 'daily-c' + (c.closed ? ' closed' : '');
+    h += '<div class="' + cls + '">';
+    h += '<div class="dnum ' + dowClass(c) + '">' + c.day + '</div>';
+    if (c.holiday) h += '<div class="hol">' + esc(c.holiday) + '</div>';
+    if (c.closed) h += '<div class="muted">定休日</div>';
+    else {
+      ids.forEach(id => { h += '<span class="nm">' + esc(nameOf(id)) + '</span>'; });
+      if (ids.length < c.need) h += '<div class="short">あと' + (c.need - ids.length) + '人</div>';
+    }
+    h += '</div>';
+  });
+  h += '</div>';
+  document.getElementById('daily-view').innerHTML = h;
+}
+
+function dowClass(c) {
+  if (c.dow === 0 || c.holiday) return 'd-sun';
+  if (c.dow === 6) return 'd-sat';
+  return '';
+}
+
+/* =========================================================
+   画面：希望休
+   ========================================================= */
+function cycleReq(staffId, day) {
+  const cur = getReq(staffId)[day];
+  const next = cur === 'off' ? 'want' : cur === 'want' ? null : 'off';
+  setReq(staffId, day, next);
+  renderRequests();
+}
+
+function clearRequests() {
+  if (!confirm('この月の希望休・出勤希望をすべて消去します。よろしいですか？')) return;
+  store().staff.forEach(u => { delete DB.requests[reqKey(u.id)]; });
+  saveDB();
+  renderRequests();
+}
+
+function renderRequests() {
+  const cal = buildCalendar();
+  const staff = store().staff;
+  if (!staff.length) {
+    document.getElementById('request-table-wrap').innerHTML =
+      '<div style="padding:1.5rem" class="muted">スタッフが登録されていません。</div>';
+    return;
+  }
+  let h = '<table><thead><tr><th class="col-name">スタッフ</th>';
+  cal.forEach(c => {
+    h += '<th class="' + dowClass(c) + '">' + c.day + '<br /><span style="font-weight:400">' + DOW[c.dow] + '</span></th>';
+  });
+  h += '<th>希望休</th></tr></thead><tbody>';
+  staff.forEach(u => {
+    const req = getReq(u.id);
+    let offs = 0;
+    h += '<tr class="' + (u.active ? '' : 'inactive') + '"><td class="col-name">' + esc(u.name) + '</td>';
+    cal.forEach(c => {
+      let cls, txt;
+      if (c.closed) { cls = 'cell-closed'; txt = '－'; }
+      else if (req[c.day] === 'off') { cls = 'cell-req-off'; txt = '×'; offs++; }
+      else if (req[c.day] === 'want') { cls = 'cell-req-want'; txt = '◎'; }
+      else { cls = 'cell-off'; txt = '・'; }
+      const click = c.closed ? '' : ' onclick="cycleReq(\'' + u.id + '\',' + c.day + ')"';
+      h += '<td class="' + cls + '"' + click + '>' + txt + '</td>';
+    });
+    h += '<td class="cell-total">' + offs + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('request-table-wrap').innerHTML = h;
+}
+
+/* =========================================================
+   画面：スタッフ
+   ========================================================= */
+function renderStaff() {
+  const st = store();
+  let h = '';
+  st.staff.forEach((u, i) => {
+    h += '<div class="staff-row ' + (u.active ? '' : 'inactive') + '">';
+    h += '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name) + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
+    h += '<div><span class="lbl">希望日数</span><input type="number" min="0" max="31" value="' + u.targetDays + '" oninput="updStaff(' + i + ',\'targetDays\',+this.value)" /></div>';
+    h += '<div><span class="lbl">上限</span><input type="number" min="0" max="31" value="' + u.maxDays + '" oninput="updStaff(' + i + ',\'maxDays\',+this.value)" /></div>';
+    h += '<div><span class="lbl">週上限</span><input type="number" min="0" max="7" value="' + u.maxPerWeek + '" oninput="updStaff(' + i + ',\'maxPerWeek\',+this.value)" /></div>';
+    h += '<div class="mini-dow">';
+    DOW.forEach((d, k) => {
+      const on = u.availableDays.includes(k);
+      h += '<button class="dow-chip mini ' + (on ? 'on' : '') + '" onclick="toggleStaffDow(' + i + ',' + k + ')">' + d + '</button>';
+    });
+    h += '</div>';
+    h += '<div style="display:flex;gap:6px">'
+      + '<button class="btn sm" onclick="toggleActive(' + i + ')">' + (u.active ? '休止' : '復帰') + '</button>'
+      + '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>'
+      + '</div>';
+    h += '</div>';
+  });
+  if (!st.staff.length) h = '<div class="muted" style="padding:1rem 0">スタッフが登録されていません。</div>';
+  document.getElementById('staff-list').innerHTML = h;
+}
+
+function updStaff(i, key, val) { store().staff[i][key] = val; saveDB(); if (key !== 'name') renderShift(); }
+function toggleStaffDow(i, k) {
+  const u = store().staff[i];
+  u.availableDays = u.availableDays.includes(k) ? u.availableDays.filter(x => x !== k) : u.availableDays.concat(k).sort();
+  saveDB(); renderStaff(); renderShift();
+}
+function toggleActive(i) { const u = store().staff[i]; u.active = !u.active; saveDB(); renderAll(); }
+function delStaff(i) {
+  const u = store().staff[i];
+  if (!confirm(u.name + ' さんを削除します。よろしいですか？')) return;
+  store().staff.splice(i, 1);
+  saveDB(); renderAll();
+}
+function addStaff() {
+  const name = prompt('スタッフの氏名を入力してください');
+  if (!name || !name.trim()) return;
+  store().staff.push(newStaff(name.trim()));
+  saveDB(); renderAll();
+}
+
+/* =========================================================
+   画面：店舗設定
+   ========================================================= */
+function renderStore() {
+  const st = store();
+  document.getElementById('st-name').value = st.name;
+  document.getElementById('st-weekday').value = st.weekdayStaff;
+  document.getElementById('st-weekend').value = st.weekendStaff;
+  document.getElementById('st-maxcons').value = st.maxConsecutive;
+
+  let h = '';
+  DOW.forEach((d, k) => {
+    h += '<button class="dow-chip ' + (st.closedDays.includes(k) ? 'on' : '') + '" onclick="toggleClosed(' + k + ')">' + d + '</button>';
+  });
+  document.getElementById('st-closed').innerHTML = h;
+
+  document.getElementById('st-hol-btn').textContent = st.holidayAsWeekend ? '祝日は土日と同じ人数' : '祝日も平日と同じ人数';
+  document.getElementById('st-hol-note').textContent = st.holidayAsWeekend
+    ? '祝日は土日と同じ ' + st.weekendStaff + '人 で組みます。'
+    : '祝日も平日と同じ ' + st.weekdayStaff + '人 で組みます。';
+  document.getElementById('st-holopen-btn').textContent = st.openOnClosedHoliday ? '祝日なら営業する' : '祝日でも休業する';
+}
+
+function toggleClosed(k) {
+  const st = store();
+  st.closedDays = st.closedDays.includes(k) ? st.closedDays.filter(x => x !== k) : st.closedDays.concat(k).sort();
+  saveDB(); renderAll();
+}
+function toggleHolidayRule() { store().holidayAsWeekend = !store().holidayAsWeekend; saveDB(); renderAll(); }
+function toggleHolidayOpen() { store().openOnClosedHoliday = !store().openOnClosedHoliday; saveDB(); renderAll(); }
+function updateStore(key, val) {
+  const st = store();
+  st[key] = val;
+  saveDB();
+  if (key === 'name') renderStoreSelect();
+  renderShift();
+  if (key !== 'name') renderStore();
+}
+
+function addStore() {
+  const name = prompt('店舗・現場名を入力してください');
+  if (!name || !name.trim()) return;
+  const s = {
+    id: 's_' + Math.random().toString(36).slice(2, 9),
+    name: name.trim(), closedDays: [], weekdayStaff: 1, weekendStaff: 2,
+    holidayAsWeekend: true, openOnClosedHoliday: false, maxConsecutive: 5, staff: [],
+  };
+  DB.stores.push(s); DB.activeStoreId = s.id; saveDB(); renderAll();
+}
+function duplicateStore() {
+  const name = prompt('複製先の店舗・現場名を入力してください', store().name + ' のコピー');
+  if (!name || !name.trim()) return;
+  const c = JSON.parse(JSON.stringify(store()));
+  c.id = 's_' + Math.random().toString(36).slice(2, 9);
+  c.name = name.trim();
+  c.staff.forEach(u => { u.id = 'u_' + Math.random().toString(36).slice(2, 9); });
+  DB.stores.push(c); DB.activeStoreId = c.id; saveDB(); renderAll();
+}
+function deleteStore() {
+  if (DB.stores.length <= 1) { alert('店舗が1つしかないため削除できません。'); return; }
+  if (!confirm(store().name + ' を削除します。この店舗のシフトと希望休もすべて消えます。よろしいですか？')) return;
+  const id = store().id;
+  DB.stores = DB.stores.filter(s => s.id !== id);
+  Object.keys(DB.requests).forEach(k => { if (k.startsWith(id + '|')) delete DB.requests[k]; });
+  Object.keys(DB.shifts).forEach(k => { if (k.startsWith(id + '|')) delete DB.shifts[k]; });
+  DB.activeStoreId = DB.stores[0].id;
+  saveDB(); renderAll();
+}
+
+/* =========================================================
+   出力
+   ========================================================= */
+function exportCsv() {
+  const st = store();
+  const cal = buildCalendar();
+  const staff = activeStaff();
+  const sh = getShift();
+  if (!sh) { alert('先にシフトを作成してください。'); return; }
+  const { y, m } = ymParts(currentYM);
+
+  const rows = [];
+  rows.push([st.name + ' ' + y + '年' + m + '月 シフト表']);
+  rows.push(['日'].concat(cal.map(c => c.day)).concat(['合計']));
+  rows.push(['曜日'].concat(cal.map(c => DOW[c.dow] + (c.holiday ? '(祝)' : ''))).concat(['']));
+  staff.forEach(u => {
+    let n = 0;
+    const line = [u.name];
+    cal.forEach(c => {
+      if (c.closed) { line.push('－'); return; }
+      const on = sh.days[c.day] && sh.days[c.day].includes(u.id);
+      if (on) n++;
+      line.push(on ? '○' : '');
+    });
+    line.push(n);
+    rows.push(line);
+  });
+  const tot = ['合計'];
+  cal.forEach(c => tot.push(c.closed ? '休' : ((sh.days[c.day] || []).length + '/' + c.need)));
+  rows.push(tot);
+
+  const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+  download(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }),
+    st.name + '_' + y + String(m).padStart(2, '0') + '_シフト.csv');
+}
+
+function exportJson() {
+  download(new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' }),
+    'prostyle_shift_backup_' + todayYM() + '.json');
+}
+
+function importJson(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.stores) || !d.stores.length) throw new Error('形式が違います');
+      if (!confirm('現在のデータを読み込んだ内容で置き換えます。よろしいですか？')) return;
+      DB = d; DB.requests = DB.requests || {}; DB.shifts = DB.shifts || {};
+      DB.stores.forEach(normalizeStore);
+      if (!DB.stores.some(s => s.id === DB.activeStoreId)) DB.activeStoreId = DB.stores[0].id;
+      saveDB(); renderAll();
+      alert('読み込みました。');
+    } catch (e) {
+      alert('読み込めませんでした：' + e.message);
+    }
+  };
+  r.readAsText(f);
+  input.value = '';
+}
+
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* =========================================================
+   共通
+   ========================================================= */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function showTab(btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.panel).classList.add('active');
+}
+
+function renderStoreSelect() {
+  const sel = document.getElementById('store-select');
+  sel.innerHTML = DB.stores.map(s =>
+    '<option value="' + s.id + '"' + (s.id === DB.activeStoreId ? ' selected' : '') + '>' + esc(s.name) + '</option>'
+  ).join('');
+}
+
+function onStoreChange() { DB.activeStoreId = document.getElementById('store-select').value; saveDB(); renderAll(); }
+function onMonthChange() { currentYM = document.getElementById('month-input').value || todayYM(); renderAll(); }
+
+function renderAll() {
+  renderStoreSelect();
+  document.getElementById('month-input').value = currentYM;
+  renderStore();
+  renderStaff();
+  renderRequests();
+  renderShift();
+}
+
+renderAll();
+</script>
+</body>
+</html>
