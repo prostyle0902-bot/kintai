@@ -122,13 +122,20 @@
   .staff-row .dow-chip { width: 27px; height: 27px; font-size: 11px; }
   .inactive { opacity: .45; }
 
-  .pat-row { display: grid; grid-template-columns: 80px 1fr 1fr 110px 110px auto; gap: 10px; align-items: center;
+  .pat-row { display: grid; grid-template-columns: 76px 1fr 1fr 260px auto; gap: 10px; align-items: center;
     padding: 8px 0; border-bottom: 0.5px solid var(--border); }
   .pat-row.pat-head { font-size: 11.5px; color: var(--text-secondary); padding-bottom: 6px; }
   .pat-row input, .pat-row select { width: 100%; padding: 7px 8px; font-size: 13px;
     border: 0.5px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface);
     font-family: inherit; color: var(--text-primary); }
   .pat-row input[type=text] { text-align: center; font-weight: 600; }
+  .dow-need { display: flex; gap: 3px; }
+  .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+  .dow-need label span { font-size: 10px; color: var(--text-secondary); }
+  .dow-need input { padding: 5px 2px !important; text-align: center; }
+  .dow-lim { width: 96px; margin-left: 8px; padding: 5px 8px; font-size: 11px;
+    border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    background: var(--surface); font-family: inherit; color: var(--text-primary); }
   .owner-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     padding: 6px 0 10px; border-bottom: 0.5px solid var(--border); }
   .owner-label { font-size: 11.5px; color: var(--text-secondary); min-width: 68px; }
@@ -319,10 +326,13 @@
       <div class="card-desc">
         <b>期間の希望日数</b>：0 なら他のスタッフと自動で均等割り。数値を入れるとその日数を目安に組みます。<br />
         <b>上限</b>：この期間にこれ以上は入れない日数（0＝上限なし）。<b>週上限</b>：1週間（月〜日）の勤務日数上限（0＝なし）。<br />
-        <b>勤務可能曜日</b>：オフにした曜日には割り当てません。
+        <b>勤務可能曜日</b>：オフにした曜日には割り当てません。<br />
+        <b>入れる枠</b>：勤務パターンのある現場で、その人が入れるパターンを絞ります（全部オンなら制限なし）。<br />
+        <b>曜日ごとの上限</b>：特定の曜日の出勤回数を期間内で制限します。「月2」なら月曜は2回まで、「月2,水1」のように複数も指定できます。
       </div>
       <div class="staff-row staff-head">
-        <div>氏名</div><div>期間の希望日数</div><div>上限</div><div>週上限</div><div>勤務可能曜日 ／ 勤務時間</div><div></div>
+        <div>氏名</div><div>期間の希望日数</div><div>上限</div><div>週上限</div>
+        <div>勤務可能曜日 ／ 入れる枠・勤務時間 ／ 曜日ごとの上限</div><div></div>
       </div>
       <div id="staff-list"></div>
       <div class="row-actions">
@@ -359,10 +369,11 @@
         <label>勤務パターン（○・A・B など、時間帯が分かれている現場だけ）</label>
         <div class="muted" style="margin-bottom:8px">
           パターンを1つでも登録すると、その現場は <b>下の「必要人数」ではなくパターンの本数</b>で人数が決まります。<br />
-          1日に必要な本数を平日・土日それぞれで指定してください（0 ならその日は使いません）。<br />
+          1日に必要な本数を<b>曜日ごと</b>に指定してください（0 ならその曜日は使いません）。<br />
           <b>担当</b>を指定すると、その人を優先してそのパターンに入れます。上から順に、
           その日に入れる人（希望休や連勤の上限に引っかからない人）が選ばれます。<br />
-          シフト表のセルをクリックすると 休 → ○ → A → B → 休 と切り替わります。
+          時間帯が重ならないパターン（午前と午後など）は、<b>同じ人が同じ日に両方</b>に入れます。<br />
+          シフト表のセルをクリックすると 休 → 各パターン → 休 と切り替わります。
         </div>
         <div id="st-patterns"></div>
       </div>
@@ -482,8 +493,23 @@ const ROSTER = [
   // --- 業務課 ---
   { id: 's_totalstay', name: 'トータルステイ', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['河野千恵子','橋本房枝','山本里奈','長谷川碧里','松本めぐみ','田村あつ子','衣幡千明'] },
-  { id: 's_ichikawa', name: '市川東病院', dept: 'gyomu', sh: 7, eh: 18,
-    staff: ['石川泰博','山田明子','伊藤美津子'] },
+  { id: 's_ichikawa', name: '市川東病院', dept: 'gyomu', sh: 7, eh: 18, configured: true,
+    closedDays: [0],   // 日曜は3人とも休みのため休業
+    // A〜C は午前、D・E は午後。本数は曜日ごと（日,月,火,水,木,金,土）
+    patterns: [
+      { code: 'A', start: '07:00', end: '12:00', byDow: [0,1,1,1,1,1,1] },
+      { code: 'B', start: '07:00', end: '12:00', byDow: [0,1,1,0,1,1,1] },
+      { code: 'C', start: '07:00', end: '12:00', byDow: [0,1,1,0,1,1,0] },
+      { code: 'D', start: '13:00', end: '16:00', byDow: [0,1,1,0,1,1,1] },
+      { code: 'E', start: '13:00', end: '16:00', byDow: [0,1,1,0,1,1,1] },
+    ],
+    staff: [
+      // 石川・伊藤は水日休み。午前と午後の両方に入る
+      { name: '石川泰博', availableDays: [1,2,4,5,6] },
+      { name: '伊藤美津子', availableDays: [1,2,4,5,6] },
+      // 山田は午前（A〜C）のみ・土日休み・月曜は期間に2回まで
+      { name: '山田明子', availableDays: [1,2,3,4,5], patterns: ['A','B','C'], dowLimits: { 1: 2 } },
+    ] },
   { id: 's_kaiji', name: '海事・横河', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['桜庭京子','衣幡千明'] },
   { id: 's_chibashoyu', name: 'ちば醬油', dept: 'gyomu', sh: 7, eh: 18,
@@ -516,7 +542,7 @@ const ROSTER = [
 
 /* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
    保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
-const ROSTER_SYNC = 3;
+const ROSTER_SYNC = 4;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
@@ -572,7 +598,9 @@ function newStaff(src) {
     targetDays: num(s.targetDays, 0),
     maxDays: num(s.maxDays, 0),
     maxPerWeek: num(s.maxPerWeek, 0),
-    availableDays: [0,1,2,3,4,5,6],
+    availableDays: s.availableDays ? s.availableDays.slice() : [0,1,2,3,4,5,6],
+    patterns: s.patterns ? s.patterns.slice() : [],
+    dowLimits: s.dowLimits ? JSON.parse(JSON.stringify(s.dowLimits)) : {},
     startTime: '',   // 空なら店舗の既定時間を使う
     endTime: '',
     active: true,
@@ -626,6 +654,9 @@ function syncFromRoster(d) {
       if (x.targetDays !== undefined) u.targetDays = x.targetDays;
       if (x.maxDays !== undefined) u.maxDays = x.maxDays;
       if (x.maxPerWeek !== undefined) u.maxPerWeek = x.maxPerWeek;
+      if (x.availableDays) u.availableDays = x.availableDays.slice();
+      if (x.patterns) u.patterns = x.patterns.slice();
+      if (x.dowLimits) u.dowLimits = JSON.parse(JSON.stringify(x.dowLimits));
     });
     s.configured = true;
   });
@@ -652,6 +683,8 @@ function normalizeStore(s) {
     u.maxDays = num(u.maxDays, 0);
     u.maxPerWeek = num(u.maxPerWeek, 0);
     if (!Array.isArray(u.availableDays)) u.availableDays = [0,1,2,3,4,5,6];
+    if (!Array.isArray(u.patterns)) u.patterns = [];      // 空なら全パターンに入れる
+    if (!u.dowLimits || typeof u.dowLimits !== 'object') u.dowLimits = {};  // 例 {1:2} 月曜は期間内2回まで
     u.startTime = u.startTime || '';
     u.endTime = u.endTime || '';
     u.active = u.active !== false;
@@ -665,6 +698,13 @@ function normalizeStore(s) {
     p.end = p.end || s.endTime;
     p.weekday = Math.max(0, num(p.weekday, 1));
     p.weekend = Math.max(0, num(p.weekend, 1));
+    // 曜日ごとの本数。無ければ平日／土日の値から作る
+    if (!Array.isArray(p.byDow) || p.byDow.length !== 7) {
+      p.byDow = [0,1,2,3,4,5,6].map(function (d) {
+        return (d === 0 || d === 6) ? p.weekend : p.weekday;
+      });
+    }
+    p.byDow = p.byDow.map(function (n) { return Math.max(0, num(n, 0)); });
     p.owners = Array.isArray(p.owners) ? p.owners.filter(function (n) {
       return s.staff.some(function (u) { return u.name === n; });   // 居なくなった人は外す
     }) : [];
@@ -677,15 +717,35 @@ function findPattern(st, code) {
   if (!code || !usesPatterns(st)) return null;
   return st.patterns.find(function (p) { return p.code === code; }) || null;
 }
-// その日に必要な枠を並べる（平日／土日祝で本数が変わる）
-function daySlots(st, weekendLike) {
+// その日に必要な枠を並べる。曜日ごとの本数（byDow）があればそちらを使う
+function daySlots(st, weekendLike, dow) {
   if (!usesPatterns(st)) return [];
   const out = [];
   st.patterns.forEach(function (p) {
-    const n = weekendLike ? p.weekend : p.weekday;
+    const n = (p.byDow && dow !== undefined) ? p.byDow[dow] : (weekendLike ? p.weekend : p.weekday);
     for (let i = 0; i < n; i++) out.push(p.code);
   });
   return out;
+}
+
+// 時刻を分に直す（終わりが始まりより小さければ翌日とみなす）
+function timeSpan(start, end) {
+  const toMin = function (t) { const x = t.split(':'); return parseInt(x[0], 10) * 60 + parseInt(x[1], 10); };
+  let s = toMin(start), e = toMin(end);
+  if (e <= s) e += 24 * 60;
+  return { s: s, e: e };
+}
+// 2つの勤務時間が重なるか
+function timesOverlap(a, b) {
+  const x = timeSpan(a.start, a.end), y = timeSpan(b.start, b.end);
+  return x.s < y.e && y.s < x.e;
+}
+
+// その人がそのパターンに入れるか（入れるパターンを絞っていなければ全部OK）
+function canDoPattern(u, code) {
+  if (!code) return true;
+  if (!Array.isArray(u.patterns) || !u.patterns.length) return true;
+  return u.patterns.indexOf(code) >= 0;
 }
 
 // そのスタッフの勤務時間。パターンがあればパターンの時刻、なければ個別指定→店舗の既定
@@ -695,12 +755,24 @@ function shiftTimes(st, u, code) {
   return { start: (u && u.startTime) || st.startTime, end: (u && u.endTime) || st.endTime };
 }
 
-// シフトに記録した「誰がどのパターンか」
+// シフトに記録した「誰がどのパターンか」。午前＋午後のように複数持つ日は「A,D」で入る
 function getPat(sh, key, staffId) { return (sh && sh.pat && sh.pat[key + '|' + staffId]) || ''; }
+function getPatList(sh, key, staffId) {
+  const v = getPat(sh, key, staffId);
+  return v ? v.split(',') : [];
+}
 function setPat(sh, key, staffId, code) {
   sh.pat = sh.pat || {};
   if (code) sh.pat[key + '|' + staffId] = code;
   else delete sh.pat[key + '|' + staffId];
+}
+// 1日に埋まっている枠の数（パターンなしの現場は人数と同じ）
+function filledSlots(st, sh, key) {
+  if (!sh || !sh.days[key]) return 0;
+  if (!usesPatterns(st)) return sh.days[key].length;
+  return sh.days[key].reduce(function (a, id) {
+    return a + Math.max(1, getPatList(sh, key, id).length);
+  }, 0);
 }
 
 function transferKey() { return store().id + '|' + currentYM; }
@@ -849,7 +921,7 @@ function buildCalendar() {
 
     const weekendLike = dow === 0 || dow === 6 || (st.holidayAsWeekend && !!hol);
     // 勤務パターンがある店舗は、その日に必要な枠（○・A・B…）を並べたものが必要人数になる
-    const slots = daySlots(st, weekendLike);
+    const slots = daySlots(st, weekendLike, dow);
     const baseNeed = usesPatterns(st) ? slots.length : (weekendLike ? st.weekendStaff : st.weekdayStaff);
 
     let defClosed = st.closedDays.includes(dow);
@@ -899,25 +971,54 @@ function generate(seed) {
     if (c.closed || c.need <= 0) return false;
     if (!u.availableDays.includes(c.dow)) return false;
     if (req[u.id][c.key] === 'off') return false;
+    // 入れるパターンを絞っている人は、その日にそのパターンが無ければ出られない
+    if (usesPatterns(st) && !c.slots.some(function (code) { return canDoPattern(u, code); })) return false;
     return true;
+  };
+
+  // その日にその人が取れる枠の数（時間帯が重ならない範囲で、午前＋午後のように複数持てる）
+  const slotsPerDay = (u, c) => {
+    if (!usesPatterns(st)) return 1;
+    const bands = [];
+    c.slots.forEach(function (code) {
+      if (!canDoPattern(u, code)) return;
+      const p = findPattern(st, code);
+      if (!p) return;
+      if (!bands.some(function (b) { return timesOverlap(b, p); })) bands.push(p);
+    });
+    return bands.length;
   };
 
   const totalSlots = cal.reduce((a, c) => a + c.need, 0);
 
   const capacity = {};
   staff.forEach(u => {
-    let cap = cal.filter(c => eligible(u, c)).length;
-    if (u.maxDays > 0) cap = Math.min(cap, u.maxDays);
-    capacity[u.id] = cap;
+    let slots = 0, days = 0;
+    cal.forEach(c => {
+      if (!eligible(u, c)) return;
+      const n = slotsPerDay(u, c);
+      if (n > 0) { days++; slots += n; }
+    });
+    // 出勤日数の上限があるときは、その割合まで枠数を減らす
+    if (u.maxDays > 0 && days > u.maxDays) slots = Math.round(slots * u.maxDays / days);
+    capacity[u.id] = slots;
   });
   const target = allocateTargets(staff, capacity, totalSlots);
 
-  const assign = {};
-  cal.forEach(c => { assign[c.key] = []; });
-  const count = {}, weekCount = {};
-  staff.forEach(u => { count[u.id] = 0; weekCount[u.id] = {}; });
+  const assign = {};      // 日付 -> [staffId]（重複なし。その日に出勤する人）
+  const codesAt = {};     // 日付 -> { staffId: [記号] }（同じ人が午前＋午後を持つことがある）
+  const filled = {};      // 日付 -> 埋まった枠の数
+  cal.forEach(c => { assign[c.key] = []; codesAt[c.key] = {}; filled[c.key] = 0; });
+  const codesOf = (c, u) => codesAt[c.key][u.id] || [];
 
-  const worksAt = (id, i) => i >= 0 && i < cal.length && assign[cal[i].key].includes(id);
+  // count は枠数（公平さの基準）、dayCount は出勤日数（連勤・上限の基準）
+  const count = {}, dayCount = {}, weekCount = {}, dowCount = {}, onDay = {};
+  staff.forEach(u => {
+    count[u.id] = 0; dayCount[u.id] = 0;
+    weekCount[u.id] = {}; dowCount[u.id] = {}; onDay[u.id] = {};
+  });
+
+  const worksAt = (id, i) => i >= 0 && i < cal.length && !!onDay[id][cal[i].key];
   const runLength = (id, i) => {
     let n = 1;
     for (let k = i - 1; k >= 0 && worksAt(id, k); k--) n++;
@@ -925,24 +1026,58 @@ function generate(seed) {
     return n;
   };
 
-  const canTake = (u, c, i) => {
+  // 同じ日にすでに入っている枠と時間が重なるか
+  const overlaps = (u, c, code) => {
+    const mine = codesOf(c, u);
+    if (!mine.length) return false;
+    const p = findPattern(st, code);
+    if (!p) return true;                               // パターンなしなら1日1枠
+    return mine.some(function (x) {
+      const q = findPattern(st, x);
+      return !q || timesOverlap(p, q);
+    });
+  };
+
+  const canTake = (u, c, i, code) => {
     if (!eligible(u, c)) return false;
-    if (assign[c.key].includes(u.id)) return false;
-    if (u.maxDays > 0 && count[u.id] >= u.maxDays) return false;
-    if (u.maxPerWeek > 0 && (weekCount[u.id][c.week] || 0) >= u.maxPerWeek) return false;
-    if (runLength(u.id, i) > st.maxConsecutive) return false;
+    if (!canDoPattern(u, code)) return false;
+    if (overlaps(u, c, code)) return false;
+    const newDay = !onDay[u.id][c.key];            // その日が初めての枠か
+    if (newDay) {
+      if (u.maxDays > 0 && dayCount[u.id] >= u.maxDays) return false;
+      if (u.maxPerWeek > 0 && (weekCount[u.id][c.week] || 0) >= u.maxPerWeek) return false;
+      const lim = u.dowLimits[c.dow];
+      if (lim > 0 && (dowCount[u.id][c.dow] || 0) >= lim) return false;
+      if (runLength(u.id, i) > st.maxConsecutive) return false;
+    }
     return true;
   };
 
-  const place = (u, c) => {
-    assign[c.key].push(u.id);
+  const place = (u, c, code) => {
+    if (!codesAt[c.key][u.id]) {
+      codesAt[c.key][u.id] = [];
+      assign[c.key].push(u.id);
+      onDay[u.id][c.key] = 1;
+      dayCount[u.id]++;
+      weekCount[u.id][c.week] = (weekCount[u.id][c.week] || 0) + 1;
+      dowCount[u.id][c.dow] = (dowCount[u.id][c.dow] || 0) + 1;
+    }
+    codesAt[c.key][u.id].push(code || '');
+    filled[c.key]++;
     count[u.id]++;
-    weekCount[u.id][c.week] = (weekCount[u.id][c.week] || 0) + 1;
   };
+  // その人のその日の枠をすべて外す
   const remove = (u, c) => {
+    const mine = codesAt[c.key][u.id];
+    if (!mine) return;
+    filled[c.key] -= mine.length;
+    count[u.id] -= mine.length;
+    delete codesAt[c.key][u.id];
     assign[c.key] = assign[c.key].filter(x => x !== u.id);
-    count[u.id]--;
+    delete onDay[u.id][c.key];
+    dayCount[u.id]--;
     weekCount[u.id][c.week] = (weekCount[u.id][c.week] || 0) - 1;
+    dowCount[u.id][c.dow] = (dowCount[u.id][c.dow] || 0) - 1;
   };
 
   const idxOf = {};
@@ -958,7 +1093,7 @@ function generate(seed) {
     }));
     wantList.sort(() => rnd() - 0.5);
     wantList.forEach(w => {
-      if (assign[w.c.key].length < w.c.need && canTake(w.u, w.c, idxOf[w.c.key])) place(w.u, w.c);
+      if (filled[w.c.key] < w.c.need && canTake(w.u, w.c, idxOf[w.c.key])) place(w.u, w.c);
     });
   }
 
@@ -979,26 +1114,25 @@ function generate(seed) {
     if (usesPatterns(st)) {
       // パターンごとの枠を1つずつ埋める。担当者が指定してあれば優先順に当てる
       c.slots.forEach(function (codeSlot) {
-        if (assign[c.key].length >= c.need) return;
+        if (filled[c.key] >= c.need) return;
         const pd = findPattern(st, codeSlot);
         let picked = null, isOwner = false;
         const owners = (pd && pd.owners) || [];
         for (let oi = 0; oi < owners.length; oi++) {
           const u = staff.find(function (x) { return x.name === owners[oi]; });
-          if (u && canTake(u, c, i)) { picked = u; isOwner = true; break; }
+          if (u && canTake(u, c, i, codeSlot)) { picked = u; isOwner = true; break; }
         }
         if (!picked) {
-          const cands = staff.filter(u => canTake(u, c, i));
+          const cands = staff.filter(u => canTake(u, c, i, codeSlot));
           if (!cands.length) return;
           cands.sort((a, b) => score(a, c, i) - score(b, c, i));
           picked = cands[0];
         }
-        place(picked, c);
-        pat[c.key + '|' + picked.id] = codeSlot;
+        place(picked, c, codeSlot);
         if (isOwner) pinned[c.key + '|' + picked.id] = 1;
       });
     } else {
-      while (assign[c.key].length < c.need) {
+      while (filled[c.key] < c.need) {
         const cands = staff.filter(u => canTake(u, c, i));
         if (!cands.length) break;
         cands.sort((a, b) => score(a, c, i) - score(b, c, i));
@@ -1036,41 +1170,31 @@ function generate(seed) {
           if (!assign[c.key].includes(o.id)) continue;
           if (req[o.id][c.key] === 'want') continue;
           if (pinned[c.key + '|' + o.id]) continue;   // 担当ルールで決まった枠は動かさない
+          const mine = codesOf(c, o);
+          if (mine.length !== 1) continue;            // 同じ日に複数枠ある人はそのままにする
+          const code = mine[0];
           remove(o, c);
-          if (canTake(un, c, idxOf[c.key])) {
-            place(un, c);
-            // 交代した人へパターンも引き継ぐ
-            const code = pat[c.key + '|' + o.id];
-            if (code) { pat[c.key + '|' + un.id] = code; delete pat[c.key + '|' + o.id]; }
-            moved = true; break outer;
-          }
-          place(o, c);
+          if (canTake(un, c, idxOf[c.key], code)) { place(un, c, code); moved = true; break outer; }
+          place(o, c, code);
         }
       }
     }
     if (!moved) break;
   }
 
-  // 4) 念のため：手直し等でパターンが付いていない人がいれば、余っている枠を割り当てる
-  if (usesPatterns(st)) {
-    openDays.forEach(function (c) {
-      const rest = c.slots.slice();
-      assign[c.key].forEach(function (uid) {
-        const code = pat[c.key + '|' + uid];
-        const i = rest.indexOf(code);
-        if (i >= 0) rest.splice(i, 1);
-      });
-      assign[c.key].forEach(function (uid) {
-        if (!pat[c.key + '|' + uid] && rest.length) pat[c.key + '|' + uid] = rest.shift();
-      });
+  // 4) 記号をまとめる。同じ日に午前＋午後なら「A,D」のように並べる
+  cal.forEach(function (c) {
+    assign[c.key].forEach(function (uid) {
+      const codes = (codesAt[c.key][uid] || []).filter(function (x) { return x; });
+      if (codes.length) pat[c.key + '|' + uid] = codes.join(',');
     });
-  }
+  });
 
   // 5) 警告
-  const shortDays = openDays.filter(c => assign[c.key].length < c.need);
+  const shortDays = openDays.filter(c => filled[c.key] < c.need);
   if (shortDays.length) {
     warnings.push('人員が足りない日があります：' +
-      shortDays.map(c => mdLabel(c) + ' ' + assign[c.key].length + '/' + c.need + '人').join('、'));
+      shortDays.map(c => mdLabel(c) + ' ' + filled[c.key] + '/' + c.need + '人').join('、'));
   }
   staff.forEach(u => {
     const offs = Object.keys(req[u.id]).filter(k => req[u.id][k] === 'off').length;
@@ -1094,8 +1218,8 @@ function generate(seed) {
       if (!pd.owners || !pd.owners.length) return;
       const miss = [];
       openDays.forEach(function (c) {
-        const holders = assign[c.key].filter(function (id) { return pat[c.key + '|' + id] === pd.code; });
-        holders.forEach(function (id) {
+        assign[c.key].forEach(function (id) {
+          if ((codesAt[c.key][id] || []).indexOf(pd.code) < 0) return;
           const u = staff.find(function (x) { return x.id === id; });
           if (u && pd.owners.indexOf(u.name) < 0) miss.push(mdLabel(c) + ' ' + u.name);
         });
@@ -1178,13 +1302,26 @@ function toggleCell(staffId, key) {
   const i = cur.indexOf(staffId);
 
   if (usesPatterns(st)) {
-    const codes = st.patterns.map(function (p) { return p.code; });
-    if (i < 0) {                                   // 休み → 最初のパターンで出勤
+    const u = st.staff.find(function (x) { return x.id === staffId; });
+    const codes = st.patterns
+      .filter(function (p) { return canDoPattern(u, p.code); })
+      .map(function (p) { return p.code; });
+    if (!codes.length) return;
+    // 時間帯が分かれている現場は、最後に「午前＋午後」のまとめて出勤も選べるようにする
+    const bands = [];
+    st.patterns.forEach(function (p) {
+      if (!canDoPattern(u, p.code)) return;
+      if (!bands.some(function (b) { return timesOverlap(b, p); })) bands.push(p);
+    });
+    const cycle = codes.slice();
+    if (bands.length > 1) cycle.push(bands.map(function (p) { return p.code; }).join(','));
+
+    if (i < 0) {                                     // 休み → 最初のパターンで出勤
       cur.push(staffId);
-      setPat(sh, key, staffId, codes[0]);
+      setPat(sh, key, staffId, cycle[0]);
     } else {
       const now = getPat(sh, key, staffId);
-      const next = codes[codes.indexOf(now) + 1];  // 次のパターンへ
+      const next = cycle[cycle.indexOf(now) + 1];    // 次のパターンへ
       if (next) setPat(sh, key, staffId, next);
       else { cur.splice(i, 1); setPat(sh, key, staffId, ''); }   // 一周したら休み
     }
@@ -1212,7 +1349,9 @@ function renderShift() {
   const needTxt = usesPatterns(st)
     ? 'パターン ' + st.patterns.map(function (p) {
         return p.code + ' ' + p.start + '〜' + timeLabel(p.end, st.openHour);
-      }).join('・') + '／1日 平日 ' + daySlots(st, false).length + '人・土日祝 ' + daySlots(st, true).length + '人'
+      }).join('・') + '／1日の枠 ' + DOW.map(function (d, k) {
+        return d + daySlots(st, k === 0 || k === 6, k).length;
+      }).join('・')
     : '平日 ' + st.weekdayStaff + '人・土日' + (st.holidayAsWeekend ? '祝' : '') + ' ' + st.weekendStaff + '人';
   document.getElementById('shift-rule').innerHTML =
     closedTxt + '／' + needTxt
@@ -1261,7 +1400,7 @@ function renderShift() {
       if (c.closed) { cls = 'cell-closed'; txt = '－'; }
       else if (on) {
         cls = 'cell-on' + (req[c.key] === 'off' ? ' cell-conflict' : '');
-        txt = usesPatterns(st) ? (getPat(sh, c.key, u.id) || '？') : '○';
+        txt = usesPatterns(st) ? esc(getPat(sh, c.key, u.id).replace(/,/g, '・') || '？') : '○';
       }
       else if (req[c.key] === 'off') { cls = 'cell-req-off'; txt = '×'; }
       else if (req[c.key] === 'want') { cls = 'cell-req-want'; txt = '◎'; }
@@ -1276,7 +1415,7 @@ function renderShift() {
   h += '<tr><td class="col-name">合計 / 必要</td>';
   cal.forEach(c => {
     if (c.closed) { h += '<td class="cell-closed">休</td>'; return; }
-    const n = sh && sh.days[c.key] ? sh.days[c.key].length : 0;
+    const n = filledSlots(st, sh, c.key);
     const cls = n < c.need ? 'cell-short' : (n > c.need ? 'cell-req-want' : 'cell-total');
     h += '<td class="' + cls + '">' + n + '/' + c.need + '</td>';
   });
@@ -1332,7 +1471,7 @@ function liveWarnings(cal, staff, sh) {
   const short = [], over = [];
   cal.forEach(c => {
     if (c.closed) return;
-    const n = sh.days[c.key] ? sh.days[c.key].length : 0;
+    const n = filledSlots(st, sh, c.key);
     if (n < c.need) short.push(mdLabel(c) + ' ' + n + '/' + c.need + '人');
     if (n > c.need) over.push(mdLabel(c) + ' ' + n + '/' + c.need + '人');
   });
@@ -1373,7 +1512,8 @@ function calGridHead() {
 }
 
 function renderDaily(cal, sh) {
-  const staff = store().staff;
+  const st = store();
+  const staff = st.staff;
   const nameOf = id => { const u = staff.find(x => x.id === id); return u ? u.name : '?'; };
   let h = calGridHead();
   for (let i = 0; i < cal[0].dow; i++) h += '<div class="cal-c blank"></div>';
@@ -1385,10 +1525,11 @@ function renderDaily(cal, sh) {
     if (c.closed) h += '<div class="muted">休業</div>';
     else {
       ids.forEach(id => {
-        const code = getPat(sh, c.key, id);
+        const code = getPat(sh, c.key, id).replace(/,/g, '・');
         h += '<span class="nm">' + (code ? '<b>' + esc(code) + '</b> ' : '') + esc(nameOf(id)) + '</span>';
       });
-      if (ids.length < c.need) h += '<div class="short">あと' + (c.need - ids.length) + '人</div>';
+      const n = filledSlots(st, sh, c.key);
+      if (n < c.need) h += '<div class="short">あと' + (c.need - n) + '人</div>';
     }
     h += '</div>';
   });
@@ -1535,11 +1676,24 @@ function renderStaff() {
     DOW.forEach((d, k) => {
       h += '<button class="dow-chip mini ' + (u.availableDays.includes(k) ? 'on' : '') + '" onclick="toggleStaffDow(' + i + ',' + k + ')">' + d + '</button>';
     });
-    h += '<select class="need-sel" style="width:auto;margin-left:8px" onchange="updStaffTime(' + i + ',\'startTime\',this.value)">'
-      + '<option value="">店舗既定</option>' + timeOptions(st, u.startTime) + '</select>'
-      + '<span style="font-size:11px;color:var(--text-secondary);padding:0 3px">〜</span>'
-      + '<select class="need-sel" style="width:auto" onchange="updStaffTime(' + i + ',\'endTime\',this.value)">'
-      + '<option value="">店舗既定</option>' + timeOptions(st, u.endTime) + '</select>';
+    if (usesPatterns(st)) {
+      // 入れるパターンを絞る（どれも選ばなければ全部に入れる）
+      h += '<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">入れる枠</span>';
+      st.patterns.forEach(function (p) {
+        const on = u.patterns.length === 0 || u.patterns.indexOf(p.code) >= 0;
+        h += '<button class="dow-chip mini ' + (on ? 'on' : '') + '" title="' + esc(p.start + '〜' + p.end) + '"'
+          + ' onclick="toggleStaffPattern(' + i + ',\'' + esc(p.code) + '\')">' + esc(p.code) + '</button>';
+      });
+    } else {
+      h += '<select class="need-sel" style="width:auto;margin-left:8px" onchange="updStaffTime(' + i + ',\'startTime\',this.value)">'
+        + '<option value="">店舗既定</option>' + timeOptions(st, u.startTime) + '</select>'
+        + '<span style="font-size:11px;color:var(--text-secondary);padding:0 3px">〜</span>'
+        + '<select class="need-sel" style="width:auto" onchange="updStaffTime(' + i + ',\'endTime\',this.value)">'
+        + '<option value="">店舗既定</option>' + timeOptions(st, u.endTime) + '</select>';
+    }
+    h += '<input type="text" class="dow-lim" value="' + esc(dowLimitsText(u))
+      + '" placeholder="曜日の上限 例:月2" title="特定の曜日の出勤回数を期間内で制限します（例：月2,水1）"'
+      + ' onchange="updDowLimits(' + i + ',this.value)" />';
     h += '</div><div style="display:flex;gap:6px">'
       + '<button class="btn sm" onclick="toggleActive(' + i + ')">' + (u.active ? '休止' : '復帰') + '</button>'
       + '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>'
@@ -1551,6 +1705,37 @@ function renderStaff() {
 
 function updStaff(i, key, val) { store().staff[i][key] = val; saveDB(); if (key !== 'name') renderShift(); }
 function updStaffTime(i, key, val) { store().staff[i][key] = val; saveDB(); renderShift(); }
+
+// 曜日ごとの上限を「月2,水1」の形で読み書きする
+function dowLimitsText(u) {
+  return Object.keys(u.dowLimits)
+    .filter(function (d) { return u.dowLimits[d] > 0; })
+    .map(function (d) { return DOW[d] + u.dowLimits[d]; })
+    .join(',');
+}
+function updDowLimits(i, text) {
+  const u = store().staff[i];
+  const out = {};
+  String(text).split(/[,、\s]+/).forEach(function (part) {
+    const m = part.match(/^([日月火水木金土])\s*(\d+)$/);
+    if (m) out[DOW.indexOf(m[1])] = +m[2];
+  });
+  u.dowLimits = out;
+  saveDB(); renderStaff(); renderShift();
+}
+
+function toggleStaffPattern(i, code) {
+  const st = store();
+  const u = st.staff[i];
+  const all = st.patterns.map(function (p) { return p.code; });
+  // 「絞っていない（＝全部可）」状態からのクリックは、その1つを外す意味にする
+  let list = u.patterns.length ? u.patterns.slice() : all.slice();
+  const k = list.indexOf(code);
+  if (k >= 0) list.splice(k, 1); else list.push(code);
+  list = all.filter(function (c) { return list.indexOf(c) >= 0; });   // 並びをパターン順に揃える
+  u.patterns = (list.length === all.length) ? [] : list;              // 全部ONなら「絞りなし」に戻す
+  saveDB(); renderStaff(); renderShift();
+}
 function toggleStaffDow(i, k) {
   const u = store().staff[i];
   u.availableDays = u.availableDays.includes(k) ? u.availableDays.filter(x => x !== k) : u.availableDays.concat(k).sort();
@@ -1635,7 +1820,7 @@ function renderPatterns(st) {
   let h = '';
   if (st.patterns.length) {
     h += '<div class="pat-row pat-head"><div>記号</div><div>開始</div><div>終了</div>'
-      + '<div>平日の本数</div><div>土日祝の本数</div><div></div></div>';
+      + '<div>曜日ごとの本数</div><div></div></div>';
     st.patterns.forEach(function (p, i) {
       h += '<div class="pat-row">'
         + '<div><span class="lbl">記号</span><input type="text" maxlength="3" value="' + esc(p.code)
@@ -1644,10 +1829,12 @@ function renderPatterns(st) {
         + timeOptions(st, p.start) + '</select></div>'
         + '<div><span class="lbl">終了</span><select onchange="updPattern(' + i + ',\'end\',this.value)">'
         + timeOptions(st, p.end) + '</select></div>'
-        + '<div><span class="lbl">平日</span><input type="number" min="0" max="20" value="' + p.weekday
-        + '" oninput="updPattern(' + i + ',\'weekday\',+this.value)" /></div>'
-        + '<div><span class="lbl">土日祝</span><input type="number" min="0" max="20" value="' + p.weekend
-        + '" oninput="updPattern(' + i + ',\'weekend\',+this.value)" /></div>'
+        + '<div class="dow-need"><span class="lbl">曜日ごとの本数</span>';
+      DOW.forEach(function (d, k) {
+        h += '<label><span>' + d + '</span><input type="number" min="0" max="20" value="' + p.byDow[k]
+          + '" oninput="updByDow(' + i + ',' + k + ',+this.value)" /></label>';
+      });
+      h += '</div>'
         + '<div><button class="btn sm danger" onclick="delPattern(' + i + ')">削除</button></div>'
         + '</div>';
       // 担当者（優先順）。上から順に、その日に入れる人を当てる
@@ -1669,8 +1856,11 @@ function renderPatterns(st) {
       }
       h += '</div>';
     });
-    const wd = daySlots(st, false).length, we = daySlots(st, true).length;
-    h += '<div class="muted" style="margin-top:8px">1日に必要な人数：平日 ' + wd + '人・土日祝 ' + we + '人</div>';
+    h += '<div class="muted" style="margin-top:8px">1日に必要な枠：'
+      + DOW.map(function (d, k) {
+          const n = daySlots(st, k === 0 || k === 6, k).length;
+          return d + ' ' + n;
+        }).join('・') + '</div>';
   } else {
     h += '<div class="muted">この現場は勤務パターンを使いません（下の必要人数で組みます）。</div>';
   }
@@ -1682,8 +1872,12 @@ function updPattern(i, key, val) {
   const st = store();
   st.patterns[i][key] = val;
   saveDB();
-  if (key === 'weekday' || key === 'weekend') renderPatterns(st);
   renderShift();
+}
+function updByDow(i, dow, val) {
+  const st = store();
+  st.patterns[i].byDow[dow] = Math.max(0, val);
+  saveDB(); renderPatterns(st); renderShift(); renderDays();
 }
 function addPattern() {
   const st = store();
@@ -1890,11 +2084,13 @@ function exportTransferCsv(currentOnly) {
         (sh.days[c.key] || []).forEach(function (id) {
           const u = st.staff.find(function (x) { return x.id === id; });
           if (!u) return;
-          const code = getPat(sh, c.key, id);
-          const t = shiftTimes(st, u, code);
-          rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, u.name, code, t.start, t.end,
-            autoBreak(u.name, t.start, t.end)]);
-          count++;
+          const codes = getPatList(sh, c.key, id);
+          (codes.length ? codes : ['']).forEach(function (code) {
+            const t = shiftTimes(st, u, code);
+            rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, u.name, code, t.start, t.end,
+              autoBreak(u.name, t.start, t.end)]);
+            count++;
+          });
         });
       });
     });
@@ -2059,16 +2255,20 @@ function buildTransferPlan(st) {
       (sh.days[c.key] || []).forEach(function (uid) {
         const u = st.staff.find(function (x) { return x.id === uid; });
         if (!u) return;
-        const code = getPat(sh, c.key, uid);
-        const t = shiftTimes(st, u, code);
-        plan.push({
-          key: c.key + '|' + u.id,
-          date: c.key,
-          store: st.name,
-          staff: u.name,
-          start: t.start,
-          end: t.end,
-          pattern: code,
+        // 午前＋午後のように1日に複数の枠がある人は、枠ごとに1件ずつ送る
+        const codes = getPatList(sh, c.key, uid);
+        const list = codes.length ? codes : [''];
+        list.forEach(function (code, k) {
+          const t = shiftTimes(st, u, code);
+          plan.push({
+            key: c.key + '|' + u.id + (k ? '#' + k : ''),
+            date: c.key,
+            store: st.name,
+            staff: u.name,
+            start: t.start,
+            end: t.end,
+            pattern: code,
+          });
         });
       });
     });
@@ -2091,10 +2291,11 @@ async function transferStore(st, ym, report) {
 
   // 連携先の既存データを取得して突き合わせる
   const remote = await jsonpCall(TRANSFER_API, apiParams(st, { action: 'getShifts' })) || {};
-  const existing = {};   // 'date|staffName' -> id
+  // 同じ日に午前・午後と2件入ることがあるので、開始時刻まで含めて突き合わせる
+  const existing = {};   // 'date|staffName|start' -> id
   Object.keys(remote).forEach(function (d) {
     (remote[d] || []).forEach(function (ev) {
-      if (ev && ev.store === st.name) existing[d + '|' + ev.staff] = ev.id;
+      if (ev && ev.store === st.name) existing[d + '|' + ev.staff + '|' + ev.start] = ev.id;
     });
   });
 
@@ -2104,7 +2305,7 @@ async function transferStore(st, ym, report) {
   for (let i = 0; i < plan.length; i++) {
     if (transferCancelled) throw new Error('中止しました');
     const p = plan[i];
-    const hit = existing[p.date + '|' + p.staff];
+    const hit = existing[p.date + '|' + p.staff + '|' + p.start];
     if (hit) { ids[p.key] = hit; skipped++; report(st.name, i + 1, plan.length); continue; }
 
     const ev = buildEvent(st, p);
@@ -2128,7 +2329,7 @@ async function transferStore(st, ym, report) {
     if (!remoteIds[rid]) continue;   // 連携先に無ければ何もしない
     const parts = remoteIds[rid].split('|');
     await jsonpCall(TRANSFER_API, apiParams(st, { action: 'deleteShift', data: { id: rid } }));
-    await kyuyoCall('deleteShift', { id: rid, date: parts[0], store: st.name, staff: parts[1] });
+    await kyuyoCall('deleteShift', { id: rid, date: parts[0], store: st.name, staff: parts[1], start: parts[2] });
     removed++;
   }
 
