@@ -163,6 +163,10 @@
   .cal-c .dnum { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
   .cal-c .dnum small { font-weight: 400; font-size: 10px; color: var(--text-secondary); margin-left: 3px; }
   .cal-c .nm { display: block; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 2px 4px; margin-bottom: 3px; }
+  .cal-c .nm em { display: block; font-style: normal; font-size: 10px; opacity: .85; }
+  .with-times td.cell-on { padding: 4px 5px; line-height: 1.25; }
+  .cell-t { display: block; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .hol-chip.on { background: #FAECE7 !important; border-color: #e3b8a8 !important; color: #993C1D !important; }
   .cal-c .hol { font-size: 10px; color: var(--sun); margin-bottom: 3px; }
   .cal-c .short { color: var(--text-danger); font-weight: 600; }
 
@@ -232,6 +236,7 @@
       <div class="row-actions" style="margin-top:0">
         <button class="btn primary" onclick="doGenerate()">この期間のシフトを自動作成</button>
         <button class="btn" onclick="doGenerate(true)">別パターンで作り直す</button>
+        <button class="btn" id="btn-times" onclick="toggleShowTimes()">時間を表示</button>
         <button class="btn ghost" onclick="clearShift()">シフトを消去</button>
         <button class="btn ghost" onclick="exportCsv()">CSV出力</button>
         <button class="btn ghost" onclick="exportTransferCsv(true)">転記用CSV</button>
@@ -328,7 +333,7 @@
       <div class="card-desc">
         <b>期間の希望日数</b>：0 なら他のスタッフと自動で均等割り。数値を入れるとその日数を目安に組みます。<br />
         <b>上限</b>：この期間にこれ以上は入れない日数（0＝上限なし）。<b>週上限</b>：1週間（月〜日）の勤務日数上限（0＝なし）。<br />
-        <b>勤務可能曜日</b>：オフにした曜日には割り当てません。<br />
+        <b>勤務可能曜日</b>：オフにした曜日には割り当てません。「祝」をオフにすると祝日に割り当てません。<br />
         <b>入れる枠</b>：勤務パターンのある現場で、その人が入れるパターンを絞ります（全部オンなら制限なし）。<br />
         <b>曜日ごとの上限</b>：特定の曜日の出勤回数を期間内で制限します。「月2」なら月曜は2回まで、「月2,水1」のように複数も指定できます。
       </div>
@@ -485,7 +490,13 @@ const ROSTER = [
     // 平日は10時出勤・16時閉店・16時半退社／土日祝は10時出勤・17時閉店・17時半退社
     startTime: '10:00', endTime: '16:30',
     startTimeWeekend: '10:00', endTimeWeekend: '17:30',
-    staff: ['八木秀子','籾山結泉','下河邊なお子','小堀真桜'] },
+    // 祝日に出られるのは下河邊・小堀の2人
+    staff: [
+      { name: '八木秀子', holidayOk: false },
+      { name: '籾山結泉', holidayOk: false },
+      { name: '下河邊なお子', holidayOk: true },
+      { name: '小堀真桜', holidayOk: true },
+    ] },
   { id: 's_ryuchan', name: 'りゅうちゃん', dept: 'food', sh: 14, eh: 25,
     staff: ['河野竜二','網代愛','新河美和','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','濱田歩','須之内郁美'] },
   { id: 's_takohai', name: 'タコとハイボール', dept: 'food', sh: 14, eh: 25,
@@ -554,7 +565,7 @@ const ROSTER = [
 
 /* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
    保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
-const ROSTER_SYNC = 5;
+const ROSTER_SYNC = 6;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
@@ -613,6 +624,7 @@ function newStaff(src) {
     maxDays: num(s.maxDays, 0),
     maxPerWeek: num(s.maxPerWeek, 0),
     availableDays: s.availableDays ? s.availableDays.slice() : [0,1,2,3,4,5,6],
+    holidayOk: s.holidayOk !== false,
     patterns: s.patterns ? s.patterns.slice() : [],
     dowLimits: s.dowLimits ? JSON.parse(JSON.stringify(s.dowLimits)) : {},
     // 空なら店舗の既定時間を使う
@@ -673,6 +685,7 @@ function syncFromRoster(d) {
       if (x.maxDays !== undefined) u.maxDays = x.maxDays;
       if (x.maxPerWeek !== undefined) u.maxPerWeek = x.maxPerWeek;
       if (x.availableDays) u.availableDays = x.availableDays.slice();
+      if (x.holidayOk !== undefined) u.holidayOk = x.holidayOk;
       if (x.patterns) u.patterns = x.patterns.slice();
       if (x.dowLimits) u.dowLimits = JSON.parse(JSON.stringify(x.dowLimits));
     });
@@ -704,6 +717,7 @@ function normalizeStore(s) {
     u.maxDays = num(u.maxDays, 0);
     u.maxPerWeek = num(u.maxPerWeek, 0);
     if (!Array.isArray(u.availableDays)) u.availableDays = [0,1,2,3,4,5,6];
+    u.holidayOk = u.holidayOk !== false;                  // 祝日に出られるか
     if (!Array.isArray(u.patterns)) u.patterns = [];      // 空なら全パターンに入れる
     if (!u.dowLimits || typeof u.dowLimits !== 'object') u.dowLimits = {};  // 例 {1:2} 月曜は期間内2回まで
     u.startTime = u.startTime || '';
@@ -796,6 +810,22 @@ function setPat(sh, key, staffId, code) {
   if (code) sh.pat[key + '|' + staffId] = code;
   else delete sh.pat[key + '|' + staffId];
 }
+// 表示用に短くした時間（10:00〜16:30 → 10-16:30、7:00〜12:00 → 7-12）
+function shortTime(t) {
+  const p = t.split(':');
+  return p[1] === '00' ? String(parseInt(p[0], 10)) : parseInt(p[0], 10) + ':' + p[1];
+}
+function compactSpan(start, end) { return shortTime(start) + '-' + shortTime(end); }
+
+// その人のその日の勤務時間（複数枠なら複数返す）
+function daySpans(st, sh, c, u) {
+  const codes = getPatList(sh, c.key, u.id);
+  return (codes.length ? codes : ['']).map(function (code) {
+    const t = shiftTimes(st, u, code, c.weekendLike);
+    return { code: code, start: t.start, end: t.end };
+  });
+}
+
 // 1日に埋まっている枠の数（パターンなしの現場は人数と同じ）
 function filledSlots(st, sh, key) {
   if (!sh || !sh.days[key]) return 0;
@@ -1000,6 +1030,7 @@ function generate(seed) {
   const eligible = (u, c) => {
     if (c.closed || c.need <= 0) return false;
     if (!u.availableDays.includes(c.dow)) return false;
+    if (c.holiday && !u.holidayOk) return false;      // 祝日に出られない人は入れない
     if (req[u.id][c.key] === 'off') return false;
     // 入れるパターンを絞っている人は、その日にそのパターンが無ければ出られない
     if (usesPatterns(st) && !c.slots.some(function (code) { return canDoPattern(u, code); })) return false;
@@ -1426,17 +1457,28 @@ function renderShift() {
     cal.forEach(c => {
       const on = sh && sh.days[c.key] && sh.days[c.key].includes(u.id);
       if (on) counts[u.id]++;
-      let cls, txt;
+      let cls, txt, title = '';
       if (c.closed) { cls = 'cell-closed'; txt = '－'; }
       else if (on) {
         cls = 'cell-on' + (req[c.key] === 'off' ? ' cell-conflict' : '');
-        txt = usesPatterns(st) ? esc(getPat(sh, c.key, u.id).replace(/,/g, '・') || '？') : '○';
+        const spans = daySpans(st, sh, c, u);
+        if (DB.showTimes) {
+          // 記号（あれば）と時間を縦に並べる
+          txt = spans.map(function (s) {
+            return '<span class="cell-t">' + (s.code ? esc(s.code) + ' ' : '') + esc(compactSpan(s.start, s.end)) + '</span>';
+          }).join('');
+        } else {
+          txt = usesPatterns(st) ? esc(getPat(sh, c.key, u.id).replace(/,/g, '・') || '？') : '○';
+        }
+        title = spans.map(function (s) {
+          return (s.code ? s.code + ' ' : '') + s.start + '〜' + s.end;
+        }).join(' / ');
       }
       else if (req[c.key] === 'off') { cls = 'cell-req-off'; txt = '×'; }
       else if (req[c.key] === 'want') { cls = 'cell-req-want'; txt = '◎'; }
       else { cls = 'cell-off'; txt = '・'; }
       const click = c.closed ? '' : ' onclick="toggleCell(\'' + u.id + '\',\'' + c.key + '\')"';
-      h += '<td class="' + cls + '"' + click + '>' + txt + '</td>';
+      h += '<td class="' + cls + '"' + click + (title ? ' title="' + esc(title) + '"' : '') + '>' + txt + '</td>';
     });
     h += '<td class="cell-total">' + counts[u.id] + '</td>';
     h += '<td class="muted">' + (targets[u.id] !== undefined ? Math.round(targets[u.id] * 10) / 10 : '-') + '</td></tr>';
@@ -1453,7 +1495,14 @@ function renderShift() {
   Object.keys(counts).forEach(k => total += counts[k]);
   h += '<td class="cell-total">' + total + '</td><td></td></tr></tbody></table>';
 
-  document.getElementById('shift-table-wrap').innerHTML = h;
+  const wrap = document.getElementById('shift-table-wrap');
+  wrap.innerHTML = h;
+  wrap.classList.toggle('with-times', !!DB.showTimes);
+  const tb = document.getElementById('btn-times');
+  if (tb) {
+    tb.textContent = DB.showTimes ? '時間を隠す' : '時間を表示';
+    tb.classList.toggle('primary', !!DB.showTimes);
+  }
   renderDaily(cal, sh);
   renderTransferInfo(st, sh);
 }
@@ -1556,8 +1605,14 @@ function renderDaily(cal, sh) {
     if (c.closed) h += '<div class="muted">休業</div>';
     else {
       ids.forEach(id => {
-        const code = getPat(sh, c.key, id).replace(/,/g, '・');
-        h += '<span class="nm">' + (code ? '<b>' + esc(code) + '</b> ' : '') + esc(nameOf(id)) + '</span>';
+        const u = staff.find(x => x.id === id);
+        h += '<span class="nm">' + esc(nameOf(id));
+        if (u) {
+          daySpans(st, sh, c, u).forEach(function (s) {
+            h += '<em>' + (s.code ? esc(s.code) + ' ' : '') + esc(s.start + '〜' + s.end) + '</em>';
+          });
+        }
+        h += '</span>';
       });
       const n = filledSlots(st, sh, c.key);
       if (n < c.need) h += '<div class="short">あと' + (c.need - n) + '人</div>';
@@ -1707,6 +1762,8 @@ function renderStaff() {
     DOW.forEach((d, k) => {
       h += '<button class="dow-chip mini ' + (u.availableDays.includes(k) ? 'on' : '') + '" onclick="toggleStaffDow(' + i + ',' + k + ')">' + d + '</button>';
     });
+    h += '<button class="dow-chip mini hol-chip ' + (u.holidayOk ? 'on' : '') + '" title="祝日に出られるか"'
+      + ' onclick="toggleHolidayOk(' + i + ')">祝</button>';
     if (usesPatterns(st)) {
       // 入れるパターンを絞る（どれも選ばなければ全部に入れる）
       h += '<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">入れる枠</span>';
@@ -1774,6 +1831,11 @@ function toggleStaffPattern(i, code) {
 function toggleStaffDow(i, k) {
   const u = store().staff[i];
   u.availableDays = u.availableDays.includes(k) ? u.availableDays.filter(x => x !== k) : u.availableDays.concat(k).sort();
+  saveDB(); renderStaff(); renderShift();
+}
+function toggleHolidayOk(i) {
+  const u = store().staff[i];
+  u.holidayOk = !u.holidayOk;
   saveDB(); renderStaff(); renderShift();
 }
 function toggleActive(i) { const u = store().staff[i]; u.active = !u.active; saveDB(); renderAll(); }
@@ -2475,6 +2537,11 @@ function renderStoreSelect() {
     return '<option value="' + s.id + '"' + (s.id === DB.activeStoreId ? ' selected' : '') + '>'
       + esc(s.name) + (s.configured ? '' : '（未設定）') + '</option>';
   }).join('');
+}
+
+function toggleShowTimes() {
+  DB.showTimes = !DB.showTimes;
+  saveDB(); renderShift();
 }
 
 function onStoreChange() { DB.activeStoreId = document.getElementById('store-select').value; saveDB(); renderAll(); }
