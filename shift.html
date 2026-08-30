@@ -129,6 +129,15 @@
     border: 0.5px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface);
     font-family: inherit; color: var(--text-primary); }
   .pat-row input[type=text] { text-align: center; font-weight: 600; }
+  .owner-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 6px 0 10px; border-bottom: 0.5px solid var(--border); }
+  .owner-label { font-size: 11.5px; color: var(--text-secondary); min-width: 68px; }
+  .owner-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+    background: #f3ebe3; color: var(--accent); border-radius: 20px; padding: 3px 6px 3px 10px; font-weight: 500; }
+  .owner-chip button { border: none; background: none; color: var(--accent); cursor: pointer;
+    font-size: 11px; padding: 0 2px; font-family: inherit; }
+  .owner-sel { padding: 4px 8px; font-size: 12px; border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-md); background: var(--surface); font-family: inherit; }
   @media (max-width: 720px) {
     .pat-row { grid-template-columns: 1fr 1fr; }
     .pat-row.pat-head { display: none; }
@@ -351,6 +360,8 @@
         <div class="muted" style="margin-bottom:8px">
           パターンを1つでも登録すると、その現場は <b>下の「必要人数」ではなくパターンの本数</b>で人数が決まります。<br />
           1日に必要な本数を平日・土日それぞれで指定してください（0 ならその日は使いません）。<br />
+          <b>担当</b>を指定すると、その人を優先してそのパターンに入れます。上から順に、
+          その日に入れる人（希望休や連勤の上限に引っかからない人）が選ばれます。<br />
           シフト表のセルをクリックすると 休 → ○ → A → B → 休 と切り替わります。
         </div>
         <div id="st-patterns"></div>
@@ -486,8 +497,10 @@ const ROSTER = [
   { id: 's_nissei', name: 'ニッセーデリカ', dept: 'gyomu', sh: 7, eh: 18, configured: true,
     closedDays: [],   // 定休日なし（毎日営業・毎日同じ人数）
     // 勤務パターン。1日に ○1人・A2人・B2人 の計5人
+    // ○は武田則政が担当。武田が休みの日は千葉規雄が入る
     patterns: [
-      { code: '○', start: '10:00', end: '14:30', weekday: 1, weekend: 1 },
+      { code: '○', start: '10:00', end: '14:30', weekday: 1, weekend: 1,
+        owners: ['武田則政', '千葉規雄'] },
       { code: 'A', start: '10:00', end: '14:00', weekday: 2, weekend: 2 },
       { code: 'B', start: '10:00', end: '14:00', weekday: 2, weekend: 2 },
     ],
@@ -498,7 +511,7 @@ const ROSTER = [
 
 /* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
    保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
-const ROSTER_SYNC = 1;
+const ROSTER_SYNC = 2;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
@@ -617,15 +630,6 @@ function normalizeStore(s) {
   s.holidayAsWeekend = s.holidayAsWeekend !== false;
   s.openOnClosedHoliday = s.openOnClosedHoliday === true;
   s.configured = s.configured === true;
-  s.patterns = Array.isArray(s.patterns) ? s.patterns : [];
-  s.patterns = s.patterns.filter(function (p) { return p && p.code; });
-  s.patterns.forEach(function (p) {
-    p.code = String(p.code).slice(0, 3);
-    p.start = p.start || s.startTime;
-    p.end = p.end || s.endTime;
-    p.weekday = Math.max(0, num(p.weekday, 1));
-    p.weekend = Math.max(0, num(p.weekend, 1));
-  });
   s.staff = Array.isArray(s.staff) ? s.staff : [];
   s.staff.forEach(u => {
     u.targetDays = num(u.targetDays, 0);
@@ -635,6 +639,19 @@ function normalizeStore(s) {
     u.startTime = u.startTime || '';
     u.endTime = u.endTime || '';
     u.active = u.active !== false;
+  });
+  // パターンは担当者の存在を確かめるため、スタッフを整えたあとに処理する
+  s.patterns = Array.isArray(s.patterns) ? s.patterns : [];
+  s.patterns = s.patterns.filter(function (p) { return p && p.code; });
+  s.patterns.forEach(function (p) {
+    p.code = String(p.code).slice(0, 3);
+    p.start = p.start || s.startTime;
+    p.end = p.end || s.endTime;
+    p.weekday = Math.max(0, num(p.weekday, 1));
+    p.weekend = Math.max(0, num(p.weekend, 1));
+    p.owners = Array.isArray(p.owners) ? p.owners.filter(function (n) {
+      return s.staff.some(function (u) { return u.name === n; });   // 居なくなった人は外す
+    }) : [];
   });
 }
 
@@ -917,14 +934,17 @@ function generate(seed) {
   const openDays = cal.filter(c => c.need > 0);
 
   // 1) 出勤希望（◎）を先に確定
-  const wantList = [];
-  openDays.forEach(c => staff.forEach(u => {
-    if (req[u.id][c.key] === 'want' && eligible(u, c)) wantList.push({ u: u, c: c });
-  }));
-  wantList.sort(() => rnd() - 0.5);
-  wantList.forEach(w => {
-    if (assign[w.c.key].length < w.c.need && canTake(w.u, w.c, idxOf[w.c.key])) place(w.u, w.c);
-  });
+  //    パターン制の店舗は枠ごとに埋めるので、ここでは先に置かず点数（score）で優先する
+  if (!usesPatterns(st)) {
+    const wantList = [];
+    openDays.forEach(c => staff.forEach(u => {
+      if (req[u.id][c.key] === 'want' && eligible(u, c)) wantList.push({ u: u, c: c });
+    }));
+    wantList.sort(() => rnd() - 0.5);
+    wantList.forEach(w => {
+      if (assign[w.c.key].length < w.c.need && canTake(w.u, w.c, idxOf[w.c.key])) place(w.u, w.c);
+    });
+  }
 
   // 2) 候補が少ない日から埋める
   const order = openDays.slice().sort((a, b) => {
@@ -935,13 +955,39 @@ function generate(seed) {
     return idxOf[a.key] - idxOf[b.key];
   });
 
+  const pat = {};      // 'dateKey|staffId' -> パターン記号
+  const pinned = {};   // 担当ルールで決まった枠（あとから入れ替えない）
+
   order.forEach(c => {
     const i = idxOf[c.key];
-    while (assign[c.key].length < c.need) {
-      const cands = staff.filter(u => canTake(u, c, i));
-      if (!cands.length) break;
-      cands.sort((a, b) => score(a, c, i) - score(b, c, i));
-      place(cands[0], c);
+    if (usesPatterns(st)) {
+      // パターンごとの枠を1つずつ埋める。担当者が指定してあれば優先順に当てる
+      c.slots.forEach(function (codeSlot) {
+        if (assign[c.key].length >= c.need) return;
+        const pd = findPattern(st, codeSlot);
+        let picked = null, isOwner = false;
+        const owners = (pd && pd.owners) || [];
+        for (let oi = 0; oi < owners.length; oi++) {
+          const u = staff.find(function (x) { return x.name === owners[oi]; });
+          if (u && canTake(u, c, i)) { picked = u; isOwner = true; break; }
+        }
+        if (!picked) {
+          const cands = staff.filter(u => canTake(u, c, i));
+          if (!cands.length) return;
+          cands.sort((a, b) => score(a, c, i) - score(b, c, i));
+          picked = cands[0];
+        }
+        place(picked, c);
+        pat[c.key + '|' + picked.id] = codeSlot;
+        if (isOwner) pinned[c.key + '|' + picked.id] = 1;
+      });
+    } else {
+      while (assign[c.key].length < c.need) {
+        const cands = staff.filter(u => canTake(u, c, i));
+        if (!cands.length) break;
+        cands.sort((a, b) => score(a, c, i) - score(b, c, i));
+        place(cands[0], c);
+      }
     }
   });
 
@@ -973,8 +1019,15 @@ function generate(seed) {
           const c = openDays[ci];
           if (!assign[c.key].includes(o.id)) continue;
           if (req[o.id][c.key] === 'want') continue;
+          if (pinned[c.key + '|' + o.id]) continue;   // 担当ルールで決まった枠は動かさない
           remove(o, c);
-          if (canTake(un, c, idxOf[c.key])) { place(un, c); moved = true; break outer; }
+          if (canTake(un, c, idxOf[c.key])) {
+            place(un, c);
+            // 交代した人へパターンも引き継ぐ
+            const code = pat[c.key + '|' + o.id];
+            if (code) { pat[c.key + '|' + un.id] = code; delete pat[c.key + '|' + o.id]; }
+            moved = true; break outer;
+          }
           place(o, c);
         }
       }
@@ -982,23 +1035,17 @@ function generate(seed) {
     if (!moved) break;
   }
 
-  // 4) 勤務パターン（○・A・B…）を割り当てる。人ごとに偏らないようにする
-  const pat = {};
+  // 4) 念のため：手直し等でパターンが付いていない人がいれば、余っている枠を割り当てる
   if (usesPatterns(st)) {
-    const patCount = {};   // staffId -> { code: 回数 }
-    staff.forEach(function (u) { patCount[u.id] = {}; });
     openDays.forEach(function (c) {
-      const rest = assign[c.key].slice();
-      c.slots.forEach(function (code) {
-        if (!rest.length) return;
-        rest.sort(function (a, b) {
-          const d = (patCount[a][code] || 0) - (patCount[b][code] || 0);
-          if (d !== 0) return d;
-          return count[a] - count[b];
-        });
-        const uid = rest.shift();
-        pat[c.key + '|' + uid] = code;
-        patCount[uid][code] = (patCount[uid][code] || 0) + 1;
+      const rest = c.slots.slice();
+      assign[c.key].forEach(function (uid) {
+        const code = pat[c.key + '|' + uid];
+        const i = rest.indexOf(code);
+        if (i >= 0) rest.splice(i, 1);
+      });
+      assign[c.key].forEach(function (uid) {
+        if (!pat[c.key + '|' + uid] && rest.length) pat[c.key + '|' + uid] = rest.shift();
       });
     });
   }
@@ -1024,6 +1071,24 @@ function generate(seed) {
     });
   });
   if (unmet.length) warnings.push('出勤希望に応えられなかった日：' + unmet.join('、'));
+
+  // 担当者を決めてあるパターンに、担当者以外が入った日を知らせる
+  if (usesPatterns(st)) {
+    st.patterns.forEach(function (pd) {
+      if (!pd.owners || !pd.owners.length) return;
+      const miss = [];
+      openDays.forEach(function (c) {
+        const holders = assign[c.key].filter(function (id) { return pat[c.key + '|' + id] === pd.code; });
+        holders.forEach(function (id) {
+          const u = staff.find(function (x) { return x.id === id; });
+          if (u && pd.owners.indexOf(u.name) < 0) miss.push(mdLabel(c) + ' ' + u.name);
+        });
+      });
+      if (miss.length) {
+        warnings.push('「' + pd.code + '」に担当（' + pd.owners.join('・') + '）以外が入った日：' + miss.join('、'));
+      }
+    });
+  }
 
   return { assign: assign, pat: pat, warnings: warnings, counts: count, targets: target };
 }
@@ -1569,6 +1634,24 @@ function renderPatterns(st) {
         + '" oninput="updPattern(' + i + ',\'weekend\',+this.value)" /></div>'
         + '<div><button class="btn sm danger" onclick="delPattern(' + i + ')">削除</button></div>'
         + '</div>';
+      // 担当者（優先順）。上から順に、その日に入れる人を当てる
+      h += '<div class="owner-row"><span class="owner-label">' + esc(p.code) + ' の担当</span>';
+      if (p.owners.length) {
+        p.owners.forEach(function (nm, k) {
+          h += '<span class="owner-chip">' + (k + 1) + '. ' + esc(nm)
+            + '<button onclick="delOwner(' + i + ',' + k + ')" title="外す">✕</button></span>';
+        });
+      } else {
+        h += '<span class="muted">指定なし（自動で割り振り）</span>';
+      }
+      const rest = st.staff.filter(function (u) { return u.active && p.owners.indexOf(u.name) < 0; });
+      if (rest.length) {
+        h += '<select class="owner-sel" onchange="addOwner(' + i + ',this.value);this.value=\'\'">'
+          + '<option value="">＋ 担当を追加</option>'
+          + rest.map(function (u) { return '<option value="' + esc(u.name) + '">' + esc(u.name) + '</option>'; }).join('')
+          + '</select>';
+      }
+      h += '</div>';
     });
     const wd = daySlots(st, false).length, we = daySlots(st, true).length;
     h += '<div class="muted" style="margin-top:8px">1日に必要な人数：平日 ' + wd + '人・土日祝 ' + we + '人</div>';
@@ -1590,8 +1673,18 @@ function addPattern() {
   const st = store();
   const used = st.patterns.map(function (p) { return p.code; });
   const cand = ['○','A','B','C','D','E','●'].find(function (c) { return used.indexOf(c) < 0; }) || '新';
-  st.patterns.push({ code: cand, start: st.startTime, end: st.endTime, weekday: 1, weekend: 1 });
+  st.patterns.push({ code: cand, start: st.startTime, end: st.endTime, weekday: 1, weekend: 1, owners: [] });
   saveDB(); renderAll();
+}
+function addOwner(i, name) {
+  if (!name) return;
+  const p = store().patterns[i];
+  if (p.owners.indexOf(name) < 0) p.owners.push(name);
+  saveDB(); renderStore(); renderShift();
+}
+function delOwner(i, k) {
+  store().patterns[i].owners.splice(k, 1);
+  saveDB(); renderStore(); renderShift();
 }
 function delPattern(i) {
   const st = store();
