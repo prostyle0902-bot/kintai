@@ -504,14 +504,19 @@ const ROSTER = [
       { code: 'A', start: '10:00', end: '14:00', weekday: 2, weekend: 2 },
       { code: 'B', start: '10:00', end: '14:00', weekday: 2, weekend: 2 },
     ],
-    staff: ['千葉規雄','武田則政','高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男','高野由美','村田耕一'] },
+    // 武田・千葉は21〜22日の出勤に収める
+    staff: [
+      { name: '千葉規雄', targetDays: 22, maxDays: 22 },
+      { name: '武田則政', targetDays: 22, maxDays: 22 },
+      '高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男','高野由美','村田耕一',
+    ] },
   { id: 's_honsha', name: '本社', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['池田久史','三浦達弥'] },
 ];
 
 /* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
    保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
-const ROSTER_SYNC = 2;
+const ROSTER_SYNC = 3;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
@@ -547,7 +552,7 @@ function defaultDB() {
         periodStartDay: 16,          // 16日〜翌月15日
         patterns: r.patterns ? JSON.parse(JSON.stringify(r.patterns)) : [],
         configured: r.configured === true,
-        staff: r.staff.map(function (n) { return newStaff(n); }),
+        staff: r.staff.map(function (x) { return newStaff(x); }),
       };
     }),
     dayOverrides: {},
@@ -558,13 +563,15 @@ function defaultDB() {
   };
 }
 
-function newStaff(name) {
+// 名前だけの文字列でも、日数の指定つきのオブジェクトでも受け取る
+function newStaff(src) {
+  const s = (typeof src === 'string') ? { name: src } : (src || {});
   return {
     id: 'u_' + Math.random().toString(36).slice(2, 9),
-    name: name,
-    targetDays: 0,
-    maxDays: 0,
-    maxPerWeek: 0,
+    name: s.name,
+    targetDays: num(s.targetDays, 0),
+    maxDays: num(s.maxDays, 0),
+    maxPerWeek: num(s.maxPerWeek, 0),
     availableDays: [0,1,2,3,4,5,6],
     startTime: '',   // 空なら店舗の既定時間を使う
     endTime: '',
@@ -611,6 +618,15 @@ function syncFromRoster(d) {
     if (r.weekdayStaff !== undefined) s.weekdayStaff = r.weekdayStaff;
     if (r.weekendStaff !== undefined) s.weekendStaff = r.weekendStaff;
     if (r.patterns) s.patterns = JSON.parse(JSON.stringify(r.patterns));
+    // 出勤日数の目安・上限が決まっている人にも反映する
+    r.staff.forEach(function (x) {
+      if (typeof x === 'string') return;
+      const u = (s.staff || []).find(function (y) { return y.name === x.name; });
+      if (!u) return;
+      if (x.targetDays !== undefined) u.targetDays = x.targetDays;
+      if (x.maxDays !== undefined) u.maxDays = x.maxDays;
+      if (x.maxPerWeek !== undefined) u.maxPerWeek = x.maxPerWeek;
+    });
     s.configured = true;
   });
 }
