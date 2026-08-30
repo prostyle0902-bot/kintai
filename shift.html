@@ -490,10 +490,10 @@ const ROSTER = [
     // 平日は10時出勤・16時閉店・16時半退社／土日祝は10時出勤・17時閉店・17時半退社
     startTime: '10:00', endTime: '16:30',
     startTimeWeekend: '10:00', endTimeWeekend: '17:30',
-    // 祝日に出られるのは下河邊・小堀の2人
+    // 4人とも祝日に出られる
     staff: [
-      { name: '八木秀子', holidayOk: false },
-      { name: '籾山結泉', holidayOk: false },
+      { name: '八木秀子', holidayOk: true },
+      { name: '籾山結泉', holidayOk: true },
       { name: '下河邊なお子', holidayOk: true },
       { name: '小堀真桜', holidayOk: true },
     ] },
@@ -565,7 +565,7 @@ const ROSTER = [
 
 /* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
    保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
-const ROSTER_SYNC = 6;
+const ROSTER_SYNC = 7;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
