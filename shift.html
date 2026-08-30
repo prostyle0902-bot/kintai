@@ -483,7 +483,8 @@ const ROSTER = [
     staff: ['宮内眞知子'] },
   { id: 's_katorijingu', name: '香取神宮', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['宮嵜博之'] },
-  { id: 's_nissei', name: 'ニッセーデリカ', dept: 'gyomu', sh: 7, eh: 18,
+  { id: 's_nissei', name: 'ニッセーデリカ', dept: 'gyomu', sh: 7, eh: 18, configured: true,
+    closedDays: [],   // 定休日なし（毎日営業・毎日同じ人数）
     // 勤務パターン。1日に ○1人・A2人・B2人 の計5人
     patterns: [
       { code: '○', start: '10:00', end: '14:30', weekday: 1, weekend: 1 },
@@ -494,6 +495,10 @@ const ROSTER = [
   { id: 's_honsha', name: '本社', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['池田久史','三浦達弥'] },
 ];
+
+/* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
+   保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
+const ROSTER_SYNC = 1;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
@@ -536,6 +541,7 @@ function defaultDB() {
     requests: {},
     shifts: {},
     transfers: {},  // key: storeId|YYYY-MM -> { ids: { 'YYYY-MM-DD|staffId': 連携先のid }, at: ISO }
+    rosterSync: ROSTER_SYNC,
   };
 }
 
@@ -572,9 +578,28 @@ function normalizeDB(d) {
   d.requests = d.requests || {};
   d.shifts = d.shifts || {};
   d.transfers = d.transfers || {};
+  if (num(d.rosterSync, 0) < ROSTER_SYNC) {
+    syncFromRoster(d);
+    d.rosterSync = ROSTER_SYNC;
+    try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch (e) { /* 保存できなくても続行 */ }
+  }
   d.stores.forEach(normalizeStore);
   if (!d.stores.some(s => s.id === d.activeStoreId)) d.activeStoreId = d.stores[0].id;
   return d;
+}
+
+// 確定済みの現場の条件（定休日・必要人数・勤務パターン）を保存済みデータへ反映する
+function syncFromRoster(d) {
+  ROSTER.forEach(function (r) {
+    if (!r.configured) return;
+    const s = d.stores.find(function (x) { return x.id === r.id; });
+    if (!s) return;
+    if (r.closedDays) s.closedDays = r.closedDays.slice();
+    if (r.weekdayStaff !== undefined) s.weekdayStaff = r.weekdayStaff;
+    if (r.weekendStaff !== undefined) s.weekendStaff = r.weekendStaff;
+    if (r.patterns) s.patterns = JSON.parse(JSON.stringify(r.patterns));
+    s.configured = true;
+  });
 }
 
 function normalizeStore(s) {
