@@ -1986,9 +1986,19 @@ function apiParams(st, params) {
 }
 
 // 出勤簿（給与側）への転記。連携先アプリと同じ条件・同じ形で送る
+// 戻り値：'skip'（対象外）／'ok'（送れた）／'ng'（送れなかった）
 function kyuyoCall(action, ev) {
-  if (PART_TIME_STAFF.indexOf(ev.staff) < 0) return Promise.resolve();
-  return jsonpCall(KYUYO_API, { action: action, data: ev }).catch(function () { /* 出勤簿は失敗しても本体は続行 */ });
+  if (PART_TIME_STAFF.indexOf(ev.staff) < 0) return Promise.resolve('skip');
+  let payload = ev;
+  // 海事・横河の衣幡千明（2026-08-16以降）は給与上「衣幡千明_海事横河」へ転記する
+  if (ev.staff === '衣幡千明' && ev.store === '海事・横河' && ev.date >= '2026-08-16') {
+    payload = {};
+    Object.keys(ev).forEach(function (k) { payload[k] = ev[k]; });
+    payload.staff = '衣幡千明_海事横河';
+  }
+  return jsonpCall(KYUYO_API, { action: action, data: payload })
+    .then(function () { return 'ok'; })
+    .catch(function () { return 'ng'; });   // 出勤簿が失敗しても本体の転記は続ける
 }
 
 function newRemoteId() {
@@ -2089,7 +2099,7 @@ async function transferStore(st, ym, report) {
   });
 
   const ids = {};
-  let added = 0, skipped = 0, removed = 0;
+  let added = 0, skipped = 0, removed = 0, kyuyoOk = 0, kyuyoNg = 0;
 
   for (let i = 0; i < plan.length; i++) {
     if (transferCancelled) throw new Error('中止しました');
@@ -2099,7 +2109,8 @@ async function transferStore(st, ym, report) {
 
     const ev = buildEvent(st, p);
     await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
-    await kyuyoCall('writeShift', ev);
+    const k = await kyuyoCall('writeShift', ev);
+    if (k === 'ok') kyuyoOk++; else if (k === 'ng') kyuyoNg++;
     ids[p.key] = ev.id;
     added++;
     report(st.name, i + 1, plan.length);
@@ -2123,7 +2134,8 @@ async function transferStore(st, ym, report) {
 
   DB.transfers[key] = { ids: ids, at: new Date().toISOString(), added: added, skipped: skipped, removed: removed };
   saveDB();
-  return { added: added, skipped: skipped, removed: removed, total: plan.length };
+  return { added: added, skipped: skipped, removed: removed, total: plan.length,
+    kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg };
 }
 
 async function runTransfer(stores, ym) {
@@ -2156,7 +2168,8 @@ async function runTransfer(stores, ym) {
       const st = targets[i];
       const r = await transferStore(st, ym, report);
       doneRows += r.total;
-      results.push(st.name + '：追加 ' + r.added + '・既存 ' + r.skipped + (r.removed ? '・取消 ' + r.removed : ''));
+      results.push(st.name + '：追加 ' + r.added + '・既存 ' + r.skipped + (r.removed ? '・取消 ' + r.removed : '')
+        + '／出勤簿 ' + r.kyuyoOk + '件' + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件）' : ''));
     }
     setTransferStatus('<div class="alert ok"><b>転記しました。</b><br />' + results.map(esc).join('<br />')
       + '<br />シフト管理アプリを開いて確認してください。</div>');
@@ -2187,9 +2200,14 @@ async function transferTest() {
   try {
     const ev = buildEvent(st, p);
     await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+    // 本番の転記と同じく、対象者は出勤簿へも送る
+    const k = await kyuyoCall('writeShift', ev);
+    const kyuyoTxt = k === 'ok' ? '出勤簿にも送信しました。'
+      : k === 'skip' ? esc(p.staff) + ' さんは出勤簿の転記対象ではないため、出勤簿には送っていません。'
+      : '<span style="color:#a32d2d">出勤簿への送信は失敗しました。</span>';
     setTransferStatus('<div class="alert ok"><b>テスト送信できました。</b><br />'
       + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end)
-      + ' がシフト管理アプリに入っているか確認してください。</div>');
+      + ' がシフト管理アプリに入っているか確認してください。<br />' + kyuyoTxt + '</div>');
   } catch (e) {
     setTransferStatus('<div class="alert warn"><b>送信できませんでした：</b>' + esc(e.message)
       + '<br />通信環境と、連携先アプリが動いているかを確認してください。</div>');
