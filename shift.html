@@ -220,6 +220,16 @@
       <span><i style="background:#d4a017"></i>営業日を手動で変更した日</span>
     </div>
 
+    <div class="card no-print">
+      <div class="card-title">シフト管理アプリへ転記</div>
+      <div class="card-desc" id="transfer-desc"></div>
+      <div class="transfer-status"></div>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn primary" onclick="transferCurrent()">確定してシフト管理アプリへ転記</button>
+        <button class="btn" onclick="transferTest()">1件だけテスト送信</button>
+      </div>
+    </div>
+
     <div class="card" style="margin-top:1rem">
       <div class="card-title">日別シフト</div>
       <div class="card-desc">当日の出勤者を日ごとに確認できます。掲示用の印刷にも使えます。</div>
@@ -273,8 +283,10 @@
       </div>
       <div class="row-actions" style="margin-top:0">
         <button class="btn primary" onclick="generateAll()">設定済みの現場をまとめて自動作成</button>
+        <button class="btn primary" onclick="transferAll()">まとめてシフト管理アプリへ転記</button>
         <button class="btn" onclick="exportTransferCsv()">転記用CSVを出力（全現場）</button>
       </div>
+      <div class="transfer-status" style="margin-top:1rem"></div>
     </div>
     <div class="scroll" id="all-table-wrap"></div>
   </div>
@@ -289,7 +301,7 @@
         <b>勤務可能曜日</b>：オフにした曜日には割り当てません。
       </div>
       <div class="staff-row staff-head">
-        <div>氏名</div><div>期間の希望日数</div><div>上限</div><div>週上限</div><div>勤務可能曜日</div><div></div>
+        <div>氏名</div><div>期間の希望日数</div><div>上限</div><div>週上限</div><div>勤務可能曜日 ／ 勤務時間</div><div></div>
       </div>
       <div id="staff-list"></div>
       <div class="row-actions">
@@ -320,6 +332,16 @@
           <label>連勤の上限（日）</label>
           <input type="number" id="st-maxcons" min="1" max="31" oninput="updateStore('maxConsecutive', +this.value)" />
         </div>
+      </div>
+
+      <div class="field" style="margin-top:1rem">
+        <label>既定の勤務時間（シフト管理アプリへ転記するときの時刻）</label>
+        <div class="dow-picker">
+          <select id="st-start" onchange="updateStore('startTime', this.value)"></select>
+          <span>〜</span>
+          <select id="st-end" onchange="updateStore('endTime', this.value)"></select>
+        </div>
+        <div class="muted" id="st-time-note"></div>
       </div>
 
       <div class="field" style="margin-top:1rem">
@@ -379,57 +401,97 @@
    ========================================================= */
 
 const DOW = ['日','月','火','水','木','金','土'];
-const LS_KEY = 'prostyle_shift_v2';
-const LS_KEY_V1 = 'prostyle_shift_v1';
+const LS_KEY = 'prostyle_shift_v3';
 
-/* ---------- 既定データ：各店舗・現場 ---------- */
-/* 氏名は勤怠アプリの登録名と同じ表記にしてある（転記時の突き合わせに使う） */
+/* ---------- 連携先（シフト管理アプリ）----------
+   飲食事業部 https://prostyle0902-bot.github.io/prostyle-calendar/shift.html
+   業務課     https://prostyle0902-bot.github.io/prostyle-calendar/gyomu-shift.html
+   どちらも同じ GAS Web App を JSONP で呼ぶ。業務課だけ sheetName='シフト' を付ける。 */
+const TRANSFER_API = 'https://script.google.com/macros/s/AKfycbwV_UNDYqwlGhMeoEQiasU348YX_UEKXys7E0TkZaOMfrcXtTx6-JIisyLVMCW2yj3g/exec';
+const KYUYO_API = 'https://script.google.com/macros/s/AKfycbylaRGqV8Ij1p1X4Qx1y7jn1r8jqQOz3lCQSHMOnudLFxxfawlMOtVm5trQEZTz9aINHw/exec';
+const GYOMU_SHEET = 'シフト';
+
+/* 出勤簿にも転記される対象者（連携先アプリの PART_TIME_STAFF と同じ） */
+const PART_TIME_STAFF = [
+  '松岡実麻','網代愛','新河美和','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','濱田歩','須之内郁美',
+  '石井義則','中村利人','山崎悠人','本田光江','橋本桂子','小金澤登美江','小林メグ','荒宏信',
+  '茂木多美子','八木秀子','籾山結泉','下河邊なお子','小堀真桜',
+  '河野千恵子','橋本房枝','山本里奈','長谷川碧里','松本めぐみ','田村あつ子','衣幡千明',
+  '石川泰博','山田明子','伊藤美津子','桜庭京子','小倉孔子','宮嵜博之',
+  '千葉規雄','武田則政','高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男',
+  '高野由美','村田耕一','池田久史','三浦達弥','鎌形房枝','宮内眞知子',
+];
+
+/* ---------- 既定データ：各店舗・現場 ----------
+   店舗名・スタッフ名・営業時間は連携先アプリの STORES とまったく同じ表記にしてある。
+   ここがずれると転記時に別店舗・別人として登録されてしまうため、変更しないこと。 */
 const ROSTER = [
-  { id: 's_sawara13', name: 'さわら十三里屋', configured: true,
+  // --- 飲食事業部 ---
+  { id: 's_sawara13', name: 'さわら十三里屋', dept: 'food', sh: 9, eh: 18, configured: true,
     closedDays: [2], weekdayStaff: 1, weekendStaff: 2,
     staff: ['八木秀子','籾山結泉','下河邊なお子','小堀真桜'] },
-  { id: 's_ryuchan', name: 'りゅうちゃん',
-    staff: ['綱代愛','新河美和','飯塚利恵','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','須之内郁美'] },
-  { id: 's_bussing', name: 'バッシング',
-    staff: ['石井義則','中村利人','山﨑悠人','本田光江'] },
-  { id: 's_takohai', name: 'タコハイ',
-    staff: ['松岡実麻'] },
-  { id: 's_seiso', name: '横丁清掃',
-    staff: ['橋本桂子','小金澤登美'] },
-  { id: 's_yakitate', name: '焼きたて屋',
-    staff: ['小林メグ','荒宏信'] },
-  { id: 's_totalstay', name: 'トータルステイ',
+  { id: 's_ryuchan', name: 'りゅうちゃん', dept: 'food', sh: 14, eh: 25,
+    staff: ['河野竜二','網代愛','新河美和','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','濱田歩','須之内郁美'] },
+  { id: 's_takohai', name: 'タコとハイボール', dept: 'food', sh: 14, eh: 25,
+    staff: ['ハルシャニ','ナディーシャ','松岡実麻'] },
+  { id: 's_hana', name: '韓国酒場ハナ', dept: 'food', sh: 14, eh: 25,
+    staff: ['レナ','ナディーシャ','ハルシャニ'] },
+  { id: 's_momo', name: 'もも焼きJAPAN', dept: 'food', sh: 14, eh: 25,
+    staff: ['土屋芳広'] },
+  { id: 's_bussing', name: 'バッシング', dept: 'food', sh: 14, eh: 25,
+    staff: ['石井義則','中村利人','山崎悠人','本田光江'] },
+  { id: 's_seiso', name: '横丁清掃', dept: 'food', sh: 7, eh: 11,
+    staff: ['橋本桂子','小金澤登美江'] },
+  { id: 's_yakitate', name: '焼きたて屋鹿島', dept: 'food', sh: 10, eh: 19,
+    staff: ['及川晶雄','小林メグ','荒宏信','茂木多美子'] },
+  { id: 's_beer', name: 'ビアガーデン', dept: 'food', sh: 16, eh: 23,
+    staff: ['石井義則','石毛貴英','山崎悠人'] },
+  // --- 業務課 ---
+  { id: 's_totalstay', name: 'トータルステイ', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['河野千恵子','橋本房枝','山本里奈','長谷川碧里','松本めぐみ','田村あつ子','衣幡千明'] },
-  { id: 's_ichikawa', name: '市川東病院',
+  { id: 's_ichikawa', name: '市川東病院', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['石川泰博','山田明子','伊藤美津子'] },
-  { id: 's_nissei', name: 'ニッセーデリカ',
-    staff: ['千葉規雄','武田則政','高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男','高野由美','村田耕一'] },
-  { id: 's_kaiji', name: '海事・横河',
-    staff: ['桜庭京子'] },
-  { id: 's_chibashoyu', name: 'ちば醤油',
+  { id: 's_kaiji', name: '海事・横河', dept: 'gyomu', sh: 7, eh: 18,
+    staff: ['桜庭京子','衣幡千明'] },
+  { id: 's_chibashoyu', name: 'ちば醬油', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['小倉孔子'] },
-  { id: 's_jingu', name: '神宮・亀甲堂・ゆう屋',
-    staff: ['齊藤良江'] },
-  { id: 's_katorijingu', name: '香取神宮',
+  { id: 's_yuya', name: 'ゆう屋', dept: 'gyomu', sh: 7, eh: 18,
+    staff: ['鎌形房枝'] },
+  { id: 's_jingu', name: '神宮・亀甲堂', dept: 'gyomu', sh: 7, eh: 18,
+    staff: ['宮内眞知子'] },
+  { id: 's_katorijingu', name: '香取神宮', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['宮嵜博之'] },
-  { id: 's_honsha', name: '本社',
+  { id: 's_nissei', name: 'ニッセーデリカ', dept: 'gyomu', sh: 7, eh: 18,
+    staff: ['千葉規雄','武田則政','高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男','高野由美','村田耕一'] },
+  { id: 's_honsha', name: '本社', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['池田久史','三浦達弥'] },
-  { id: 's_gyomu', name: '業務課',
-    staff: ['平野 健雄','安藤 正樹','伏田 幸枝','小林 俊樹','石毛 貴英'] },
-  { id: 's_inshoku', name: '飲食事業部',
-    staff: ['石毛 拓海','土屋 芳広','及川 晶雄','宮川 玲奈','ハルシャニ','ナディシャ'] },
-  { id: 's_backoffice', name: 'バックオフィス',
-    staff: ['花見 朗子'] },
 ];
+
+// 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
+function hourToTime(h) {
+  const r = h >= 24 ? h - 24 : h;
+  return String(r).padStart(2, '0') + ':00';
+}
+// 表示用に「翌」を付ける（開店時刻より小さい時刻は翌日とみなす）
+function timeLabel(t, openHour) {
+  if (!t) return '';
+  const h = parseInt(t.split(':')[0], 10);
+  return (openHour < 24 && h < openHour ? '翌' : '') + t;
+}
 
 function defaultDB() {
   return {
-    version: 2,
+    version: 3,
     activeStoreId: ROSTER[0].id,
     stores: ROSTER.map(function (r) {
       return {
         id: r.id,
         name: r.name,
+        dept: r.dept,
+        openHour: r.sh,
+        closeHour: r.eh,
+        startTime: hourToTime(r.sh),
+        endTime: hourToTime(r.eh),
         closedDays: r.closedDays || [],
         weekdayStaff: r.weekdayStaff !== undefined ? r.weekdayStaff : 1,
         weekendStaff: r.weekendStaff !== undefined ? r.weekendStaff : 1,
@@ -444,6 +506,7 @@ function defaultDB() {
     dayOverrides: {},
     requests: {},
     shifts: {},
+    transfers: {},  // key: storeId|YYYY-MM -> { ids: { 'YYYY-MM-DD|staffId': 連携先のid }, at: ISO }
   };
 }
 
@@ -455,6 +518,8 @@ function newStaff(name) {
     maxDays: 0,
     maxPerWeek: 0,
     availableDays: [0,1,2,3,4,5,6],
+    startTime: '',   // 空なら店舗の既定時間を使う
+    endTime: '',
     active: true,
   };
 }
@@ -467,34 +532,29 @@ function loadDB() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return normalizeDB(JSON.parse(raw));
-    // v1（暦月・日番号ベース）からは店舗とスタッフだけ引き継ぐ
-    const old = localStorage.getItem(LS_KEY_V1);
-    if (old) {
-      const o = JSON.parse(old);
-      if (o && Array.isArray(o.stores) && o.stores.length) {
-        const d = defaultDB();
-        d.stores = o.stores;
-        d.stores.forEach(s => { if (s.periodStartDay === undefined) s.periodStartDay = 16; });
-        d.activeStoreId = o.activeStoreId;
-        return normalizeDB(d);
-      }
-    }
   } catch (e) { /* 壊れていたら既定に戻す */ }
   return defaultDB();
 }
 
 function normalizeDB(d) {
   if (!d || !Array.isArray(d.stores) || !d.stores.length) return defaultDB();
-  d.version = 2;
+  d.version = 3;
   d.dayOverrides = d.dayOverrides || {};
   d.requests = d.requests || {};
   d.shifts = d.shifts || {};
+  d.transfers = d.transfers || {};
   d.stores.forEach(normalizeStore);
   if (!d.stores.some(s => s.id === d.activeStoreId)) d.activeStoreId = d.stores[0].id;
   return d;
 }
 
 function normalizeStore(s) {
+  const base = ROSTER.find(function (r) { return r.id === s.id; });
+  s.dept = (s.dept === 'gyomu' || s.dept === 'food') ? s.dept : (base ? base.dept : 'food');
+  s.openHour = num(s.openHour, base ? base.sh : 9);
+  s.closeHour = num(s.closeHour, base ? base.eh : 18);
+  s.startTime = s.startTime || hourToTime(s.openHour);
+  s.endTime = s.endTime || hourToTime(s.closeHour);
   s.closedDays = Array.isArray(s.closedDays) ? s.closedDays : [];
   s.weekdayStaff = num(s.weekdayStaff, 1);
   s.weekendStaff = num(s.weekendStaff, 2);
@@ -509,9 +569,19 @@ function normalizeStore(s) {
     u.maxDays = num(u.maxDays, 0);
     u.maxPerWeek = num(u.maxPerWeek, 0);
     if (!Array.isArray(u.availableDays)) u.availableDays = [0,1,2,3,4,5,6];
+    u.startTime = u.startTime || '';
+    u.endTime = u.endTime || '';
     u.active = u.active !== false;
   });
 }
+
+// そのスタッフの勤務時間（個別指定がなければ店舗の既定）
+function shiftTimes(st, u) {
+  return { start: (u && u.startTime) || st.startTime, end: (u && u.endTime) || st.endTime };
+}
+
+function transferKey() { return store().id + '|' + currentYM; }
+function getTransfer() { return DB.transfers[transferKey()] || null; }
 
 function num(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
@@ -996,6 +1066,28 @@ function renderShift() {
 
   document.getElementById('shift-table-wrap').innerHTML = h;
   renderDaily(cal, sh);
+  renderTransferInfo(st, sh);
+}
+
+function renderTransferInfo(st, sh) {
+  const el = document.getElementById('transfer-desc');
+  if (!el) return;
+  const dest = st.dept === 'gyomu' ? '業務課シフト' : '飲食事業部シフト';
+  const url = st.dept === 'gyomu'
+    ? 'https://prostyle0902-bot.github.io/prostyle-calendar/gyomu-shift.html'
+    : 'https://prostyle0902-bot.github.io/prostyle-calendar/shift.html';
+  const n = sh ? buildTransferPlan(st).length : 0;
+  const tr = getTransfer();
+  let h = '転記先：<a href="' + url + '" target="_blank" rel="noopener">' + dest + '</a>'
+    + '　勤務時間：' + esc(st.startTime) + '〜' + esc(timeLabel(st.endTime, st.openHour))
+    + '（スタッフごとの指定があればそちらを使います）<br />'
+    + 'この期間の転記対象：<b>' + n + '件</b>。'
+    + '同じ日・同じ人の予定がすでにある場合は二重登録しません。';
+  if (tr) {
+    h += '<br /><span style="color:#0F6E56">最終転記：' + esc(new Date(tr.at).toLocaleString('ja-JP'))
+      + '（追加 ' + tr.added + '・既存 ' + tr.skipped + (tr.removed ? '・取消 ' + tr.removed : '') + '）</span>';
+  }
+  el.innerHTML = h;
 }
 
 function targetsForDisplay(cal, staff) {
@@ -1209,6 +1301,11 @@ function renderStaff() {
     DOW.forEach((d, k) => {
       h += '<button class="dow-chip mini ' + (u.availableDays.includes(k) ? 'on' : '') + '" onclick="toggleStaffDow(' + i + ',' + k + ')">' + d + '</button>';
     });
+    h += '<select class="need-sel" style="width:auto;margin-left:8px" onchange="updStaffTime(' + i + ',\'startTime\',this.value)">'
+      + '<option value="">店舗既定</option>' + timeOptions(st, u.startTime) + '</select>'
+      + '<span style="font-size:11px;color:var(--text-secondary);padding:0 3px">〜</span>'
+      + '<select class="need-sel" style="width:auto" onchange="updStaffTime(' + i + ',\'endTime\',this.value)">'
+      + '<option value="">店舗既定</option>' + timeOptions(st, u.endTime) + '</select>';
     h += '</div><div style="display:flex;gap:6px">'
       + '<button class="btn sm" onclick="toggleActive(' + i + ')">' + (u.active ? '休止' : '復帰') + '</button>'
       + '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>'
@@ -1219,6 +1316,7 @@ function renderStaff() {
 }
 
 function updStaff(i, key, val) { store().staff[i][key] = val; saveDB(); if (key !== 'name') renderShift(); }
+function updStaffTime(i, key, val) { store().staff[i][key] = val; saveDB(); renderShift(); }
 function toggleStaffDow(i, k) {
   const u = store().staff[i];
   u.availableDays = u.availableDays.includes(k) ? u.availableDays.filter(x => x !== k) : u.availableDays.concat(k).sort();
@@ -1241,9 +1339,30 @@ function addStaff() {
 /* =========================================================
    画面：店舗設定
    ========================================================= */
+// 店舗の営業時間内の時刻の選択肢（30分刻み、24時以降は「翌」表示）
+function timeOptions(st, selected) {
+  let h = '';
+  for (let hh = st.openHour; hh <= st.closeHour; hh++) {
+    for (let mi = 0; mi < 60; mi += 30) {
+      if (hh === st.closeHour && mi > 0) break;
+      const real = hh >= 24 ? hh - 24 : hh;
+      const val = String(real).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+      const lbl = (hh >= 24 ? '翌' : '') + String(real) + ':' + String(mi).padStart(2, '0');
+      h += '<option value="' + val + '"' + (val === selected ? ' selected' : '') + '>' + lbl + '</option>';
+    }
+  }
+  return h;
+}
+
 function renderStore() {
   const st = store();
   document.getElementById('st-name').value = st.name;
+  document.getElementById('st-start').innerHTML = timeOptions(st, st.startTime);
+  document.getElementById('st-end').innerHTML = timeOptions(st, st.endTime);
+  document.getElementById('st-time-note').textContent =
+    '転記先：' + (st.dept === 'gyomu' ? '業務課シフト' : '飲食事業部シフト')
+    + '／営業時間 ' + st.openHour + '時〜' + (st.closeHour >= 24 ? '翌' + (st.closeHour - 24) : st.closeHour) + '時'
+    + '。スタッフごとに違う時間で入る場合は「スタッフ」タブで個別に指定できます。';
   document.getElementById('st-weekday').value = st.weekdayStaff;
   document.getElementById('st-weekend').value = st.weekendStaff;
   document.getElementById('st-maxcons').value = st.maxConsecutive;
@@ -1442,7 +1561,7 @@ function exportCsv() {
 // 転記用：1行 = 1人の1日の出勤（シフト管理アプリなどへの取り込み向け）
 function exportTransferCsv(currentOnly) {
   const targets = currentOnly ? [store()] : DB.stores;
-  const rows = [['日付', '曜日', '祝日', '店舗・現場', '氏名']];
+  const rows = [['日付', '曜日', '祝日', '店舗・現場', '氏名', '開始', '終了', '休憩(分)']];
   let count = 0;
 
   targets.forEach(function (st) {
@@ -1450,10 +1569,13 @@ function exportTransferCsv(currentOnly) {
       const sh = getShift();
       if (!sh) return;
       const cal = buildCalendar();
-      const nameOf = function (id) { const u = st.staff.find(function (x) { return x.id === id; }); return u ? u.name : ''; };
       cal.forEach(function (c) {
         (sh.days[c.key] || []).forEach(function (id) {
-          rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, nameOf(id)]);
+          const u = st.staff.find(function (x) { return x.id === id; });
+          if (!u) return;
+          const t = shiftTimes(st, u);
+          rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, u.name, t.start, t.end,
+            autoBreak(u.name, t.start, t.end)]);
           count++;
         });
       });
@@ -1504,6 +1626,244 @@ function download(blob, filename) {
   a.download = filename;
   document.body.appendChild(a); a.click();
   setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* =========================================================
+   シフト管理アプリへの転記
+   連携先と同じ JSONP（GET）で saveShift / deleteShift を呼ぶ。
+   ========================================================= */
+let jsonpSeq = 0;
+let transferCancelled = false;
+
+function jsonpCall(url, params) {
+  return new Promise(function (resolve, reject) {
+    const cb = '_pscb' + (++jsonpSeq);
+    const timer = setTimeout(function () { cleanup(); reject(new Error('タイムアウト')); }, 25000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cb];
+      const el = document.getElementById(cb);
+      if (el) el.remove();
+    }
+    window[cb] = function (data) { cleanup(); resolve(data); };
+    const parts = [];
+    Object.keys(params).forEach(function (k) {
+      const v = params[k];
+      parts.push(k + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : v));
+    });
+    parts.push('callback=' + cb);
+    parts.push('t=' + Date.now());
+    const sc = document.createElement('script');
+    sc.id = cb;
+    sc.src = url + '?' + parts.join('&');
+    sc.onerror = function () { cleanup(); reject(new Error('通信エラー')); };
+    document.head.appendChild(sc);
+  });
+}
+
+// 業務課のシフトは別シートに入るので sheetName を付ける
+function apiParams(st, params) {
+  if (st.dept === 'gyomu') params.sheetName = GYOMU_SHEET;
+  return params;
+}
+
+// 出勤簿（給与側）への転記。連携先アプリと同じ条件・同じ形で送る
+function kyuyoCall(action, ev) {
+  if (PART_TIME_STAFF.indexOf(ev.staff) < 0) return Promise.resolve();
+  return jsonpCall(KYUYO_API, { action: action, data: ev }).catch(function () { /* 出勤簿は失敗しても本体は続行 */ });
+}
+
+function newRemoteId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+}
+
+// 休憩時間（連携先アプリの getAutoBreak と同じルール）
+function autoBreak(staff, start, end) {
+  if (!start || !end) return 0;
+  const toMin = function (t) { const p = t.split(':'); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); };
+  let s = toMin(start), e = toMin(end);
+  if (e <= s) e += 24 * 60;
+  const work = e - s;
+  if (staff === '齊藤良江') return 90;
+  if (['石川泰博','山田明子','伊藤美津子'].indexOf(staff) >= 0) {
+    const endH = parseInt(end.split(':')[0], 10);
+    if (endH <= 12) return 30;
+    if (endH >= 16) return 90;
+    return 30;
+  }
+  if (['小林メグ','荒宏信'].indexOf(staff) >= 0) return work > 360 ? 60 : 0;
+  if (staff === '山﨑悠人' || staff === '山崎悠人') return 30;
+  return 0;
+}
+
+// この期間・この現場の転記予定を組み立てる
+function buildTransferPlan(st) {
+  return withStore(st.id, function () {
+    const sh = getShift();
+    if (!sh) return [];
+    const cal = buildCalendar();
+    const plan = [];
+    cal.forEach(function (c) {
+      (sh.days[c.key] || []).forEach(function (uid) {
+        const u = st.staff.find(function (x) { return x.id === uid; });
+        if (!u) return;
+        const t = shiftTimes(st, u);
+        plan.push({
+          key: c.key + '|' + u.id,
+          date: c.key,
+          store: st.name,
+          staff: u.name,
+          start: t.start,
+          end: t.end,
+        });
+      });
+    });
+    return plan;
+  });
+}
+
+function setTransferStatus(html) {
+  const els = document.querySelectorAll('.transfer-status');
+  for (let i = 0; i < els.length; i++) els[i].innerHTML = html;
+}
+
+function cancelTransfer() { transferCancelled = true; setTransferStatus('<div class="alert warn">中止しています…</div>'); }
+
+// 1現場ぶんを転記する。既に同じ日・同じ人の予定が入っていれば二重登録しない。
+async function transferStore(st, ym, report) {
+  const key = st.id + '|' + ym;
+  const plan = buildTransferPlan(st);
+  const prev = (DB.transfers[key] && DB.transfers[key].ids) || {};
+
+  // 連携先の既存データを取得して突き合わせる
+  const remote = await jsonpCall(TRANSFER_API, apiParams(st, { action: 'getShifts' })) || {};
+  const existing = {};   // 'date|staffName' -> id
+  Object.keys(remote).forEach(function (d) {
+    (remote[d] || []).forEach(function (ev) {
+      if (ev && ev.store === st.name) existing[d + '|' + ev.staff] = ev.id;
+    });
+  });
+
+  const ids = {};
+  let added = 0, skipped = 0, removed = 0;
+
+  for (let i = 0; i < plan.length; i++) {
+    if (transferCancelled) throw new Error('中止しました');
+    const p = plan[i];
+    const hit = existing[p.date + '|' + p.staff];
+    if (hit) { ids[p.key] = hit; skipped++; report(st.name, i + 1, plan.length); continue; }
+
+    const ev = {
+      id: newRemoteId(),
+      date: p.date,
+      store: p.store,
+      staff: p.staff,
+      start: p.start,
+      end: p.end,
+      break: autoBreak(p.staff, p.start, p.end),
+      memo: '',
+    };
+    if (st.dept === 'gyomu') ev.paid = false; else ev.yasumi = false;
+
+    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+    await kyuyoCall('writeShift', ev);
+    ids[p.key] = ev.id;
+    added++;
+    report(st.name, i + 1, plan.length);
+  }
+
+  // 前回こちらから送ったもので、今回の予定から外れたものは取り消す
+  const planKeys = {};
+  plan.forEach(function (p) { planKeys[p.key] = 1; });
+  const stale = Object.keys(prev).filter(function (k) { return !planKeys[k]; });
+  const remoteIds = {};
+  Object.keys(existing).forEach(function (k) { remoteIds[existing[k]] = k; });
+  for (let i = 0; i < stale.length; i++) {
+    if (transferCancelled) throw new Error('中止しました');
+    const rid = prev[stale[i]];
+    if (!remoteIds[rid]) continue;   // 連携先に無ければ何もしない
+    const parts = remoteIds[rid].split('|');
+    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'deleteShift', data: { id: rid } }));
+    await kyuyoCall('deleteShift', { id: rid, date: parts[0], store: st.name, staff: parts[1] });
+    removed++;
+  }
+
+  DB.transfers[key] = { ids: ids, at: new Date().toISOString(), added: added, skipped: skipped, removed: removed };
+  saveDB();
+  return { added: added, skipped: skipped, removed: removed, total: plan.length };
+}
+
+async function runTransfer(stores, ym) {
+  const targets = stores.filter(function (st) {
+    return withStore(st.id, function () { return !!getShift(); });
+  });
+  if (!targets.length) { alert('転記できるシフトがありません。先にシフトを作成してください。'); return; }
+
+  const totalRows = targets.reduce(function (a, st) { return a + buildTransferPlan(st).length; }, 0);
+  const dest = targets.some(function (s) { return s.dept === 'gyomu'; })
+    ? (targets.every(function (s) { return s.dept === 'gyomu'; }) ? '業務課シフト' : '飲食事業部シフト・業務課シフト')
+    : '飲食事業部シフト';
+  if (!confirm(targets.map(function (s) { return s.name; }).join('、') + '\\n'
+    + periodLabel() + ' のシフト（のべ ' + totalRows + '件）を\\n'
+    + dest + ' へ転記します。\\n\\n'
+    + '同じ日・同じ人の予定がすでにあるぶんは二重登録しません。\\n'
+    + '1件ずつ送るため ' + Math.ceil(totalRows * 0.7 / 60) + '分ほどかかります。よろしいですか？')) return;
+
+  transferCancelled = false;
+  let doneRows = 0;
+  const report = function (name, i, n) {
+    const pct = totalRows ? Math.round((doneRows + i) / totalRows * 100) : 100;
+    setTransferStatus('<div class="alert info">転記中… ' + esc(name) + '（' + i + '/' + n + '）　全体 ' + pct + '%'
+      + ' <button class="btn sm" style="margin-left:8px" onclick="cancelTransfer()">中止</button></div>');
+  };
+
+  const results = [];
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      const st = targets[i];
+      const r = await transferStore(st, ym, report);
+      doneRows += r.total;
+      results.push(st.name + '：追加 ' + r.added + '・既存 ' + r.skipped + (r.removed ? '・取消 ' + r.removed : ''));
+    }
+    setTransferStatus('<div class="alert ok"><b>転記しました。</b><br />' + results.map(esc).join('<br />')
+      + '<br />シフト管理アプリを開いて確認してください。</div>');
+  } catch (e) {
+    setTransferStatus('<div class="alert warn"><b>転記を中断しました：</b>' + esc(e.message)
+      + '<br />' + (results.length ? results.map(esc).join('<br />') + '<br />' : '')
+      + 'ここまでに送ったぶんは登録済みです。もう一度押せば続きから転記します（重複はしません）。</div>');
+  }
+  renderAll();
+}
+
+function transferCurrent() { runTransfer([store()], currentYM); }
+function transferAll() {
+  runTransfer(DB.stores.filter(function (st) { return st.configured; }), currentYM);
+}
+
+// 1件だけ送って連携を確かめる
+async function transferTest() {
+  const st = store();
+  const plan = buildTransferPlan(st);
+  if (!plan.length) { alert('先にこの現場のシフトを作成してください。'); return; }
+  const p = plan[0];
+  if (!confirm('確認のため、次の1件だけをシフト管理アプリへ送ります。\\n\\n'
+    + p.date + '　' + p.store + '　' + p.staff + '　' + p.start + '〜' + p.end + '\\n\\n'
+    + 'よろしいですか？（うまくいかない場合は連携先アプリ側で削除してください）')) return;
+  setTransferStatus('<div class="alert info">テスト送信中…</div>');
+  try {
+    const ev = {
+      id: newRemoteId(), date: p.date, store: p.store, staff: p.staff,
+      start: p.start, end: p.end, break: autoBreak(p.staff, p.start, p.end), memo: '',
+    };
+    if (st.dept === 'gyomu') ev.paid = false; else ev.yasumi = false;
+    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+    setTransferStatus('<div class="alert ok"><b>テスト送信できました。</b><br />'
+      + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end)
+      + ' がシフト管理アプリに入っているか確認してください。</div>');
+  } catch (e) {
+    setTransferStatus('<div class="alert warn"><b>送信できませんでした：</b>' + esc(e.message)
+      + '<br />通信環境と、連携先アプリが動いているかを確認してください。</div>');
+  }
 }
 
 /* =========================================================
