@@ -484,11 +484,11 @@ const ROSTER = [
   { id: 's_katorijingu', name: '香取神宮', dept: 'gyomu', sh: 7, eh: 18,
     staff: ['宮嵜博之'] },
   { id: 's_nissei', name: 'ニッセーデリカ', dept: 'gyomu', sh: 7, eh: 18,
-    // 勤務パターン。1日に必要な本数（平日／土日）は仮の値なので実態に合わせて直すこと
+    // 勤務パターン。1日に ○1人・A2人・B2人 の計5人
     patterns: [
       { code: '○', start: '10:00', end: '14:30', weekday: 1, weekend: 1 },
-      { code: 'A', start: '10:00', end: '14:00', weekday: 1, weekend: 1 },
-      { code: 'B', start: '10:00', end: '14:00', weekday: 1, weekend: 1 },
+      { code: 'A', start: '10:00', end: '14:00', weekday: 2, weekend: 2 },
+      { code: 'B', start: '10:00', end: '14:00', weekday: 2, weekend: 2 },
     ],
     staff: ['千葉規雄','武田則政','高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男','高野由美','村田耕一'] },
   { id: 's_honsha', name: '本社', dept: 'gyomu', sh: 7, eh: 18,
