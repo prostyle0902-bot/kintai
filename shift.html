@@ -187,6 +187,7 @@
 
   <div class="tabs no-print">
     <button class="tab active" data-panel="p-shift" onclick="showTab(this)">シフト表</button>
+    <button class="tab" data-panel="p-all" onclick="showTab(this)">全現場</button>
     <button class="tab" data-panel="p-request" onclick="showTab(this)">希望休</button>
     <button class="tab" data-panel="p-days" onclick="showTab(this)">営業日</button>
     <button class="tab" data-panel="p-staff" onclick="showTab(this)">スタッフ</button>
@@ -203,6 +204,7 @@
         <button class="btn" onclick="doGenerate(true)">別パターンで作り直す</button>
         <button class="btn ghost" onclick="clearShift()">シフトを消去</button>
         <button class="btn ghost" onclick="exportCsv()">CSV出力</button>
+        <button class="btn ghost" onclick="exportTransferCsv(true)">転記用CSV</button>
         <button class="btn ghost" onclick="window.print()">印刷</button>
       </div>
     </div>
@@ -259,6 +261,22 @@
       </div>
     </div>
     <div id="days-view"></div>
+  </div>
+
+  <!-- ===== 全現場 ===== -->
+  <div class="panel" id="p-all">
+    <div class="card">
+      <div class="card-title">全店舗・全現場の進捗</div>
+      <div class="card-desc">
+        同じ期間について、店舗・現場ごとの設定状況とシフトの作成状況をまとめて確認できます。<br />
+        <b>未設定</b>の現場は、定休日と必要人数がまだ確認されていません。行の「開く」から設定してください。
+      </div>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn primary" onclick="generateAll()">設定済みの現場をまとめて自動作成</button>
+        <button class="btn" onclick="exportTransferCsv()">転記用CSVを出力（全現場）</button>
+      </div>
+    </div>
+    <div class="scroll" id="all-table-wrap"></div>
   </div>
 
   <!-- ===== スタッフ ===== -->
@@ -336,6 +354,7 @@
         </div>
         <div class="muted">個別に開ける日は「営業日」タブでも指定できます。</div>
       </div>
+      <div id="st-confirm-box"></div>
       <div class="row-actions">
         <button class="btn" onclick="addStore()">＋ 店舗・現場を追加</button>
         <button class="btn" onclick="duplicateStore()">この設定を複製</button>
@@ -363,31 +382,68 @@ const DOW = ['日','月','火','水','木','金','土'];
 const LS_KEY = 'prostyle_shift_v2';
 const LS_KEY_V1 = 'prostyle_shift_v1';
 
-/* ---------- 既定データ（さわら十三里屋） ---------- */
+/* ---------- 既定データ：各店舗・現場 ---------- */
+/* 氏名は勤怠アプリの登録名と同じ表記にしてある（転記時の突き合わせに使う） */
+const ROSTER = [
+  { id: 's_sawara13', name: 'さわら十三里屋', configured: true,
+    closedDays: [2], weekdayStaff: 1, weekendStaff: 2,
+    staff: ['八木秀子','籾山結泉','下河邊なお子','小堀真桜'] },
+  { id: 's_ryuchan', name: 'りゅうちゃん',
+    staff: ['綱代愛','新河美和','飯塚利恵','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','須之内郁美'] },
+  { id: 's_bussing', name: 'バッシング',
+    staff: ['石井義則','中村利人','山﨑悠人','本田光江'] },
+  { id: 's_takohai', name: 'タコハイ',
+    staff: ['松岡実麻'] },
+  { id: 's_seiso', name: '横丁清掃',
+    staff: ['橋本桂子','小金澤登美'] },
+  { id: 's_yakitate', name: '焼きたて屋',
+    staff: ['小林メグ','荒宏信'] },
+  { id: 's_totalstay', name: 'トータルステイ',
+    staff: ['河野千恵子','橋本房枝','山本里奈','長谷川碧里','松本めぐみ','田村あつ子','衣幡千明'] },
+  { id: 's_ichikawa', name: '市川東病院',
+    staff: ['石川泰博','山田明子','伊藤美津子'] },
+  { id: 's_nissei', name: 'ニッセーデリカ',
+    staff: ['千葉規雄','武田則政','高瀬弥生子','菅原和夫','樽本裕美','望月辰雄','岸本敏男','高野由美','村田耕一'] },
+  { id: 's_kaiji', name: '海事・横河',
+    staff: ['桜庭京子'] },
+  { id: 's_chibashoyu', name: 'ちば醤油',
+    staff: ['小倉孔子'] },
+  { id: 's_jingu', name: '神宮・亀甲堂・ゆう屋',
+    staff: ['齊藤良江'] },
+  { id: 's_katorijingu', name: '香取神宮',
+    staff: ['宮嵜博之'] },
+  { id: 's_honsha', name: '本社',
+    staff: ['池田久史','三浦達弥'] },
+  { id: 's_gyomu', name: '業務課',
+    staff: ['平野 健雄','安藤 正樹','伏田 幸枝','小林 俊樹','石毛 貴英'] },
+  { id: 's_inshoku', name: '飲食事業部',
+    staff: ['石毛 拓海','土屋 芳広','及川 晶雄','宮川 玲奈','ハルシャニ','ナディシャ'] },
+  { id: 's_backoffice', name: 'バックオフィス',
+    staff: ['花見 朗子'] },
+];
+
 function defaultDB() {
   return {
     version: 2,
-    activeStoreId: 's_sawara13',
-    stores: [{
-      id: 's_sawara13',
-      name: 'さわら十三里屋',
-      closedDays: [2],            // 火曜定休
-      weekdayStaff: 1,            // 平日1人
-      weekendStaff: 2,            // 土日2人
-      holidayAsWeekend: true,     // 祝日は土日と同じ人数
-      openOnClosedHoliday: false, // 定休日が祝日でも休業（個別に営業日タブで開けられる）
-      maxConsecutive: 5,
-      periodStartDay: 16,         // 16日〆（16日〜翌月15日）
-      staff: [
-        newStaff('八木 秀子'),
-        newStaff('籾山 結泉'),
-        newStaff('下河邊 なお子'),
-        newStaff('小堀 真桜'),
-      ],
-    }],
-    dayOverrides: {}, // key: storeId|YYYY-MM-DD -> { open: bool, need: number }
-    requests: {},     // key: storeId|YYYY-MM|staffId -> { 'YYYY-MM-DD': 'off'|'want' }
-    shifts: {},       // key: storeId|YYYY-MM -> { days: { 'YYYY-MM-DD': [staffId] } }
+    activeStoreId: ROSTER[0].id,
+    stores: ROSTER.map(function (r) {
+      return {
+        id: r.id,
+        name: r.name,
+        closedDays: r.closedDays || [],
+        weekdayStaff: r.weekdayStaff !== undefined ? r.weekdayStaff : 1,
+        weekendStaff: r.weekendStaff !== undefined ? r.weekendStaff : 1,
+        holidayAsWeekend: true,
+        openOnClosedHoliday: false,
+        maxConsecutive: 5,
+        periodStartDay: 16,          // 16日〜翌月15日
+        configured: r.configured === true,
+        staff: r.staff.map(function (n) { return newStaff(n); }),
+      };
+    }),
+    dayOverrides: {},
+    requests: {},
+    shifts: {},
   };
 }
 
@@ -446,6 +502,7 @@ function normalizeStore(s) {
   s.periodStartDay = Math.min(28, Math.max(1, num(s.periodStartDay, 16)));
   s.holidayAsWeekend = s.holidayAsWeekend !== false;
   s.openOnClosedHoliday = s.openOnClosedHoliday === true;
+  s.configured = s.configured === true;
   s.staff = Array.isArray(s.staff) ? s.staff : [];
   s.staff.forEach(u => {
     u.targetDays = num(u.targetDays, 0);
@@ -580,6 +637,13 @@ function weekKey(d) {
 /* =========================================================
    期間のカレンダー（営業日と必要人数）
    ========================================================= */
+// 指定した店舗で処理を実行する（全現場の集計に使う）
+function withStore(storeId, fn) {
+  const prev = DB.activeStoreId;
+  DB.activeStoreId = storeId;
+  try { return fn(); } finally { DB.activeStoreId = prev; }
+}
+
 function buildCalendar() {
   const st = store();
   const r = periodRange();
@@ -871,6 +935,12 @@ function renderShift() {
     + (ovCount ? '<br /><span style="color:#92650a">営業日を手動で変更した日が ' + ovCount + '日あります。</span>' : '');
 
   const alerts = [];
+  if (!st.configured) {
+    alerts.push('<div class="alert warn"><b>この現場はまだ設定を確認していません。</b><br />'
+      + '定休日と必要人数が仮の値（' + (st.closedDays.length ? st.closedDays.map(function(d){return DOW[d]+'曜';}).join('・') + '定休' : '定休日なし')
+      + '／平日 ' + st.weekdayStaff + '人・土日 ' + st.weekendStaff + '人）のままです。'
+      + '「店舗設定」タブで実際の条件に直してから作成してください。</div>');
+  }
   if (!staff.length) {
     alerts.push('<div class="alert warn">スタッフが登録されていません。「スタッフ」タブから追加してください。</div>');
   } else if (!sh) {
@@ -1192,7 +1262,16 @@ function renderStore() {
     ? '祝日は土日と同じ ' + st.weekendStaff + '人 で組みます。'
     : '祝日も平日と同じ ' + st.weekdayStaff + '人 で組みます。';
   document.getElementById('st-holopen-btn').textContent = st.openOnClosedHoliday ? '祝日なら営業する' : '祝日でも休業する';
+
+  document.getElementById('st-confirm-box').innerHTML = st.configured
+    ? '<div class="alert ok" style="margin:1rem 0 0">この現場の設定は確認済みです。'
+      + '<button class="btn sm" style="margin-left:8px" onclick="setConfigured(false)">未確認に戻す</button></div>'
+    : '<div class="alert warn" style="margin:1rem 0 0">上の定休日・必要人数は仮の値です。'
+      + '実際の条件に直したら確認済みにしてください。'
+      + '<button class="btn sm" style="margin-left:8px" onclick="setConfigured(true)">この現場の設定を確認済みにする</button></div>';
 }
+
+function setConfigured(v) { store().configured = v; saveDB(); renderAll(); }
 
 function toggleClosed(k) {
   const st = store();
@@ -1217,7 +1296,7 @@ function addStore() {
     id: 's_' + Math.random().toString(36).slice(2, 9),
     name: name.trim(), closedDays: [], weekdayStaff: 1, weekendStaff: 2,
     holidayAsWeekend: true, openOnClosedHoliday: false, maxConsecutive: 5,
-    periodStartDay: store().periodStartDay, staff: [],
+    periodStartDay: store().periodStartDay, configured: true, staff: [],
   };
   DB.stores.push(s); DB.activeStoreId = s.id; saveDB(); renderAll();
 }
@@ -1240,6 +1319,88 @@ function deleteStore() {
   });
   DB.activeStoreId = DB.stores[0].id;
   saveDB(); renderAll();
+}
+
+/* =========================================================
+   画面：全現場
+   ========================================================= */
+function siteSummary(st) {
+  return withStore(st.id, function () {
+    const cal = buildCalendar();
+    const staff = activeStaff();
+    const sh = getShift();
+    const slots = cal.reduce(function (a, c) { return a + c.need; }, 0);
+    let filled = 0, shortDays = 0;
+    cal.forEach(function (c) {
+      const n = sh && sh.days[c.key] ? sh.days[c.key].length : 0;
+      filled += n;
+      if (sh && !c.closed && n < c.need) shortDays++;
+    });
+    return {
+      store: st, period: periodLabel(), openDays: cal.filter(function (c) { return !c.closed; }).length,
+      slots: slots, staffCount: staff.length, hasShift: !!sh, filled: filled, shortDays: shortDays,
+      overrides: cal.filter(function (c) { return c.overridden; }).length,
+    };
+  });
+}
+
+function renderAllSites() {
+  let h = '<table><thead><tr>'
+    + '<th class="col-name">店舗・現場</th><th>設定</th><th>スタッフ</th><th>期間</th>'
+    + '<th>営業日</th><th>のべ必要</th><th>シフト</th><th>不足</th><th></th></tr></thead><tbody>';
+  DB.stores.forEach(function (st) {
+    const s = siteSummary(st);
+    const isCur = st.id === DB.activeStoreId;
+    h += '<tr' + (isCur ? ' style="background:#faf7f3"' : '') + '>';
+    h += '<td class="col-name"' + (isCur ? ' style="background:#faf7f3"' : '') + '>' + esc(st.name) + '</td>';
+    h += st.configured
+      ? '<td style="color:#0F6E56">確認済</td>'
+      : '<td class="cell-req-off" style="cursor:default">未設定</td>';
+    h += '<td>' + s.staffCount + '名</td>';
+    h += '<td class="muted">' + esc(s.period) + '</td>';
+    h += '<td>' + s.openDays + '日</td>';
+    h += '<td>' + s.slots + '人</td>';
+    h += s.hasShift
+      ? '<td style="color:#0F6E56">作成済 (' + s.filled + ')</td>'
+      : '<td class="muted">未作成</td>';
+    h += s.shortDays ? '<td class="cell-short" style="cursor:default">' + s.shortDays + '日</td>'
+                     : '<td class="muted">' + (s.hasShift ? 'なし' : '-') + '</td>';
+    h += '<td><button class="btn sm" onclick="gotoStore(\'' + st.id + '\')">開く</button></td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('all-table-wrap').innerHTML = h;
+}
+
+function gotoStore(id) {
+  DB.activeStoreId = id; saveDB(); renderAll();
+  const tabs = document.querySelectorAll('.tab');
+  for (let i = 0; i < tabs.length; i++) {
+    if (tabs[i].dataset.panel === 'p-shift') { showTab(tabs[i]); break; }
+  }
+  window.scrollTo(0, 0);
+}
+
+function generateAll() {
+  const targets = DB.stores.filter(function (st) { return st.configured && st.staff.some(function (u) { return u.active; }); });
+  if (!targets.length) { alert('確認済みでスタッフのいる現場がありません。'); return; }
+  const skipped = DB.stores.length - targets.length;
+  if (!confirm(targets.length + ' 現場のシフトを自動作成します。\n'
+    + '（未設定・スタッフ未登録の ' + skipped + ' 現場はとばします）\n'
+    + '作成済みのシフトは上書きされます。よろしいですか？')) return;
+
+  const done = [];
+  targets.forEach(function (st) {
+    withStore(st.id, function () {
+      const res = generate(20240101);
+      const data = {};
+      Object.keys(res.assign).forEach(function (k) { if (res.assign[k].length) data[k] = res.assign[k]; });
+      setShift({ days: data, generatedAt: new Date().toISOString() });
+      done.push(st.name + (res.warnings.length ? '（要確認）' : ''));
+    });
+  });
+  renderAll();
+  alert('作成しました：\n' + done.join('\n'));
 }
 
 /* =========================================================
@@ -1276,6 +1437,40 @@ function exportCsv() {
   const r = periodRange();
   const fname = st.name + '_' + dateKey(r.start) + '-' + dateKey(r.end) + '_シフト.csv';
   download(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }), fname);
+}
+
+// 転記用：1行 = 1人の1日の出勤（シフト管理アプリなどへの取り込み向け）
+function exportTransferCsv(currentOnly) {
+  const targets = currentOnly ? [store()] : DB.stores;
+  const rows = [['日付', '曜日', '祝日', '店舗・現場', '氏名']];
+  let count = 0;
+
+  targets.forEach(function (st) {
+    withStore(st.id, function () {
+      const sh = getShift();
+      if (!sh) return;
+      const cal = buildCalendar();
+      const nameOf = function (id) { const u = st.staff.find(function (x) { return x.id === id; }); return u ? u.name : ''; };
+      cal.forEach(function (c) {
+        (sh.days[c.key] || []).forEach(function (id) {
+          rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, nameOf(id)]);
+          count++;
+        });
+      });
+    });
+  });
+
+  if (!count) {
+    alert(currentOnly ? 'この現場のシフトがまだ作成されていません。' : 'この期間に作成済みのシフトがありません。');
+    return;
+  }
+  const csv = rows.map(function (r) {
+    return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\r\n');
+  const r = periodRange();
+  const label = currentOnly ? store().name : '全現場';
+  download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }),
+    label + '_' + dateKey(r.start) + '-' + dateKey(r.end) + '_転記用.csv');
 }
 
 function exportJson() {
@@ -1331,7 +1526,8 @@ function showTab(btn) {
 
 function renderStoreSelect() {
   document.getElementById('store-select').innerHTML = DB.stores.map(function (s) {
-    return '<option value="' + s.id + '"' + (s.id === DB.activeStoreId ? ' selected' : '') + '>' + esc(s.name) + '</option>';
+    return '<option value="' + s.id + '"' + (s.id === DB.activeStoreId ? ' selected' : '') + '>'
+      + esc(s.name) + (s.configured ? '' : '（未設定）') + '</option>';
   }).join('');
 }
 
@@ -1343,6 +1539,7 @@ function renderAll() {
   document.getElementById('month-input').value = currentYM;
   document.getElementById('period-badge').textContent = periodLabel();
   renderStore();
+  renderAllSites();
   renderStaff();
   renderDays();
   renderRequests();
