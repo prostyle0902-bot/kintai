@@ -133,6 +133,8 @@
   .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
   .dow-need label span { font-size: 10px; color: var(--text-secondary); }
   .dow-need input { padding: 5px 2px !important; text-align: center; }
+  .time-tag { font-size: 10.5px; color: var(--text-secondary); background: #f0efeb;
+    border-radius: 4px; padding: 2px 6px; margin-left: 6px; white-space: nowrap; }
   .dow-lim { width: 96px; margin-left: 8px; padding: 5px 8px; font-size: 11px;
     border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
     background: var(--surface); font-family: inherit; color: var(--text-primary); }
@@ -381,9 +383,16 @@
       <div class="field" style="margin-top:1rem">
         <label>既定の勤務時間（パターンを使わない現場の、転記するときの時刻）</label>
         <div class="dow-picker">
+          <span class="time-tag">平日</span>
           <select id="st-start" onchange="updateStore('startTime', this.value)"></select>
           <span>〜</span>
           <select id="st-end" onchange="updateStore('endTime', this.value)"></select>
+        </div>
+        <div class="dow-picker" style="margin-top:6px">
+          <span class="time-tag">土日祝</span>
+          <select id="st-start-we" onchange="updateStore('startTimeWeekend', this.value)"></select>
+          <span>〜</span>
+          <select id="st-end-we" onchange="updateStore('endTimeWeekend', this.value)"></select>
         </div>
         <div class="muted" id="st-time-note"></div>
       </div>
@@ -473,6 +482,9 @@ const ROSTER = [
   // --- 飲食事業部 ---
   { id: 's_sawara13', name: 'さわら十三里屋', dept: 'food', sh: 9, eh: 18, configured: true,
     closedDays: [2], weekdayStaff: 1, weekendStaff: 2,
+    // 平日は10時出勤・16時閉店・16時半退社／土日祝は10時出勤・17時閉店・17時半退社
+    startTime: '10:00', endTime: '16:30',
+    startTimeWeekend: '10:00', endTimeWeekend: '17:30',
     staff: ['八木秀子','籾山結泉','下河邊なお子','小堀真桜'] },
   { id: 's_ryuchan', name: 'りゅうちゃん', dept: 'food', sh: 14, eh: 25,
     staff: ['河野竜二','網代愛','新河美和','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','濱田歩','須之内郁美'] },
@@ -542,7 +554,7 @@ const ROSTER = [
 
 /* 現場の条件（定休日・必要人数・勤務パターン）が確定するたびにこの番号を上げる。
    保存済みのデータにも一度だけ反映して、古い仮の設定が残らないようにする。 */
-const ROSTER_SYNC = 4;
+const ROSTER_SYNC = 5;
 
 // 24時以降の時刻を HH:MM（翌日ぶんは 00〜）に直す
 function hourToTime(h) {
@@ -567,8 +579,10 @@ function defaultDB() {
         dept: r.dept,
         openHour: r.sh,
         closeHour: r.eh,
-        startTime: hourToTime(r.sh),
-        endTime: hourToTime(r.eh),
+        startTime: r.startTime || hourToTime(r.sh),
+        endTime: r.endTime || hourToTime(r.eh),
+        startTimeWeekend: r.startTimeWeekend || r.startTime || hourToTime(r.sh),
+        endTimeWeekend: r.endTimeWeekend || r.endTime || hourToTime(r.eh),
         closedDays: r.closedDays || [],
         weekdayStaff: r.weekdayStaff !== undefined ? r.weekdayStaff : 1,
         weekendStaff: r.weekendStaff !== undefined ? r.weekendStaff : 1,
@@ -601,8 +615,9 @@ function newStaff(src) {
     availableDays: s.availableDays ? s.availableDays.slice() : [0,1,2,3,4,5,6],
     patterns: s.patterns ? s.patterns.slice() : [],
     dowLimits: s.dowLimits ? JSON.parse(JSON.stringify(s.dowLimits)) : {},
-    startTime: '',   // 空なら店舗の既定時間を使う
-    endTime: '',
+    // 空なら店舗の既定時間を使う
+    startTime: s.startTime || '', endTime: s.endTime || '',
+    startTimeWeekend: s.startTimeWeekend || '', endTimeWeekend: s.endTimeWeekend || '',
     active: true,
   };
 }
@@ -616,7 +631,7 @@ function loadDB() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return normalizeDB(JSON.parse(raw));
   } catch (e) { /* 壊れていたら既定に戻す */ }
-  return defaultDB();
+  return normalizeDB(defaultDB());
 }
 
 function normalizeDB(d) {
@@ -645,6 +660,9 @@ function syncFromRoster(d) {
     if (r.closedDays) s.closedDays = r.closedDays.slice();
     if (r.weekdayStaff !== undefined) s.weekdayStaff = r.weekdayStaff;
     if (r.weekendStaff !== undefined) s.weekendStaff = r.weekendStaff;
+    ['startTime','endTime','startTimeWeekend','endTimeWeekend'].forEach(function (k) {
+      if (r[k]) s[k] = r[k];
+    });
     if (r.patterns) s.patterns = JSON.parse(JSON.stringify(r.patterns));
     // 出勤日数の目安・上限が決まっている人にも反映する
     r.staff.forEach(function (x) {
@@ -669,6 +687,9 @@ function normalizeStore(s) {
   s.closeHour = num(s.closeHour, base ? base.eh : 18);
   s.startTime = s.startTime || hourToTime(s.openHour);
   s.endTime = s.endTime || hourToTime(s.closeHour);
+  // 土日祝の時間。指定がなければ平日と同じ
+  s.startTimeWeekend = s.startTimeWeekend || s.startTime;
+  s.endTimeWeekend = s.endTimeWeekend || s.endTime;
   s.closedDays = Array.isArray(s.closedDays) ? s.closedDays : [];
   s.weekdayStaff = num(s.weekdayStaff, 1);
   s.weekendStaff = num(s.weekendStaff, 2);
@@ -687,6 +708,8 @@ function normalizeStore(s) {
     if (!u.dowLimits || typeof u.dowLimits !== 'object') u.dowLimits = {};  // 例 {1:2} 月曜は期間内2回まで
     u.startTime = u.startTime || '';
     u.endTime = u.endTime || '';
+    u.startTimeWeekend = u.startTimeWeekend || '';
+    u.endTimeWeekend = u.endTimeWeekend || '';
     u.active = u.active !== false;
   });
   // パターンは担当者の存在を確かめるため、スタッフを整えたあとに処理する
@@ -748,10 +771,17 @@ function canDoPattern(u, code) {
   return u.patterns.indexOf(code) >= 0;
 }
 
-// そのスタッフの勤務時間。パターンがあればパターンの時刻、なければ個別指定→店舗の既定
-function shiftTimes(st, u, code) {
+// そのスタッフの勤務時間。パターンがあればパターンの時刻。
+// なければ 個別指定 → 店舗の既定 の順。平日と土日祝で別々に持てる。
+function shiftTimes(st, u, code, weekendLike) {
   const p = findPattern(st, code);
   if (p) return { start: p.start, end: p.end };
+  if (weekendLike) {
+    return {
+      start: (u && u.startTimeWeekend) || st.startTimeWeekend || st.startTime,
+      end: (u && u.endTimeWeekend) || st.endTimeWeekend || st.endTime,
+    };
+  }
   return { start: (u && u.startTime) || st.startTime, end: (u && u.endTime) || st.endTime };
 }
 
@@ -1441,7 +1471,8 @@ function renderTransferInfo(st, sh) {
     ? '　勤務時間：' + st.patterns.map(function (p) {
         return esc(p.code + ' ' + p.start + '〜' + timeLabel(p.end, st.openHour));
       }).join('・') + '（パターンごとの時間で送ります）'
-    : '　勤務時間：' + esc(st.startTime) + '〜' + esc(timeLabel(st.endTime, st.openHour))
+    : '　勤務時間：平日 ' + esc(st.startTime) + '〜' + esc(timeLabel(st.endTime, st.openHour))
+      + '／土日祝 ' + esc(st.startTimeWeekend) + '〜' + esc(timeLabel(st.endTimeWeekend, st.openHour))
       + '（スタッフごとの指定があればそちらを使います）';
   let h = '転記先：<a href="' + url + '" target="_blank" rel="noopener">' + dest + '</a>'
     + timeTxt + '<br />'
@@ -1685,11 +1716,15 @@ function renderStaff() {
           + ' onclick="toggleStaffPattern(' + i + ',\'' + esc(p.code) + '\')">' + esc(p.code) + '</button>';
       });
     } else {
-      h += '<select class="need-sel" style="width:auto;margin-left:8px" onchange="updStaffTime(' + i + ',\'startTime\',this.value)">'
-        + '<option value="">店舗既定</option>' + timeOptions(st, u.startTime) + '</select>'
-        + '<span style="font-size:11px;color:var(--text-secondary);padding:0 3px">〜</span>'
-        + '<select class="need-sel" style="width:auto" onchange="updStaffTime(' + i + ',\'endTime\',this.value)">'
-        + '<option value="">店舗既定</option>' + timeOptions(st, u.endTime) + '</select>';
+      // 平日と土日祝で別々に指定できる（空欄なら店舗の既定を使う）
+      [['平日', 'startTime', 'endTime'], ['土日祝', 'startTimeWeekend', 'endTimeWeekend']].forEach(function (g) {
+        h += '<span class="time-tag">' + g[0] + '</span>'
+          + '<select class="need-sel" style="width:auto" onchange="updStaffTime(' + i + ',\'' + g[1] + '\',this.value)">'
+          + '<option value="">既定</option>' + timeOptions(st, u[g[1]]) + '</select>'
+          + '<span style="font-size:11px;color:var(--text-secondary);padding:0 2px">〜</span>'
+          + '<select class="need-sel" style="width:auto" onchange="updStaffTime(' + i + ',\'' + g[2] + '\',this.value)">'
+          + '<option value="">既定</option>' + timeOptions(st, u[g[2]]) + '</select>';
+      });
     }
     h += '<input type="text" class="dow-lim" value="' + esc(dowLimitsText(u))
       + '" placeholder="曜日の上限 例:月2" title="特定の曜日の出勤回数を期間内で制限します（例：月2,水1）"'
@@ -1778,12 +1813,14 @@ function renderStore() {
   document.getElementById('st-name').value = st.name;
   document.getElementById('st-start').innerHTML = timeOptions(st, st.startTime);
   document.getElementById('st-end').innerHTML = timeOptions(st, st.endTime);
+  document.getElementById('st-start-we').innerHTML = timeOptions(st, st.startTimeWeekend);
+  document.getElementById('st-end-we').innerHTML = timeOptions(st, st.endTimeWeekend);
   document.getElementById('st-time-note').textContent =
     '転記先：' + (st.dept === 'gyomu' ? '業務課シフト' : '飲食事業部シフト')
     + '／営業時間 ' + st.openHour + '時〜' + (st.closeHour >= 24 ? '翌' + (st.closeHour - 24) : st.closeHour) + '時'
     + '。' + (usesPatterns(st)
       ? 'この現場は勤務パターンを使うため、転記の時刻はパターンの時間になります。'
-      : 'スタッフごとに違う時間で入る場合は「スタッフ」タブで個別に指定できます。');
+      : '祝日は土日と同じ時間で組みます。スタッフごとに違う時間で入る場合は「スタッフ」タブで個別に指定できます。');
   renderPatterns(st);
   document.getElementById('st-weekday').value = st.weekdayStaff;
   document.getElementById('st-weekend').value = st.weekendStaff;
@@ -2086,7 +2123,7 @@ function exportTransferCsv(currentOnly) {
           if (!u) return;
           const codes = getPatList(sh, c.key, id);
           (codes.length ? codes : ['']).forEach(function (code) {
-            const t = shiftTimes(st, u, code);
+            const t = shiftTimes(st, u, code, c.weekendLike);
             rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, u.name, code, t.start, t.end,
               autoBreak(u.name, t.start, t.end)]);
             count++;
@@ -2259,7 +2296,7 @@ function buildTransferPlan(st) {
         const codes = getPatList(sh, c.key, uid);
         const list = codes.length ? codes : [''];
         list.forEach(function (code, k) {
-          const t = shiftTimes(st, u, code);
+          const t = shiftTimes(st, u, code, c.weekendLike);
           plan.push({
             key: c.key + '|' + u.id + (k ? '#' + k : ''),
             date: c.key,
