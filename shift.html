@@ -136,6 +136,24 @@
   .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
   .dow-need label span { font-size: 10px; color: var(--text-secondary); }
   .dow-need input { padding: 5px 2px !important; text-align: center; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50;
+    align-items: center; justify-content: center; padding: 1rem; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius-lg); padding: 1.5rem;
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 3px; }
+  .modal-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 1.25rem; }
+  .slot-box { border: 0.5px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px; margin-bottom: 10px; }
+  .slot-head { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .slot-times { display: flex; align-items: center; gap: 8px; }
+  .slot-times select { flex: 1; padding: 9px; font-size: 14px; border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-md); background: var(--surface); font-family: inherit; }
+  .slot-note { font-size: 11px; color: #92650a; margin-top: 8px; }
+  .cell-adj { box-shadow: inset 0 0 0 2px #d4a017; }
+  .adjust-on td.cell-on { cursor: cell; }
+
   .time-tag { font-size: 10.5px; color: var(--text-secondary); background: #f0efeb;
     border-radius: 4px; padding: 2px 6px; margin-left: 6px; white-space: nowrap; }
   .dow-lim { width: 96px; margin-left: 8px; padding: 5px 8px; font-size: 11px;
@@ -167,6 +185,9 @@
   .cal-c .dnum small { font-weight: 400; font-size: 10px; color: var(--text-secondary); margin-left: 3px; }
   .cal-c .nm { display: block; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 2px 4px; margin-bottom: 3px; }
   .cal-c .nm em { display: block; font-style: normal; font-size: 10px; opacity: .85; }
+  .cal-c .nm { cursor: pointer; }
+  .cal-c .nm:hover { background: #cdeee1; }
+  .cal-c .nm.adj { box-shadow: inset 0 0 0 1.5px #d4a017; }
   .with-times td.cell-on { padding: 4px 5px; line-height: 1.25; }
   .cell-t { display: block; font-size: 10px; font-weight: 600; white-space: nowrap; }
   .hol-chip.on { background: #FAECE7 !important; border-color: #e3b8a8 !important; color: #993C1D !important; }
@@ -240,6 +261,7 @@
         <button class="btn primary" onclick="doGenerate()">この期間のシフトを自動作成</button>
         <button class="btn" onclick="doGenerate(true)">別パターンで作り直す</button>
         <button class="btn" id="btn-times" onclick="toggleShowTimes()">時間を表示</button>
+        <button class="btn" id="btn-adjust" onclick="toggleAdjustMode()">時間を調整</button>
         <button class="btn ghost" onclick="clearShift()">シフトを消去</button>
         <button class="btn ghost" onclick="exportCsv()">CSV出力</button>
         <button class="btn ghost" onclick="exportTransferCsv(true)">転記用CSV</button>
@@ -255,7 +277,7 @@
       <span><i style="background:#FAECE7"></i>希望休</span>
       <span><i style="background:#FFF6E0"></i>出勤希望</span>
       <span><i style="background:#efece6"></i>休業日</span>
-      <span><i style="background:#d4a017"></i>営業日を手動で変更した日</span>
+      <span><i style="background:#d4a017"></i>営業日・時間を手動で変更した日</span>
     </div>
 
     <div class="card no-print">
@@ -309,6 +331,19 @@
       </div>
     </div>
     <div id="days-view"></div>
+  </div>
+
+  <!-- ===== 時間の調整（1日ぶん） ===== -->
+  <div class="overlay no-print" id="edit-overlay" onclick="closeTimeEditor(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title" id="edit-title"></div>
+      <div class="modal-sub" id="edit-sub"></div>
+      <div id="edit-body"></div>
+      <div class="row-actions" style="margin-top:1.25rem">
+        <button class="btn primary" onclick="closeTimeEditor()">閉じる</button>
+        <button class="btn ghost" id="edit-reset" onclick="resetTimeEditor()">この日の時間を既定に戻す</button>
+      </div>
+    </div>
   </div>
 
   <!-- ===== 全現場 ===== -->
@@ -820,12 +855,33 @@ function shortTime(t) {
 }
 function compactSpan(start, end) { return shortTime(start) + '-' + shortTime(end); }
 
+/* シフト作成後に、その日その人だけ時間を変えたぶんを持つ
+   sh.times['YYYY-MM-DD|staffId'] = [{ s:'10:00', e:'15:00' }, ...]（枠の順に対応） */
+function getTimeOv(sh, key, staffId) {
+  return (sh && sh.times && sh.times[key + '|' + staffId]) || null;
+}
+function setTimeOv(sh, key, staffId, list) {
+  sh.times = sh.times || {};
+  const k = key + '|' + staffId;
+  const has = list && list.some(function (o) { return o && (o.s || o.e); });
+  if (has) sh.times[k] = list; else delete sh.times[k];
+}
+
 // その人のその日の勤務時間（複数枠なら複数返す）
+// 個別調整 → パターン → スタッフの指定 → 店舗の既定 の順で決まる
 function daySpans(st, sh, c, u) {
   const codes = getPatList(sh, c.key, u.id);
-  return (codes.length ? codes : ['']).map(function (code) {
+  const ov = getTimeOv(sh, c.key, u.id) || [];
+  return (codes.length ? codes : ['']).map(function (code, i) {
     const t = shiftTimes(st, u, code, c.weekendLike);
-    return { code: code, start: t.start, end: t.end };
+    const o = ov[i] || {};
+    return {
+      code: code,
+      start: o.s || t.start,
+      end: o.e || t.end,
+      base: t,
+      adjusted: !!(o.s || o.e),
+    };
   });
 }
 
@@ -1393,6 +1449,9 @@ function toggleCell(staffId, key) {
     if (i >= 0) cur.splice(i, 1); else cur.push(staffId);
   }
 
+  // 枠が変わると時間の対応がずれるので、この日の時間調整は外す
+  setTimeOv(sh, key, staffId, null);
+
   if (cur.length) sh.days[key] = cur; else delete sh.days[key];
   sh.manual = true;
   setShift(sh);
@@ -1463,8 +1522,9 @@ function renderShift() {
       let cls, txt, title = '';
       if (c.closed) { cls = 'cell-closed'; txt = '－'; }
       else if (on) {
-        cls = 'cell-on' + (req[c.key] === 'off' ? ' cell-conflict' : '');
         const spans = daySpans(st, sh, c, u);
+        cls = 'cell-on' + (req[c.key] === 'off' ? ' cell-conflict' : '')
+          + (spans.some(function (s) { return s.adjusted; }) ? ' cell-adj' : '');
         if (DB.showTimes) {
           // 記号（あれば）と時間を縦に並べる
           txt = spans.map(function (s) {
@@ -1480,7 +1540,11 @@ function renderShift() {
       else if (req[c.key] === 'off') { cls = 'cell-req-off'; txt = '×'; }
       else if (req[c.key] === 'want') { cls = 'cell-req-want'; txt = '◎'; }
       else { cls = 'cell-off'; txt = '・'; }
-      const click = c.closed ? '' : ' onclick="toggleCell(\'' + u.id + '\',\'' + c.key + '\')"';
+      // 調整モードのときは、出勤している人のセルを押すと時間の編集を開く
+      const editable = DB.adjustMode && on;
+      const click = c.closed ? ''
+        : editable ? ' onclick="openTimeEditor(\'' + c.key + '\',\'' + u.id + '\')"'
+        : ' onclick="toggleCell(\'' + u.id + '\',\'' + c.key + '\')"';
       h += '<td class="' + cls + '"' + click + (title ? ' title="' + esc(title) + '"' : '') + '>' + txt + '</td>';
     });
     h += '<td class="cell-total">' + counts[u.id] + '</td>';
@@ -1501,10 +1565,16 @@ function renderShift() {
   const wrap = document.getElementById('shift-table-wrap');
   wrap.innerHTML = h;
   wrap.classList.toggle('with-times', !!DB.showTimes);
+  wrap.classList.toggle('adjust-on', !!DB.adjustMode);
   const tb = document.getElementById('btn-times');
   if (tb) {
     tb.textContent = DB.showTimes ? '時間を隠す' : '時間を表示';
     tb.classList.toggle('primary', !!DB.showTimes);
+  }
+  const ab = document.getElementById('btn-adjust');
+  if (ab) {
+    ab.textContent = DB.adjustMode ? '調整をやめる' : '時間を調整';
+    ab.classList.toggle('primary', !!DB.adjustMode);
   }
   renderDaily(cal, sh);
   renderTransferInfo(st, sh);
@@ -1609,12 +1679,14 @@ function renderDaily(cal, sh) {
     else {
       ids.forEach(id => {
         const u = staff.find(x => x.id === id);
-        h += '<span class="nm">' + esc(nameOf(id));
-        if (u) {
-          daySpans(st, sh, c, u).forEach(function (s) {
-            h += '<em>' + (s.code ? esc(s.code) + ' ' : '') + esc(s.start + '〜' + s.end) + '</em>';
-          });
-        }
+        const spans = u ? daySpans(st, sh, c, u) : [];
+        const adj = spans.some(function (s) { return s.adjusted; });
+        // 名前を押すとその日の時間を調整できる
+        h += '<span class="nm' + (adj ? ' adj' : '') + '" title="押すと時間を調整できます"'
+          + ' onclick="openTimeEditor(\'' + c.key + '\',\'' + id + '\')">' + esc(nameOf(id));
+        spans.forEach(function (s) {
+          h += '<em>' + (s.code ? esc(s.code) + ' ' : '') + esc(s.start + '〜' + s.end) + '</em>';
+        });
         h += '</span>';
       });
       const n = filledSlots(st, sh, c.key);
@@ -2186,11 +2258,9 @@ function exportTransferCsv(currentOnly) {
         (sh.days[c.key] || []).forEach(function (id) {
           const u = st.staff.find(function (x) { return x.id === id; });
           if (!u) return;
-          const codes = getPatList(sh, c.key, id);
-          (codes.length ? codes : ['']).forEach(function (code) {
-            const t = shiftTimes(st, u, code, c.weekendLike);
-            rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, u.name, code, t.start, t.end,
-              autoBreak(u.name, t.start, t.end)]);
+          daySpans(st, sh, c, u).forEach(function (s) {
+            rows.push([c.key, DOW[c.dow], c.holiday || '', st.name, u.name, s.code, s.start, s.end,
+              autoBreak(u.name, s.start, s.end)]);
             count++;
           });
         });
@@ -2358,18 +2428,16 @@ function buildTransferPlan(st) {
         const u = st.staff.find(function (x) { return x.id === uid; });
         if (!u) return;
         // 午前＋午後のように1日に複数の枠がある人は、枠ごとに1件ずつ送る
-        const codes = getPatList(sh, c.key, uid);
-        const list = codes.length ? codes : [''];
-        list.forEach(function (code, k) {
-          const t = shiftTimes(st, u, code, c.weekendLike);
+        // 時間を調整した日はその時間で送る
+        daySpans(st, sh, c, u).forEach(function (s, k) {
           plan.push({
             key: c.key + '|' + u.id + (k ? '#' + k : ''),
             date: c.key,
             store: st.name,
             staff: u.name,
-            start: t.start,
-            end: t.end,
-            pattern: code,
+            start: s.start,
+            end: s.end,
+            pattern: s.code,
           });
         });
       });
@@ -2545,6 +2613,115 @@ function renderStoreSelect() {
 function toggleShowTimes() {
   DB.showTimes = !DB.showTimes;
   saveDB(); renderShift();
+}
+
+/* =========================================================
+   時間の調整（作成したシフトの、その日その人だけ変える）
+   ========================================================= */
+let editTarget = null;   // { key, staffId }
+
+function toggleAdjustMode() {
+  DB.adjustMode = !DB.adjustMode;
+  if (DB.adjustMode) DB.showTimes = true;   // 調整するときは時間が見えていた方がよい
+  saveDB(); renderShift();
+}
+
+// 調整用の時刻の選択肢。店舗の営業時間より少し広めに、15分刻みで出す
+function editTimeOptions(st, selected) {
+  const from = Math.max(0, Math.min(st.openHour, 24) - 2);
+  const to = Math.min(30, st.closeHour + 2);
+  let h = '';
+  for (let hh = from; hh <= to; hh++) {
+    for (let mi = 0; mi < 60; mi += 15) {
+      if (hh === to && mi > 0) break;
+      const real = hh >= 24 ? hh - 24 : hh;
+      const val = String(real).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+      const lbl = (hh >= 24 ? '翌' : '') + real + ':' + String(mi).padStart(2, '0');
+      h += '<option value="' + val + '"' + (val === selected ? ' selected' : '') + '>' + lbl + '</option>';
+    }
+  }
+  return h;
+}
+
+function openTimeEditor(key, staffId) {
+  const st = store();
+  const sh = getShift();
+  if (!sh || !sh.days[key] || sh.days[key].indexOf(staffId) < 0) return;
+  editTarget = { key: key, staffId: staffId };
+  renderTimeEditor();
+  document.getElementById('edit-overlay').classList.add('open');
+}
+
+function closeTimeEditor(ev) {
+  if (ev && ev.target !== ev.currentTarget) return;
+  editTarget = null;
+  document.getElementById('edit-overlay').classList.remove('open');
+}
+
+function renderTimeEditor() {
+  if (!editTarget) return;
+  const st = store();
+  const sh = getShift();
+  const c = buildCalendar().find(function (x) { return x.key === editTarget.key; });
+  const u = st.staff.find(function (x) { return x.id === editTarget.staffId; });
+  if (!c || !u) { closeTimeEditor(); return; }
+
+  const spans = daySpans(st, sh, c, u);
+  document.getElementById('edit-title').textContent = u.name;
+  document.getElementById('edit-sub').textContent =
+    c.m + '月' + c.day + '日（' + DOW[c.dow] + '）' + (c.holiday ? '　' + c.holiday : '')
+    + (c.weekendLike ? '　土日祝の時間' : '　平日の時間');
+
+  let h = '';
+  spans.forEach(function (s, i) {
+    h += '<div class="slot-box">';
+    h += '<div class="slot-head">' + (s.code ? '枠 ' + esc(s.code) : '勤務時間')
+      + '　既定 ' + esc(s.base.start + '〜' + s.base.end) + '</div>';
+    h += '<div class="slot-times">'
+      + '<select onchange="updEditTime(' + i + ',\'s\',this.value)">' + editTimeOptions(st, s.start) + '</select>'
+      + '<span>〜</span>'
+      + '<select onchange="updEditTime(' + i + ',\'e\',this.value)">' + editTimeOptions(st, s.end) + '</select>'
+      + '</div>';
+    if (s.adjusted) h += '<div class="slot-note">この日だけ変更しています</div>';
+    h += '</div>';
+  });
+  h += '<div class="muted">変更するとこの日のこの人だけ時間が変わります。'
+    + '転記やCSVにもこの時間で反映されます。</div>';
+  document.getElementById('edit-body').innerHTML = h;
+  document.getElementById('edit-reset').style.display =
+    spans.some(function (s) { return s.adjusted; }) ? '' : 'none';
+}
+
+function updEditTime(i, which, val) {
+  if (!editTarget) return;
+  const st = store();
+  const sh = getShift();
+  const c = buildCalendar().find(function (x) { return x.key === editTarget.key; });
+  const u = st.staff.find(function (x) { return x.id === editTarget.staffId; });
+  const spans = daySpans(st, sh, c, u);
+  // 既定と同じ値に戻したら、その調整は消す
+  const list = spans.map(function (s) {
+    const o = {};
+    if (s.start !== s.base.start) o.s = s.start;
+    if (s.end !== s.base.end) o.e = s.end;
+    return o;
+  });
+  const base = spans[i].base;
+  if (which === 's') { if (val === base.start) delete list[i].s; else list[i].s = val; }
+  else { if (val === base.end) delete list[i].e; else list[i].e = val; }
+  setTimeOv(sh, editTarget.key, editTarget.staffId, list);
+  setShift(sh);
+  renderTimeEditor();
+  renderShift();
+}
+
+function resetTimeEditor() {
+  if (!editTarget) return;
+  const sh = getShift();
+  setTimeOv(sh, editTarget.key, editTarget.staffId, null);
+  setShift(sh);
+  renderTimeEditor();
+  renderShift();
 }
 
 function onStoreChange() { DB.activeStoreId = document.getElementById('store-select').value; saveDB(); renderAll(); }
