@@ -37,51 +37,29 @@ payroll.py は4月〜7月ぶんを「給与集計_月次累積_202607」スプ�
 import collections
 
 import kyuyo_parse
+import kyuyo_split
 import roster
 
 YM = "202608"
 MONTH = "8月"
 SRC = "給料一覧表-202608.pdf（Dropbox /※プロスタイル給与※/プロスタイル給与R8年/）"
 
-# 部門コード（社員番号の頭4桁）→ タブ。名簿で引けない人の受け皿。
-# ★7月・8月のデータで「その部門の人が名簿でどこに割れているか」を数えて決めた。
-BUMON = {
-    "0001": "本部", "0002": "業務課", "0011": "業務課", "0021": "業務課",
-    "0022": "業務課", "0031": "業務課", "0071": "業務課", "0081": "焼きたて屋",
-    "0091": "神栖横丁", "0092": "りゅうちゃん", "0101": "さわら十三里屋",
-    "0131": "業務課", "0141": "業務課",
-}
+# ★割り振りの規則そのものは kyuyo_split.py に移した（2026-08-27）。
+#   22期からハナとタコハイで折半する人がいるため、期ごとの規則を1か所にまとめた。
+#   このモジュールは21期の8月ぶんなので PERIOD は "21期"（折半は効かない）。
+PERIOD = "21期"
 
-# 本部だけ行が人ごとに分かれている
-HONBU_ROW = {"0001-0001": "人件費　社長", "0001-0002": "人件費　純子"}
+BUMON = kyuyo_split.BUMON          # 後方互換（ドキュメント用）
+HONBU_ROW = kyuyo_split.HONBU_ROW
 
 
 def _tab(no, name):
-    """氏名（勤怠アプリの名簿）→ タブ。引けなければ部門コードで引く。"""
-    t = roster.tab_of(name)
-    if t:
-        return t, "名簿"
-    return BUMON.get(no[:4]), "部門コード"
+    return kyuyo_split.tab_of(no, name)
 
 
 def _split(ym):
     """{(タブ, PL行): 金額} と、名簿で引けなかった人。"""
-    emp = kyuyo_parse.parse(ym)[0]
-    nm = kyuyo_parse.names(ym)
-    out = collections.Counter()
-    fallback = []
-    for no in sorted(emp):
-        gross, ins = emp[no]
-        name = nm.get(no, "")
-        tab, how = _tab(no, name)
-        assert tab, f"{no} {name}: 店舗が決められない（名簿にも部門コード表にも無い）"
-        if how == "部門コード":
-            fallback.append((no, name, gross, tab))
-        row = HONBU_ROW.get(no) or (
-            "人件費（店長）" if no.startswith("0002") else "人件費（アルバイト）")
-        out[(tab, row)] += gross
-        if ins:
-            out[(tab, "法定福利費")] += ins
+    out, fallback, _pool = kyuyo_split.split(ym, PERIOD)
     return out, fallback
 
 
@@ -93,9 +71,7 @@ def rows():
     who = collections.defaultdict(list)
     for no in sorted(emp):
         tab, _how = _tab(no, nm.get(no, ""))
-        row = HONBU_ROW.get(no) or (
-            "人件費（店長）" if no.startswith("0002") else "人件費（アルバイト）")
-        who[(tab, row)].append(f"{nm.get(no,'')}({no})")
+        who[(tab, kyuyo_split.row_of(no))].append(f"{nm.get(no,'')}({no})")
     for (tab, row), v in sorted(split.items()):
         if row == "法定福利費":
             note = f"給料一覧表{MONTH}分の社会保険料計（{tab}ぶん）"
