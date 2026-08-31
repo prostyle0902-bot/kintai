@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
-import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll8
+import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
 
 STAMP = "2026-08-20 06:40"
 
@@ -438,20 +438,22 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         pay_cells += 1
     print("人件費セル", pay_cells)
 
-    # ===== 8月の給与（給料一覧表PDFから直に組む）=====
-    # 4〜7月は給与集計スプレッドシート由来（payroll.py）だが、8月分のスプシは無い。
-    # 利用者指示 2026-08-23「8月は書類から」に沿って、PDFだけで組んでいる。
-    # 割り振りは 名簿（roster.py）→ 引けなければ部門コード、
-    # 行は社員番号 0002-xxxx が店長・それ以外がアルバイト。
-    # ★同じ規則で7月を組み直すと会計士の既存PLと一致することを check() が毎回見ている。
-    payroll8.check(wb)
-    pr8 = list(payroll8.rows())
-    for tab, plrow, m, val, note in pr8:
+    # ===== 給与（給料一覧表PDFから直に組む）9月〜3月 と 8月 =====
+    # 利用者確認 2026-08-27「21期も無視していい。俺が作ってたから」を受けて、
+    # 21期PLシート由来だった9月〜3月の給与を書類（PDF）から組み直した。
+    # 4月〜7月は payroll.py（給与集計スプレッドシート＝人ごと・月ごとの割り当て）
+    # のまま。そちらのほうが月別の配属という点で根拠が強いため。
+    # 割り振りの規則は kyuyo_split.py。7月を組み直すと payroll.py と一致することを
+    # check() が毎回確かめている。
+    payroll_pdf.check(wb)
+    pr8 = list(payroll_pdf.rows())
+    for tab, plrow, m, val, note, src in pr8:
         if plrow not in build2.RIDX[tab]:
-            missing.append((tab, plrow, "給与8月")); continue
+            missing.append((tab, plrow, "給与PDF")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
-    print("給与8月セル", len(pr8), "／計", f"{sum(x[3] for x in pr8):,}")
+    print("給与（PDF）セル", len(pr8), "／計", f"{sum(x[3] for x in pr8):,}",
+          "／", len({x[2] for x in pr8}), "か月ぶん")
 
     # ===== 売上（既存スプシから転記） =====
     F_SALES = PatternFill("solid", fgColor="FDE9D9")
@@ -610,10 +612,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, v, why in exist_fill.not_posted_rows():
         ws.append(["", tab, "（既存21期PL）", "既存PL", "", "", "", "", plrow, m,
                    f"既存21期PL {tab}", STAMP, why])
-    for tab, plrow, m, val, note in pr8:
-        ws.append(["2026-08", tab, "（給与）",
+    for tab, plrow, m, val, note, src in pr8:
+        ws.append(["", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
-                   val, "", val, 0, plrow, m, payroll8.SRC, STAMP, note])
+                   val, "", val, 0, plrow, m, src, STAMP, note])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -653,8 +655,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     #   まだ届いていない元データを保留リストに出して、何を待っているかを見えるようにする。
     for m, tab, item, reason in status8.hold_rows():
         hs.append(["8月待ち", m, tab, item, "", reason])
-    for m, tab, item, reason in payroll8.hold_rows():
-        hs.append(["給与8月", m, tab, item, "", reason])
+    for m, tab, item, reason in payroll_pdf.hold_rows():
+        hs.append(["給与PDF", m, tab, item, "", reason])
     for m, tab, item, reason in exist_fill.hold_rows(wb):
         hs.append(["既存PL", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
