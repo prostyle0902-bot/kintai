@@ -6,7 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
-import inv2509, inv11, airregi
+import inv2509, inv11, airregi, tanaoroshi
 
 STAMP = "2026-08-20 06:40"
 
@@ -475,6 +475,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     print("給与（PDF）セル", len(pr8), "／計", f"{sum(x[3] for x in pr8):,}",
           "／", len({x[2] for x in pr8}), "か月ぶん")
 
+    # ===== 棚卸し（期首・期末）=====
+    # ★exist_fill より前に置くこと。既存21期PLは「最初に数えた月の値」を
+    #   9月まで遡って置いていただけで、本当の期首は21期_棚卸し表（2025/8/31）。
+    tanaoroshi.check(wb)
+    tana_cells = 0
+    for tab, plrow, m, val, _src, _note in tanaoroshi.rows():
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(val); c.fill = F_POST; c.number_format = build2.NUMFMT
+        tana_cells += 1
+    print("棚卸しセル", tana_cells, "／期首",
+          f"{sum(v for _t, r, m, v, _s, _n in tanaoroshi.rows() if r == '期首棚卸し' and m == '9月'):,}",
+          "（9月＝21期の期首の合計）／★8月は実地棚卸がまだなので空のまま")
+
     # ===== 売上 =====
     F_SALES = PatternFill("solid", fgColor="FDE9D9")
     # ★エアレジ（会計明細）を先に入れる。書類なので既存スプシより優先。
@@ -562,6 +575,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                    src, STAMP, biko])
     for tab, plrow, m, val, src, note in airregi.rows():
         ws.append([f"21期 {m}", tab, "エアレジ", "会計明細", "", "", val, "", plrow, m,
+                   src, STAMP, note])
+    for tab, plrow, m, val, src, note in tanaoroshi.rows():
+        ws.append([f"21期 {m}", tab, "（棚卸し）", "棚卸表", "", "", val, "", plrow, m,
                    src, STAMP, note])
     for tab, plrow, m, val, src, note in nihonshokken.rows():
         ws.append([f"21期 {m}", tab, "日本食研", "請求書", "", 8, val, "", plrow, m,
@@ -710,6 +726,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["請求書2509月", m, tab, item, "", reason])
     for m, tab, item, reason in inv11.HOLD:
         hs.append(["請求書2511月", m, tab, item, "", reason])
+    for m, tab, item, reason in tanaoroshi.hold_rows():
+        hs.append(["棚卸し", m, tab, item, "", reason])
     for tab, m, vendor, amount, reason in EXTRA_HOLD:
         hs.append(["請求書", m, tab, vendor, amount, reason])
     for iss, merch, ex, used in card_hold:
