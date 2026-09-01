@@ -6,7 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
-import inv2509, inv11, inv12, inv01, inv02, inv03, airregi, tanaoroshi
+import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, airregi, tanaoroshi
 
 STAMP = "2026-08-20 06:40"
 
@@ -196,6 +196,14 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, ex, tax, vendor, src, biko in inv03.INV03:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "請求書2603月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+    # 2604月の請求書で入れるぶん
+    inv04.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv04.INV04:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2604月")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
@@ -618,6 +626,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, ex, tax, vendor, src, biko in inv03.INV03:
         ws.append(["2026-03", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
                    src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv04.INV04:
+        ws.append(["2026-04", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
     for tab, plrow, m, val, src, note in airregi.rows():
         ws.append([f"21期 {m}", tab, "エアレジ", "会計明細", "", "", val, "", plrow, m,
                    src, STAMP, note])
@@ -779,6 +790,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["請求書2602月", m, tab, item, "", reason])
     for m, tab, item, reason in inv03.HOLD:
         hs.append(["請求書2603月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv04.HOLD:
+        hs.append(["請求書2604月", m, tab, item, "", reason])
     for m, tab, item, reason in tanaoroshi.hold_rows():
         hs.append(["棚卸し", m, tab, item, "", reason])
     for tab, m, vendor, amount, reason in EXTRA_HOLD:
