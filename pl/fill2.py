@@ -6,7 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
-import inv2509, airregi
+import inv2509, inv11, airregi
 
 STAMP = "2026-08-20 06:40"
 
@@ -29,8 +29,9 @@ INV = [
   "水道50,655＋下水道33,836（7月分）"),
  ("神栖横丁","NTTファイナンス","通信費",7534,753,"横丁/NTTファイアンス　横丁振替.pdf",
   "ファイル名「ファイアンス」は誤記。マスタのNTTファイナンスと同一（確認済）"),
- ("神栖横丁","USEN","通信費（USEN）",1280,128,"横丁/USEN 横丁振替.pdf","請求書No F-1-20260804-104412-01"),
- ("神栖横丁","USEN","通信費（USEN）",1280,128,"横丁/USEN　横丁振替.pdf","請求書No F-1-20260804-105743-01（別契約）"),
+ # ★USEN NETWORKS（USEN NET）は「通信費（有線ネット）」。inv6.py と同じ（2026-09-01）
+ ("神栖横丁","USEN NETWORKS","通信費（有線ネット）",1280,128,"横丁/USEN 横丁振替.pdf","請求書No F-1-20260804-104412-01"),
+ ("神栖横丁","USEN NETWORKS","通信費（有線ネット）",1280,128,"横丁/USEN　横丁振替.pdf","請求書No F-1-20260804-105743-01（別契約）"),
  ("神栖横丁","アルソック","ALSOK",20500,2050,"横丁/アルソック　横丁振替.pdf","既存スプシ20,500と一致"),
  ("神栖横丁","ウゴーク","ウゴーク",30000,3000,"横丁/ウゴーク　横丁8月末.pdf","既存スプシ30,000と一致"),
  ("神栖横丁","業務（グリスト清掃）","グリスト清掃業務課",40000,4000,"横丁/業務　横丁.pdf",
@@ -153,6 +154,15 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "請求書2509月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+
+    # 2511月の請求書で直すぶん（スポットの年間保守料を12か月に按分ほか）
+    inv11.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv11.INV11:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2511月")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
@@ -547,6 +557,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
         ws.append(["2025-09", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
                    src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv11.INV11:
+        ws.append(["2025-11", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
     for tab, plrow, m, val, src, note in airregi.rows():
         ws.append([f"21期 {m}", tab, "エアレジ", "会計明細", "", "", val, "", plrow, m,
                    src, STAMP, note])
@@ -693,6 +706,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["振込", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
         hs.append(["陸事総合", m, tab, item, "", reason])
+    for m, tab, item, reason in inv2509.HOLD:
+        hs.append(["請求書2509月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv11.HOLD:
+        hs.append(["請求書2511月", m, tab, item, "", reason])
     for tab, m, vendor, amount, reason in EXTRA_HOLD:
         hs.append(["請求書", m, tab, vendor, amount, reason])
     for iss, merch, ex, used in card_hold:
