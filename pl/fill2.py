@@ -6,6 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
+import inv2509
 
 STAMP = "2026-08-20 06:40"
 
@@ -144,6 +145,15 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "請求書8月")); continue
         c = wb[tab][f"{build2.MCOL['8月']}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+
+    # 2509月の請求書で直すぶん（新設した行・請求書のほうが正だった行）
+    inv2509.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2509月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
 
@@ -520,6 +530,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
         ws.append(["2026-08", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, "8月",
                    f"買掛/21期/{src}", STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
+        ws.append(["2025-09", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
     for tab, plrow, m, val, src, note in nihonshokken.rows():
         ws.append([f"21期 {m}", tab, "日本食研", "請求書", "", 8, val, "", plrow, m,
                    src, STAMP, note])
