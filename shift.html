@@ -136,6 +136,13 @@
   .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
   .dow-need label span { font-size: 10px; color: var(--text-secondary); }
   .dow-need input { padding: 5px 2px !important; text-align: center; }
+  .sync-chip { font-size: 11.5px; border-radius: 20px; padding: 4px 12px; cursor: pointer;
+    white-space: nowrap; border: 0.5px solid transparent; }
+  .sync-chip.ok   { background: #E1F5EE; color: #0F6E56; border-color: rgba(15,110,86,.2); }
+  .sync-chip.busy { background: #FFF6E0; color: #92650a; border-color: rgba(212,160,23,.3); }
+  .sync-chip.err  { background: #FAECE7; color: #993C1D; border-color: rgba(153,60,29,.25); }
+  .sync-chip.off  { display: none; }
+
   .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50;
     align-items: center; justify-content: center; padding: 1rem; }
   .overlay.open { display: flex; }
@@ -240,6 +247,7 @@
       <select id="store-select" onchange="onStoreChange()"></select>
       <input type="month" id="month-input" onchange="onMonthChange()" />
       <span class="period-badge" id="period-badge"></span>
+      <span class="sync-chip off" id="sync-chip" style="display:none" onclick="syncNow()" title="押すと今すぐ保存します"></span>
     </div>
   </div>
 
@@ -480,8 +488,19 @@
       </div>
     </div>
     <div class="card">
+      <div class="card-title">全員で共有する（同期）</div>
+      <div class="card-desc">
+        URLを設定すると、店舗設定・スタッフ・営業日・希望休・作成したシフトを
+        Googleスプレッドシートに保存して<b>全員で同じ内容</b>を見られるようになります。<br />
+        変更すると数秒後に自動で保存され、開いたときに最新を読み込みます。<br />
+        時間の表示切替など<b>画面の見え方は各自のまま</b>です。設定していなければ従来どおりこの端末だけに保存します。
+      </div>
+      <div id="sync-box"></div>
+    </div>
+
+    <div class="card">
       <div class="card-title">データの保存</div>
-      <div class="card-desc">入力内容はこの端末のブラウザに自動保存されます。端末を変える場合や引き継ぎにはバックアップを使ってください。</div>
+      <div class="card-desc">共有を使わない場合、入力内容はこの端末のブラウザにだけ保存されます。端末を変える場合や引き継ぎにはバックアップを使ってください。</div>
       <div class="row-actions" style="margin-top:0">
         <button class="btn ghost" onclick="exportJson()">バックアップを書き出す</button>
         <button class="btn ghost" onclick="document.getElementById('import-file').click()">バックアップを読み込む</button>
@@ -506,6 +525,13 @@ const LS_KEY = 'prostyle_shift_v3';
 const TRANSFER_API = 'https://script.google.com/macros/s/AKfycbwV_UNDYqwlGhMeoEQiasU348YX_UEKXys7E0TkZaOMfrcXtTx6-JIisyLVMCW2yj3g/exec';
 const KYUYO_API = 'https://script.google.com/macros/s/AKfycbylaRGqV8Ij1p1X4Qx1y7jn1r8jqQOz3lCQSHMOnudLFxxfawlMOtVm5trQEZTz9aINHw/exec';
 const GYOMU_SHEET = 'シフト';
+
+/* ---------- 共有（同期）----------
+   設定・希望休・作成したシフトを Google スプレッドシートに置いて全員で共有する。
+   SYNC_API に Apps Script のウェブアプリURLを入れると有効になる（空なら端末内だけ）。
+   作り方は同じフォルダの shift-sync.gs を参照。 */
+const SYNC_API = '';
+const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
 
 /* 出勤簿にも転記される対象者（連携先アプリの PART_TIME_STAFF と同じ） */
 const PART_TIME_STAFF = [
@@ -898,7 +924,10 @@ function transferKey() { return store().id + '|' + currentYM; }
 function getTransfer() { return DB.transfers[transferKey()] || null; }
 
 function num(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }
-function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
+function saveDB() {
+  localStorage.setItem(LS_KEY, JSON.stringify(DB));
+  scheduleSync();     // 共有が有効なら、少し待ってからまとめて送る
+}
 
 function store() { return DB.stores.find(s => s.id === DB.activeStoreId) || DB.stores[0]; }
 function activeStaff() { return store().staff.filter(u => u.active); }
@@ -2586,6 +2615,146 @@ async function transferTest() {
 }
 
 /* =========================================================
+   共有（同期）
+   店舗設定・スタッフ・営業日・希望休・作成したシフトを全員で共有する。
+   表示の設定（時間表示など）と、いま見ている現場は各自のままにする。
+   ========================================================= */
+const SYNCED_KEYS = ['stores', 'dayOverrides', 'requests', 'shifts', 'transfers', 'rosterSync'];
+
+let syncRev = 0;            // 最後にやりとりしたときの版数
+let syncTimer = null;
+let syncBusy = false;
+let applyingRemote = false; // 受信内容を反映している間は送り返さない
+let syncInfo = { state: 'off', text: '' };
+
+function syncUrl() { return (DB.syncUrl || SYNC_API || '').trim(); }
+function syncOn() { return !!syncUrl(); }
+
+function syncPayload() {
+  const o = {};
+  SYNCED_KEYS.forEach(function (k) { o[k] = DB[k]; });
+  return o;
+}
+
+function applyPayload(o) {
+  applyingRemote = true;
+  try {
+    SYNCED_KEYS.forEach(function (k) { if (o[k] !== undefined) DB[k] = o[k]; });
+    DB = normalizeDB(DB);
+    localStorage.setItem(LS_KEY, JSON.stringify(DB));   // saveDB を通さない（送り返さないため）
+  } finally {
+    applyingRemote = false;
+  }
+}
+
+function syncCall(body) {
+  return fetch(syncUrl(), {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ token: SYNC_TOKEN }, body)),
+  }).then(function (r) { return r.json(); });
+}
+
+function setSyncInfo(state, text) {
+  syncInfo = { state: state, text: text };
+  const el = document.getElementById('sync-chip');
+  if (!el) return;
+  el.className = 'sync-chip ' + state;
+  el.textContent = text;
+  el.style.display = syncOn() ? '' : 'none';
+  const b = document.getElementById('sync-detail');
+  if (b) b.textContent = text;
+}
+
+// 開いたときに読み込む
+async function syncPull(showAlert) {
+  if (!syncOn()) { setSyncInfo('off', ''); return; }
+  setSyncInfo('busy', '読込中…');
+  try {
+    const res = await syncCall({ action: 'load' });
+    if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
+    syncRev = res.rev || 0;
+    if (res.data) {
+      applyPayload(JSON.parse(res.data));
+      renderAll();
+    }
+    setSyncInfo('ok', '同期済み' + (res.updatedAt ? '（' + res.updatedAt + (res.updatedBy ? ' ' + res.updatedBy : '') + '）' : ''));
+    if (showAlert) alert('最新の内容を読み込みました。');
+  } catch (e) {
+    setSyncInfo('err', '未同期：' + e.message);
+    if (showAlert) alert('読み込めませんでした：' + e.message);
+  }
+}
+
+// 変更を送る。連続した変更はまとめて1回にする
+function scheduleSync() {
+  if (!syncOn() || applyingRemote) return;
+  setSyncInfo('busy', '未保存の変更あり');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncPush, 2500);
+}
+
+async function syncPush(force) {
+  if (!syncOn() || syncBusy) return;
+  syncBusy = true;
+  setSyncInfo('busy', '保存中…');
+  try {
+    const res = await syncCall({
+      action: 'save', baseRev: syncRev, force: force ? 'true' : 'false',
+      by: DB.userName || '', data: JSON.stringify(syncPayload()),
+    });
+    if (res.status === 'conflict') {
+      // 自分が読み込んだあとに他の人が保存していた
+      setSyncInfo('err', '他の人の変更があります');
+      const who = (res.updatedBy || '他の人') + '（' + (res.updatedAt || '') + '）';
+      if (confirm('この端末で編集している間に、' + who + ' が変更を保存しています。\n\n'
+        + 'OK  … 相手の内容を読み込む（こちらの変更は破棄）\n'
+        + 'キャンセル … こちらの内容で上書きする')) {
+        syncBusy = false;
+        await syncPull();
+        return;
+      }
+      syncBusy = false;
+      await syncPush(true);
+      return;
+    }
+    if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+    syncRev = res.rev || syncRev + 1;
+    setSyncInfo('ok', '同期済み' + (res.updatedAt ? '（' + res.updatedAt + '）' : ''));
+  } catch (e) {
+    setSyncInfo('err', '未保存：' + e.message);
+  } finally {
+    syncBusy = false;
+  }
+}
+
+function syncNow() {
+  if (!syncOn()) { alert('共有が設定されていません。「店舗設定」タブの共有欄でURLを入れてください。'); return; }
+  clearTimeout(syncTimer);
+  syncPush();
+}
+
+function updSyncUrl(v) { DB.syncUrl = v.trim(); saveDB(); renderStore(); syncPull(); }
+function updUserName(v) { DB.userName = v.trim(); saveDB(); }
+
+function renderSyncBox() {
+  const el = document.getElementById('sync-box');
+  if (!el) return;
+  const url = DB.syncUrl || '';
+  el.innerHTML =
+    '<div class="field"><label>共有用のURL（Apps Script のウェブアプリURL）</label>'
+    + '<input type="text" value="' + esc(url) + '" placeholder="' + (SYNC_API ? esc(SYNC_API) : 'https://script.google.com/macros/s/.../exec')
+    + '" onchange="updSyncUrl(this.value)" /></div>'
+    + '<div class="field" style="margin-top:.75rem"><label>あなたの名前（誰が更新したか分かるように）</label>'
+    + '<input type="text" value="' + esc(DB.userName || '') + '" placeholder="例：花見" onchange="updUserName(this.value)" /></div>'
+    + '<div class="muted" style="margin-top:.75rem" id="sync-detail">' + esc(syncInfo.text || (syncOn() ? '' : '共有は使っていません（この端末だけに保存）')) + '</div>'
+    + '<div class="row-actions">'
+    + '<button class="btn" onclick="syncNow()">今すぐ保存</button>'
+    + '<button class="btn" onclick="syncPull(true)">最新を読み込む</button>'
+    + '</div>';
+}
+
+/* =========================================================
    共通
    ========================================================= */
 function esc(s) {
@@ -2732,6 +2901,8 @@ function renderAll() {
   document.getElementById('month-input').value = currentYM;
   document.getElementById('period-badge').textContent = periodLabel();
   renderStore();
+  renderSyncBox();
+  setSyncInfo(syncInfo.state, syncInfo.text);
   renderAllSites();
   renderStaff();
   renderDays();
@@ -2740,6 +2911,8 @@ function renderAll() {
 }
 
 renderAll();
+// 共有が設定されていれば、開いたときに最新を読み込む
+if (syncOn()) syncPull();
 </script>
 </body>
 </html>
