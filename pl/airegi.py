@@ -71,19 +71,36 @@ def ym_list(period):
     return out
 
 
+# 税率別の売上列 → 割る数。税抜 = 税込 × 100 ÷ (100+税率)
+RATE_COLS = {"売上（10%標準）": 110, "売上（8%軽減）": 108, "売上（8%標準）": 108,
+             "売上（非課税）": 100}
+
+
 def read_csv(path):
-    """集計期間 → 売上 の辞書。月次CSV（日別）は YYYYMM に丸めて合算する"""
+    """集計期間 → {売上, 税抜, 消費税} の辞書。月次CSV（日別）は YYYYMM に丸めて合算する
+
+    税抜・消費税は税率別の売上列からの**逆算**。POSは会計1件ごとに切り捨てるので
+    数百円ずれる（README「消費税はCSVから作れない」）。利用者指示 2026-09-01 で
+    「空欄にするより逆算を入れる」と決めた。逆算であることを必ず添えて出す。
+    """
     with open(path, encoding="cp932", newline="") as f:
         rows = list(csv.reader(f))
     head = rows[0]
     i_ki, i_uri = head.index("集計期間"), head.index("売上")
+    rates = [(head.index(c), d) for c, d in RATE_COLS.items() if c in head]
     out = {}
     for r in rows[1:]:
         if not r or not r[i_ki].strip():
             continue
-        ki = r[i_ki].strip()
-        ym = int(ki[:6])          # YYYYMMDD でも YYYYMM でも先頭6桁が年月
-        out[ym] = out.get(ym, 0) + int(r[i_uri] or 0)
+        ym = int(r[i_ki].strip()[:6])   # YYYYMMDD でも YYYYMM でも先頭6桁が年月
+        a = out.setdefault(ym, {"売上": 0, "税率別": {}})
+        a["売上"] += int(r[i_uri] or 0)
+        for i, d in rates:
+            a["税率別"][d] = a["税率別"].get(d, 0) + int(r[i] or 0)
+    for a in out.values():
+        # 月合計を税率ごとにまとめてから割る（日ごとに割ると誤差が積む）
+        a["税抜"] = sum(v * 100 // d for d, v in a["税率別"].items())
+        a["消費税"] = a["売上"] - a["税抜"]
     return out
 
 
@@ -107,9 +124,34 @@ def collect(period="21期"):
     return found
 
 
-def series(period, tab, found):
+def key_for(tab, period, rowname):
+    """PLのその行に入れるべきCSVの値。None なら CSV では埋められない行"""
+    if rowname == "消費税":
+        return "消費税"
+    if rowname in ("売上", "売上（税込）"):
+        # ★21期の さわら十三里屋 の「売上」だけ税抜（既存PLが税抜1行のため）。
+        #   22期からは「売上（税込）＋消費税」に変わるのでこの分岐に来ない
+        if period == "21期" and tab == "さわら十三里屋":
+            return "税抜"
+        return "売上"
+    return None          # その他売上・キッチンカーなどはCSVに無い
+
+
+def series(period, tab, found, key):
     """9月〜8月の12個。CSVに無い月は None"""
-    return [found.get(tab, {}).get(ym) for ym in ym_list(period)]
+    return [(found.get(tab, {}).get(ym) or {}).get(key) for ym in ym_list(period)]
+
+
+def pl_rows(period, tab, found):
+    """(行名, CSVの値12個, 逆算かどうか) を返す"""
+    out = []
+    for uri, zei in sales.rows_for(tab, period):
+        for rowname in (uri, zei):
+            k = key_for(tab, period, rowname) if rowname else None
+            if k is None:
+                continue
+            out.append((rowname, series(period, tab, found, k), k != "売上"))
+    return out
 
 
 def compare(period="21期"):
@@ -122,20 +164,27 @@ def compare(period="21期"):
     for tab in sales.SALES_ROWS:
         if tab not in found:
             continue
-        row = uriage_row(tab)
-        cur = sales.SALES.get(tab, {}).get(row, [None] * 12)
-        new = series(period, tab, found)
-        print(f"\n=== {tab}（{row}）")
-        print(f"{'月':>4} {'CSV':>11} {'sales.py':>11} {'差':>10}")
-        for m, a, b in zip(MONTHS, new, cur):
-            if a is None:
-                print(f"{m:>4} {'-':>11} {fmt(b):>11}   CSVに無い")
-                continue
-            d = a - b if b is not None else None
-            mark = "" if d == 0 else ("  ★新規" if b is None else "  ★差あり")
-            if d != 0:
-                ngs += 1
-            print(f"{m:>4} {a:>11,} {fmt(b):>11} {fmt(d):>10}{mark}")
+        for rowname, new, gyakusan in pl_rows(period, tab, found):
+            cur = sales.SALES.get(tab, {}).get(rowname, [None] * 12)
+            print(f"\n=== {tab}（{rowname}）{'  ※逆算' if gyakusan else ''}")
+            print(f"{'月':>4} {'CSV':>11} {'sales.py':>11} {'差':>10}")
+            for m, a, b in zip(MONTHS, new, cur):
+                if a is None:
+                    print(f"{m:>4} {'-':>11} {fmt(b):>11}   CSVに無い")
+                    continue
+                d = a - b if b is not None else None
+                if b is None:
+                    mark, ng = "  ★新規", True
+                elif d == 0:
+                    mark, ng = "", False
+                elif gyakusan:
+                    # 逆算行に既存値があるならそれはPOS精算書由来。逆算より正しいので
+                    # 差が出るのが正常。入れ替えないし、要確認としても数えない
+                    mark, ng = "  （既存PL優先・逆算との差）", False
+                else:
+                    mark, ng = "  ★差あり", True
+                ngs += ng
+                print(f"{m:>4} {a:>11,} {fmt(b):>11} {fmt(d):>10}{mark}")
     return ngs
 
 
@@ -149,9 +198,12 @@ def emit(period="21期"):
     for tab in sales.SALES_ROWS:
         if tab not in found:
             continue
-        new = series(period, tab, found)
-        vals = ",".join("N" if v is None else str(v) for v in new)
-        print(f' "{tab}": {{\n   "{uriage_row(tab)}": [{vals}],\n }},')
+        print(f' "{tab}": {{')
+        for rowname, new, gyakusan in pl_rows(period, tab, found):
+            vals = ",".join("N" if v is None else str(v) for v in new)
+            note = "   # ★逆算" if gyakusan else ""
+            print(f'   "{rowname}": [{vals}],{note}')
+        print(" },")
 
 
 if __name__ == "__main__":
