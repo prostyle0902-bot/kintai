@@ -139,15 +139,30 @@ def _cell(wb, tab, plrow, m):
     return wb[tab][build2.MCOL[m] + str(build2.RIDX[tab][plrow])]
 
 
+# ★定額の【上に】請求書ぶんを足すセル。(タブ, 行, 月) -> (請求書の税抜, 理由)
+#   先に請求書モジュールがその額を入れているので、check() はその額と一致することを確かめ、
+#   rows() は飛ばさずに定額を足す。
+ADD_ON = {
+    ("本部", "リヴィン", "1月"): (
+        10000,
+        "2601月の請求書『漏水補修工事代不足分 10,000（消費税0）』を inv01.py が先に入れている。"
+        "定額45,486（ライフカード引落）とは別件なので足す"),
+}
+
+
 def rows(wb):
     """(タブ, PL行, 月, 金額, 元, メモ) を列挙。空いているセルだけ。
 
     すでに埋まっているセルは飛ばす。飛ばすぶんは skipped() で取れる。
+    ADD_ON のセルは請求書ぶんが先に入っているので、飛ばさずに定額を足す。
     """
     for tab, plrow, amount, months, note in FIXED:
         for m in months:
-            if _cell(wb, tab, plrow, m).value:
+            v = _cell(wb, tab, plrow, m).value
+            if v and (tab, plrow, m) not in ADD_ON:
                 continue
+            if (tab, plrow, m) in ADD_ON:
+                note = f"{note}。★{ADD_ON[(tab, plrow, m)][1]}"
             yield tab, plrow, m, amount, SRC, note
 
 
@@ -173,6 +188,11 @@ def check(wb=None):
         return []
     diffs = []
     for tab, plrow, m, got, want in skipped(wb):
+        if (tab, plrow, m) in ADD_ON:
+            add = ADD_ON[(tab, plrow, m)][0]
+            assert got == add, (f"{tab} {plrow} {m}: 先に入っている {got:,} が "
+                                f"ADD_ON の請求書ぶん {add:,} と違う")
+            continue        # rows() が定額を足す（skipped には数えない）
         assert got == want, (f"{tab} {plrow} {m}: 請求書からの {got:,} と "
                              f"定額 {want:,} が違う。どちらかが間違っている")
         diffs.append((tab, plrow, m, got))
