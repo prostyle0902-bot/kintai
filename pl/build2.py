@@ -200,7 +200,8 @@ def layout_for(tab):
     cogs = [c for c in cogs if c not in dropped_cogs(tab)]
     L = [(SEC, "【売上】", None)]
     parts = []
-    for uri, zei in sales.SALES_ROWS[tab]:
+    # ★売上行は期で変わる。22期から さわら十三里屋 に消費税行が付く（sales.rows_for）
+    for uri, zei in sales.rows_for(tab, PERIOD):
         L.append((IN, uri, None))
         if zei:
             L.append((IN, zei, None))

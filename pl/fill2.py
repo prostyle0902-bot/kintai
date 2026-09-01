@@ -458,6 +458,12 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     sales_cells = 0
     for tab, rows in sales.SALES.items():
         for rowname, vals in rows.items():
+            # 期で売上行の名前が変わることがある（22期の さわら十三里屋 は
+            # 「売上」→「売上（税込）＋消費税」）。SALES 側を直し忘れたら止める。
+            if rowname not in build2.RIDX[tab]:
+                raise KeyError(
+                    f"{tab} に『{rowname}』の行が無い（{build2.PERIOD}）。"
+                    f"sales.SALES を {build2.PERIOD} の行名に合わせること")
             r = build2.RIDX[tab][rowname]
             for i, m in enumerate(build2.MONTHS):
                 if vals[i] is None:
