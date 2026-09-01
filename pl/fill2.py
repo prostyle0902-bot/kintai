@@ -6,7 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
-import inv2509
+import inv2509, airregi
 
 STAMP = "2026-08-20 06:40"
 
@@ -465,8 +465,20 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     print("給与（PDF）セル", len(pr8), "／計", f"{sum(x[3] for x in pr8):,}",
           "／", len({x[2] for x in pr8}), "か月ぶん")
 
-    # ===== 売上（既存スプシから転記） =====
+    # ===== 売上 =====
     F_SALES = PatternFill("solid", fgColor="FDE9D9")
+    # ★エアレジ（会計明細）を先に入れる。書類なので既存スプシより優先。
+    airregi.check(wb)
+    air_cells = 0
+    for tab, plrow, m, val, _src, _note in airregi.rows():
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(val); c.fill = F_POST; c.number_format = build2.NUMFMT
+        air_cells += 1
+    air_owned = {(t, r, m) for t, r, m, _v, _s, _n in airregi.rows()}
+    print("エアレジ売上セル", air_cells, "／計",
+          f"{sum(v for _t, r, _m, v, _s, _n in airregi.rows() if r != '消費税'):,}",
+          "／", len({m for _t, _r, m, _v, _s, _n in airregi.rows()}), "か月ぶん")
+
     sales_cells = 0
     for tab, rows in sales.SALES.items():
         for rowname, vals in rows.items():
@@ -478,6 +490,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                     continue          # boardを正とするので既存スプシ値は使わない
                 if (tab, rowname, m) in kame_owned:
                     continue          # かめや精算書を正とする（焼きたて屋の売上・消費税）
+                if (tab, rowname, m) in air_owned:
+                    continue          # ★エアレジの会計明細を正とする（書類なので優先）
                 c = wb[tab][f"{build2.MCOL[m]}{r}"]
                 c.value = int(vals[i]); c.fill = F_SALES; c.number_format = build2.NUMFMT
                 sales_cells += 1
@@ -533,6 +547,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
         ws.append(["2025-09", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
                    src, STAMP, biko])
+    for tab, plrow, m, val, src, note in airregi.rows():
+        ws.append([f"21期 {m}", tab, "エアレジ", "会計明細", "", "", val, "", plrow, m,
+                   src, STAMP, note])
     for tab, plrow, m, val, src, note in nihonshokken.rows():
         ws.append([f"21期 {m}", tab, "日本食研", "請求書", "", 8, val, "", plrow, m,
                    src, STAMP, note])
