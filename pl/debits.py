@@ -56,9 +56,11 @@ DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bank")
 
 MONTHS = ["9月", "10月", "11月", "12月", "1月", "2月", "3月",
           "4月", "5月", "6月", "7月", "8月"]
-YM2M = {"202509": "9月", "202510": "10月", "202511": "11月", "202512": "12月",
-        "202601": "1月", "202602": "2月", "202603": "3月", "202604": "4月",
-        "202605": "5月", "202606": "6月", "202607": "7月", "202608": "8月"}
+# 期の初月。21期＝2025年9月〜2026年8月。22期にするときはここだけ変える。
+KESSAN_START = (2025, 9)
+YM2M = {f"{KESSAN_START[0] + (KESSAN_START[1] - 1 + i) // 12:04d}"
+        f"{(KESSAN_START[1] - 1 + i) % 12 + 1:02d}": m
+        for i, m in enumerate(MONTHS)}
 
 # 口座の呼び名（メモ用）
 ACCT_NAME = {"3351509": "千葉銀行 小見川支店 普通3351509（本体）",
@@ -200,6 +202,47 @@ def _rows():
     return out
 
 
+def months_with_data(acct):
+    """その口座の明細CSVが手元にある月。"""
+    if acct == "PayPay":
+        have = {ym for ym in YM2M
+                for p in glob.glob(os.path.join(DIR, "NBG*.csv"))
+                if _nbg_months(p) and ym in _nbg_months(p)}
+        return [YM2M[ym] for ym in sorted(YM2M) if ym in have]
+    return [YM2M[ym] for ym in sorted(YM2M)
+            if glob.glob(os.path.join(DIR, f"小見川支店_普通_{acct}_{ym}*.csv"))]
+
+
+_NBG_CACHE = {}
+
+
+def _nbg_months(path):
+    if path not in _NBG_CACHE:
+        ms = set()
+        for r in csv.DictReader(open(path, encoding="cp932")):
+            ms.add(f'{r["操作日(年)"]}{int(r["操作日(月)"]):02d}')
+        _NBG_CACHE[path] = ms
+    return _NBG_CACHE[path]
+
+
+def missing_months():
+    """明細CSVはあるのに引落が見つからない月（保留リストへ）。
+    契約が終わったのか、摘要が変わったのか、CSVの取り漏れかを人が見る材料。"""
+    got = collect()
+    for rule in RULES:
+        tab, plrow = rule["split"][0][0], rule["split"][0][1]
+        have = set()
+        for a in rule["accts"]:
+            have |= set(months_with_data(a))
+        for m in MONTHS:
+            if m in have and (tab, plrow, m) not in got:
+                yield (m, tab, f"{rule['name']} の引落が見つからない",
+                       f"{'／'.join(ACCT_NAME[a] for a in rule['accts'])} の{m}の明細CSVは"
+                       f"手元にあるのに、摘要「{rule['key']}」の出金が1件も無い。"
+                       "契約が終わったか、摘要の書き方が変わったか、CSVの取り漏れ。"
+                       "debits.py の RULES を直すか、明細を取り直してください")
+
+
 def _ex(mode, gross):
     """引落額（税込）→ PLに入れる税抜。(税抜, 消費税, どう決めたか)"""
     if mode == "asis":
@@ -280,10 +323,13 @@ def check(wb=None):
                 continue
             assert got[k][0] == v, (f"{tab} {plrow} {m}: 銀行から {got[k][0]:,} だが "
                                     f"既存PLは {v:,}")
-    # 12か月そろっているか
-    miss = [(t, r, m) for (t, r, _m) in {(t, r, None) for t, r, _ in got}
-            for m in MONTHS if (t, r, m) not in got]
-    assert not miss, f"月が欠けている: {miss}"
+    # ★毎月これを回す前提なので、月数は決め打ちにしない（利用者指示 2026-09-02「毎月お願い」）。
+    #   「その口座の明細CSVが手元にある月」だけを対象にする。CSVが増えれば
+    #   そのぶん自動で増え、まだ届いていない月では落ちない。
+    #   CSVがあるのに引落が見つからない月は missing_months() が保留リストへ出す。
+    for rule in RULES:
+        assert any(k[0] == rule["split"][0][0] and k[1] == rule["split"][0][1]
+                   for k in got), f"{rule['name']} の引落が1件も見つからない"
     if wb is None:
         return True
     for (tab, plrow, m), (ex, _tax, _n, _d, _h) in sorted(got.items()):
@@ -341,4 +387,8 @@ if __name__ == "__main__":
               " ".join(f"{v.get(m, 0):>8,}" for m in MONTHS), f"{s:>10,}{mark}")
     print(f"{'合計':<28}", " ".join(f"{sum(v.get(m,0) for v in by.values()):>8,}" for m in MONTHS),
           f"{tot:>10,}")
-    print(f"\nセル数 {sum(len(v) for v in by.values())} ／ {len(by)}行 ／ 12か月")
+    print(f"\nセル数 {sum(len(v) for v in by.values())} ／ {len(by)}行")
+    print("明細CSVがある月:",
+          " ".join(f"{a}={len(months_with_data(a))}か月" for a in ACCT_NAME))
+    for m, tab, item, why in missing_months():
+        print("★保留:", m, tab, item)

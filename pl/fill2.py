@@ -828,6 +828,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["棚卸し", m, tab, item, "", reason])
     for m, tab, item, reason in debits.HOLD:
         hs.append(["口座引落", m, tab, item, "", reason])
+    for m, tab, item, reason in debits.missing_months():
+        hs.append(["口座引落", m, tab, item, "", reason])
     for m, tab, item, reason in board.HOLD:
         hs.append(["board売掛", m, tab, item, "", reason])
     for m, tab, item, reason in board.unmapped():
