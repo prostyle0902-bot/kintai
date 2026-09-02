@@ -15,7 +15,7 @@ boardに載るのは請求書を発行する側＝売掛だけ。
 グループ → PLタブ・行
     業務課      → 業務課「売上」
     鳥害対策課   → 鳥害対策課「売上」
-    飲食事業部   → 神栖横丁「その他売上」
+    飲食事業部   → 神栖横丁（7月は「売上」／8月は案件名で5行に振り分け）
 
 ★神栖横丁について（利用者確認済 2026-08-20）
     既存スプシの7月には キッチンカー25,000／スポンサー（横丁）407,000／
@@ -24,6 +24,27 @@ boardに載るのは請求書を発行する側＝売掛だけ。
     boardの9件（481,245）を「その他売上」にまとめて入れ、内訳は明細ログに残す。
     ※どの請求がスポンサー／キッチンカー／加盟金に当たるかはboardのデータからは
       判別できないため、行レベルの割り当てはしていない。売上合計(1)は変わらない。
+
+★8月について（2026-09-02 追加）--------------------------------------------
+    Dropbox /※請求書※/freeeカード明細/21期/8月売上invoices.csv を取り込んだ。
+    7月のCSVとは【エクスポートの種類が違う】:
+        7月 … 合計請求書の一覧（1行＝合計請求書／「合計請求書No」が主キー）
+        8月 … 案件・請求書の一覧（1行＝請求書／「請求書ID」が主キー。「案件名」がある）
+    8月ファイルは合計請求書Noが12件重複しているので、旧来の「合計請求書Noで
+    重複を落とす」やり方だと23件が黙って消える。FILES にファイルごとの
+    【主キー列】を持たせて、パターン単位で重複を落とすようにした。
+
+    案件名が取れるので、飲食事業部の23件は神栖横丁の売上5行に振り分ける
+    （利用者指示 2026-09-02「分けて。」）。振り分けの規則は ROW8。
+
+    グループ欄が空の4件は利用者指示 2026-09-02
+    「Plusuone，正上は業務課、千代田グラビアは飲食、神栖横丁のビアガーデン掛け売り」
+    に従って GROUP_OVERRIDE で部門を決めている。
+
+    ★8月の飲食事業部はまだ出揃っていない（利用者 2026-09-02
+      「飲食事業部はまだ全部出揃ってないですが、少し入ってる。一旦、売上、転記して」）。
+      7月に19件あったテナント（入居店舗）への家賃請求が8月のCSVには1件も無い。
+      出揃ったらCSVを差し替えて取り込み直す。保留リスト（HOLD）にも出している。
 """
 
 import csv, glob, os
@@ -35,7 +56,17 @@ DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
 #                 業務課・鳥害対策課の13件が落ちていた
 #   両方を請求書Noで和集合にすると68件になり、鳥害対策課7月が 6,217,800 と
 #   既存PLに一致する（CHECK）。だから cards/invoices*.csv を全部読んで束ねる。
-FILES = [("invoices*.csv", "7月")]          # (ファイル名パターン, PL列)
+#
+# (ファイル名パターン, PL列, 重複を落とす主キー列)
+FILES = [
+    ("invoices*.csv",       "7月", "合計請求書No"),
+    ("8月売上invoices.csv", "8月", "請求書ID"),
+]
+
+SRC_NOTE = {
+    "7月": "freeeカード明細/21期/invoices*.csv（8/20版＋8/21版の和集合）",
+    "8月": "freeeカード明細/21期/8月売上invoices.csv",
+}
 
 GROUP2PL = {
     "業務課":    ("業務課", "売上"),
@@ -48,14 +79,60 @@ GROUP2PL = {
     "飲食事業部": ("神栖横丁", "売上"),
 }
 
+# 8月ファイルの「グループ」が空の4件。利用者指示 2026-09-02 で部門を決めた。
+# 請求書No -> (グループ, 決めた理由)
+GROUP_OVERRIDE = {
+    "8246": ("業務課",    "株式会社PlusOne／EDW鹿島 グリーストラップ清掃 15,000。"
+                          "利用者指示「Plusuone，正上は業務課」"),
+    "8247": ("業務課",    "株式会社PlusOne／foleclo グリーストラップ清掃 15,000。"
+                          "利用者指示「Plusuone，正上は業務課」"),
+    "8263": ("業務課",    "株式会社正上／ハウスクリーニング 90,000。"
+                          "利用者指示「正上は業務課」"),
+    "8141": ("飲食事業部", "千代田グラビヤ／アントラーズビアガーデン2026宴会 200,000。"
+                          "利用者指示「千代田グラビアは飲食、神栖横丁のビアガーデン掛け売り」"),
+}
+
+# 8月の飲食事業部（神栖横丁）を案件名で5行に振り分ける規則。上から順に見る。
+#   (案件名に含まれる文字列, PL行)
+# 利用者指示 2026-09-02「分けて。」
+ROW8 = [
+    ("出店参加料",       "ビアガーデン（テナント賃料）"),  # 出店者から取る場所代
+    ("スポンサー料",     "スポンサー（横丁）"),
+    ("屋外席横断幕広告", "スポンサー（横丁）"),
+    ("キッチンカー出店料", "キッチンカー"),
+    ("チャレンジ出店料", "キッチンカー"),
+    ("神栖横丁ご飲食代", "その他売上"),                    # 横丁本体（ビアガーデンでない）
+    ("ビアガーデン",     "ビアガーデン（掛け売り）"),      # 上のどれにも当たらないビアガーデン
+]
+
 # 既存スプシの売上のうち、boardを正として置き換える（＝転記しない）もの
+# ※8月は exist_fill.NO_EXIST_MONTHS で既存PLをそもそも写さないので7月だけ。
 SUPPRESS = [("神栖横丁", "キッチンカー", "7月"),
             ("神栖横丁", "スポンサー（横丁）", "7月"),
             ("神栖横丁", "ビアガーデン", "7月"),
             ("神栖横丁", "横丁加盟金", "7月")]
 
-# 検算値（既存PLスプシの7月）
-CHECK = {"鳥害対策課": 6217800}
+# 検算値。7月は既存PLスプシ、8月はCSVを人手で集計した値（2026-09-02 利用者と確認）
+CHECK = {
+    "7月": {("鳥害対策課", "売上"): 6217800},
+    "8月": {("業務課", "売上"):     7454577,   # 7,334,577 ＋ PlusOne 15,000×2 ＋ 正上 90,000
+            ("鳥害対策課", "売上"): 5496600,
+            ("神栖横丁", "ビアガーデン（テナント賃料）"):  800000,
+            ("神栖横丁", "ビアガーデン（掛け売り）"):     1413091,
+            ("神栖横丁", "スポンサー（横丁）"):            296818,
+            ("神栖横丁", "キッチンカー"):                   30000,
+            ("神栖横丁", "その他売上"):                    365119},
+}
+
+HOLD = [
+    ("8月", "神栖横丁", "board 8月CSV：テナント（入居店舗）への家賃請求がまだ入っていない",
+     "8月売上invoices.csv の飲食事業部は23件・税抜2,705,028（＋グループ空の千代田グラビヤ200,000）で、"
+     "中身はビアガーデンの出店参加料・掛け売り・スポンサー・横断幕・ご飲食代だけ。"
+     "7月にあった入居店舗（ガキゲン・ドリーム・ツマギアンズ・鉄板焼次郎ほか）への"
+     "家賃請求19件・約296万が1件も無い。利用者 2026-09-02「飲食事業部はまだ全部出揃ってないですが、"
+     "少し入ってる。一旦、売上、転記して」に従い、いま出ている分だけ入れた。"
+     "出揃ったらCSVを差し替えて取り込み直してください（神栖横丁「売上」行は8月が空のまま）"),
+]
 
 
 def _read(path):
@@ -68,35 +145,96 @@ def _read(path):
     raise RuntimeError(path)
 
 
-def _union(pattern):
-    """cards/invoices*.csv を全部読んで、合計請求書Noで重複を落とす。
-    後から読んだファイルで上書きする（新しいエクスポートを優先）。"""
+def _union(pattern, key):
+    """パターンに当たるCSVを全部読んで、主キー列で重複を落とす。
+    後から読んだファイルで上書きする（新しいエクスポートを優先）。
+
+    ★主キーはファイルの種類ごとに違う（FILES の3つめ）。8月の案件エクスポートを
+      「合計請求書No」で落とすと、1つの合計請求書にぶら下がる複数の請求書が
+      消えてしまう（実際に12件が重複していて23行が消えた）。"""
     merged = {}
     for path in sorted(glob.glob(os.path.join(DIR, pattern))):
-        for r in _read(path):
-            merged[r["合計請求書No"]] = r
+        rows = _read(path)
+        assert rows and key in rows[0], f"{os.path.basename(path)} に「{key}」列が無い"
+        for r in rows:
+            merged[r[key]] = r
     return list(merged.values())
+
+
+def _group(r):
+    """グループ列。空なら GROUP_OVERRIDE（利用者指示）で埋める。"""
+    g = r.get("グループ") or ""
+    if not g:
+        ov = GROUP_OVERRIDE.get(r.get("請求書No", ""))
+        if ov:
+            return ov[0]
+    return g
+
+
+def _plrow(month, group, r):
+    """(タブ, PL行) を決める。決められなければ None。"""
+    if group not in GROUP2PL:
+        return None
+    tab, plrow = GROUP2PL[group]
+    if month == "8月" and group == "飲食事業部":
+        name = r.get("案件名") or ""
+        for kw, row8 in ROW8:
+            if kw in name:
+                return (tab, row8)
+        return None            # 振り分けられない → 保留へ
+    return (tab, plrow)
 
 
 def rows():
     """(タブ, PL行, 月, 税抜, 消費税, 件数, 元ファイル, 内訳) を列挙。"""
-    for pattern, month in FILES:
-        det = _union(pattern)
+    for pattern, month, key in FILES:
+        det = _union(pattern, key)
         by = {}
         for r in det:
-            g = r["グループ"]
-            if g not in GROUP2PL:
+            g = _group(r)
+            k = _plrow(month, g, r)
+            if k is None:
                 continue
-            tab, plrow = GROUP2PL[g]
-            k = (tab, plrow)
             ex = int(float(r["請求金額（JPY・税抜）"]))
             tax = int(float(r["消費税"]))
             by.setdefault(k, {"ex": 0, "tax": 0, "n": 0, "detail": []})
             by[k]["ex"] += ex; by[k]["tax"] += tax; by[k]["n"] += 1
             by[k]["detail"].append((r["請求日"], r["顧客名"], ex))
-        for tab, v in CHECK.items():
-            got = by[(tab, "売上")]["ex"]
-            assert got == v, f"{tab}: board {got:,} ≠ 既存スプシ {v:,}"
+        for k, v in CHECK.get(month, {}).items():
+            got = by.get(k, {"ex": 0})["ex"]
+            assert got == v, f"{month} {k[0]} {k[1]}: board {got:,} ≠ 検算値 {v:,}"
         for (tab, plrow), v in by.items():
             yield (tab, plrow, month, v["ex"], v["tax"], v["n"],
-                   "freeeカード明細/21期/invoices*.csv（8/20版＋8/21版の和集合）", sorted(v["detail"], key=lambda d: -d[2]))
+                   SRC_NOTE[month], sorted(v["detail"], key=lambda d: -d[2]))
+
+
+def unmapped():
+    """PL行を決められなかった請求（保留リストへ）。
+    (月, タブ, 見出し, 理由) — HOLD と同じ形。"""
+    for pattern, month, key in FILES:
+        for r in _union(pattern, key):
+            g = _group(r)
+            if g and _plrow(month, g, r) is not None:
+                continue
+            ex = int(float(r["請求金額（JPY・税抜）"]))
+            no = r.get("請求書No") or r.get("合計請求書No") or ""
+            name = r.get("案件名") or r.get("件名") or ""
+            cust = r.get("顧客名") or ""
+            if not g:
+                why = "「グループ」欄が空。どの部門か決められない"
+            else:
+                why = f"グループ「{g}」の案件名から神栖横丁のどの売上行か決められない"
+            yield (month, "（board）", f"No.{no} {cust}",
+                   f"{name} 税抜{ex:,}円。{why}。"
+                   f"board.GROUP_OVERRIDE か board.ROW8 に足せば入ります（{SRC_NOTE[month]}）")
+
+
+if __name__ == "__main__":
+    tot = {}
+    for tab, plrow, m, ex, tax, n, _src, _d in rows():
+        print(f"  {m:>3} {tab:<8} {plrow:<22} {ex:>10,}  ({n}件)")
+        tot[m] = tot.get(m, 0) + ex
+    for m, v in tot.items():
+        print(f"{m} 合計 {v:,}")
+    for h in unmapped():
+        print("保留:", h[0], h[2], h[3][:60])
