@@ -828,6 +828,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["請求書2605月", m, tab, item, "", reason])
     for m, tab, item, reason in tanaoroshi.hold_rows():
         hs.append(["棚卸し", m, tab, item, "", reason])
+    for m, tab, item, reason in inv8.HOLD:
+        hs.append(["請求書2608月", m, tab, item, "", reason])
     for m, tab, item, reason in debits.HOLD:
         hs.append(["口座引落", m, tab, item, "", reason])
     for m, tab, item, reason in debits.missing_months():
