@@ -4,6 +4,7 @@
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
+import debits
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
 import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, inv05, airregi, tanaoroshi
@@ -468,6 +469,21 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
           "／陸事総合", f"{sum(x[3] for x in rikuji.rows()):,}",
           "／ENEOS", f"{sum(x[3] for x in eneos.rows()):,}")
 
+    # ===== 請求書が来ない口座引落（銀行明細CSVから12か月）=====
+    # ★利用者指示 2026-09-02「銀行口座のCSV見て…引き落としの案件…口座見て入れて」
+    #   fixed_costs より前・請求書より後に置く。inv01 のリヴィン1月10,000の上に
+    #   引落45,486を足すため（debits.ADD_ON）。
+    debits.check(wb)
+    F_DEBIT = PatternFill("solid", fgColor="EDE7F6")
+    debit_rows = list(debits.rows())
+    for tab, plrow, m, ex, tax, name, src, note in debit_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "口座引落")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_DEBIT; c.number_format = build2.NUMFMT
+    print("口座引落セル", len(debit_rows), "／計", f"{sum(x[3] for x in debit_rows):,}",
+          "／", len({(t, r) for t, r, *_ in debit_rows}), "行 × 12か月")
+
     # ===== 毎月定額の自動引落・自動振込（請求書なし・全タブ）=====
     # ★請求書・カード明細・横丁の社内請求より後に置くこと。check() が
     #   「空であること」を見て二重計上を止めるので、先に置くと素通りする。
@@ -669,6 +685,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         ws.append(["", tab, "出前館", "支払通知書", back, "", val, "", plrow, m, src, STAMP,
                    "お戻し金額⑦（商品代金補填・不課税）を費用のマイナスで計上。"
                    "既存PLも同じ扱い（年計 ▲20,890）"])
+    for tab, plrow, m, ex, tax, name, src, note in debit_rows:
+        ws.append(["", tab, name, "口座引落", ex + tax, 10 if tax else "", ex, tax,
+                   plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src in kame_rows:
         ws.append(["", tab, "かめや", "本部請求", "", "", val, "", plrow, m, src, STAMP, ""])
     for tab, plrow, m, val, src, note in kame_cash:
@@ -807,6 +826,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["請求書2605月", m, tab, item, "", reason])
     for m, tab, item, reason in tanaoroshi.hold_rows():
         hs.append(["棚卸し", m, tab, item, "", reason])
+    for m, tab, item, reason in debits.HOLD:
+        hs.append(["口座引落", m, tab, item, "", reason])
     for m, tab, item, reason in board.HOLD:
         hs.append(["board売掛", m, tab, item, "", reason])
     for m, tab, item, reason in board.unmapped():
