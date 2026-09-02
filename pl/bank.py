@@ -542,11 +542,35 @@ def _hit(n, pool):
     return n in pool or any(n in k or k in n for k in pool if len(k) > 3)
 
 
+# 銀行の取引先名 → PLの行名（2026-09-03 追加）
+#
+# PLの行は取引先名のものと費目名のものが混ざっている。費目名の行に入っている
+# 支払いは取引先名では引けないので、そのままだと「PLに行すら無い」の誤検知になる。
+# 実際 8月の明細を入れて動かしたら、①の8,202,658円のうち5,873,752円（72%）が
+# この誤検知だった。
+#
+# ★ここに足すときは、必ずその行に実際に金額が入っていることを確かめてから足す。
+#   「たぶんこの行だろう」で足すと、本物の計上漏れを見逃す。
+PL_ROW = {
+    # 神栖横丁の家賃（ともえ）。カ）カクタ ＷＥＢ 330,550＝300,000×1.1＋手数料550。
+    # 神栖横丁「地代家賃（賃料）」に 300,000×11か月＝3,300,000（税抜）が入っている
+    "カクタ": ["地代家賃（賃料）"],
+    # 本社家賃145,000を本部・業務課・鳥害対策課で3分割（fixed_costs.py）。
+    # 3タブ合わせて 48,333×3×11＝1,594,989（税抜）が入っている
+    "アサヒ不動産": ["地代家賃（賃料）", "地代家賃（145,000÷3）"],
+    # もも焼きJAPAN「外注費（MEG design office）」49,000（norow.py の POSTINGS）
+    "MEGデザインオフィス": ["外注費（MEG design office）"],
+    # 業務課「諸会費（日本ビルメン）」。行はあるが金額はまだ0なので②に出る
+    "日本ビルメン経営品質協議会": ["諸会費（日本ビルメン）"],
+}
+
+
 def reconcile(wb):
     """(完全に無い, 行はあるが金額ゼロ, 計上あり, PLだけにある) を返す。
 
     金額の月次一致は見ない。1回の振込に複数月ぶんがまとまることがあるので、
     取引先レベルの有無だけ見る。
+    ★取引先名で引けない行は PL_ROW で別名を足して引く。
     """
     bank = collections.Counter()
     for date, b, raw, vendor, a, src, known in payments():
@@ -556,14 +580,17 @@ def reconcile(wb):
     nonzero = {k for k, v in pl.items() if v}
     missing, zero, ok = [], [], []
     for v, a in sorted(bank.items(), key=lambda x: -x[1]):
-        n = _norm(v)
-        if _hit(n, nonzero):
+        names = [_norm(v)] + [_norm(x) for x in PL_ROW.get(v, [])]
+        if any(_hit(n, nonzero) for n in names):
             ok.append((v, a))
-        elif _hit(n, pl):
+        elif any(_hit(n, pl) for n in names):
             zero.append((v, a))          # 行はあるが1円も入っていない
         else:
             missing.append((v, a))       # 行すら無い
+    # ★別名も銀行側に入れる。入れないと、その行が今度は
+    #   「PLにあるが銀行に支払いが無い」に出てしまう
     bank_norm = {_norm(v) for v in bank}
+    bank_norm |= {_norm(x) for v in bank for x in PL_ROW.get(v, [])}
     only_pl = sorted(((k, a) for k, a in pl.items()
                       if a and not _hit(k, bank_norm)), key=lambda x: -x[1])
     return missing, zero, ok, only_pl
