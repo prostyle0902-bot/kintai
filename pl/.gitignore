@@ -8,3 +8,6 @@ sa*.json
 *credentials*.json
 .env
 rikuji_pdf/
+# 給料一覧表PDF（個人ごとの給与額が載る）。絶対にコミットしない
+kyuyo/
+meg/*.pdf
