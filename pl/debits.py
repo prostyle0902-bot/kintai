@@ -115,6 +115,17 @@ RULES = [
     dict(name="プルデンシャル生命", key="ＰＧＢＳプルデンシヤル", accts=["3351509"],
          split=[("本部", "プルデンシャル生命", 1, 1)], mode="asis",
          note="保険料なので非課税。引落額そのまま"),
+    dict(name="ALSOK（神栖横丁）", key="ＤＦＡＬＳＯＫ", accts=["3543920"],
+         split=[("神栖横丁", "ALSOK", 1, 1)], mode="ex10",
+         note="綜合警備保障の機械警備。横丁の口座から毎月22,550＝20,500×1.1。"
+              "摘要は9月だけ「ＤＦ．ＡＬＳＯＫ０００１」で、10月から「ＤＦ．ＡＬＳＯＫ２０００」"
+              "（契約番号が変わっただけで額は同じ）。利用者指摘 2026-09-02「ALSOKもそうじゃないかな？横丁の」"),
+    dict(name="地代家賃（カクタ・神栖横丁）", key="カカクタ", accts=["3543920", "PayPay"],
+         split=[("神栖横丁", "地代家賃（賃料）", 1, 1)], mode="ex10", fee={"3543920": 550},
+         note="横丁の建物の家賃。330,000＝300,000×1.1。"
+              "9月・10月は横丁の口座から330,550（＝330,000＋振込手数料550）、"
+              "11月からPayPay銀行に移って330,000（手数料は別行）。"
+              "アサヒ不動産（本社家賃）とまったく同じ構造なので一緒に移した"),
     dict(name="地代家賃（アサヒ不動産）", key="ユアサヒフドウサン", accts=["3351509", "PayPay"],
          split=[("本部", "地代家賃（145,000÷3）", 1, 3),
                 ("業務課", "地代家賃（賃料）", 1, 3),
@@ -137,6 +148,8 @@ CHECK = {
     ("業務課", "地代家賃（賃料）"):    {m: 48333 for m in _M11},
     ("鳥害対策課", "地代家賃（賃料）"): {m: 48333 for m in _M11},
     ("神栖横丁", "千葉銀リース"):     {m: 49500 for m in _M11},
+    ("神栖横丁", "ALSOK"):           {m: 20500 for m in _M11},
+    ("神栖横丁", "地代家賃（賃料）"):   {m: 300000 for m in _M11},
     ("神栖横丁", "三井住友リース"):    {m: 9380 for m in _M11},
     ("本部", "NS会議所（上乗せ労災）"):
         dict(zip(_M11, [26650, 26650, 26650, 26650,
@@ -283,12 +296,33 @@ def collect():
     return got
 
 
-def rows():
-    """(タブ, PL行, 月, 税抜, 消費税, ルール名, 元データ, メモ) を列挙。"""
+def rows(wb=None):
+    """(タブ, PL行, 月, 税抜, 消費税, ルール名, 元データ, メモ) を列挙。
+
+    wb を渡すと、すでに請求書などから同じ額が入っているセルは飛ばす
+    （横丁の合計請求書がALSOK等を先に入れている月がある）。飛ばしたぶんは
+    skipped() で取れる。ADD_ON のセルだけは飛ばさずに足す。
+    """
+    import build2
     note = {r["name"]: r["note"] for r in RULES}
     for (tab, plrow, m), (ex, tax, name, detail, how) in sorted(collect().items()):
+        if wb is not None:
+            v = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"].value
+            if v and (tab, plrow, m) not in ADD_ON:
+                continue
         yield (tab, plrow, m, ex, tax, name,
                "銀行明細CSV（bank/）", f"{note[name]}。{how}。引落: {detail}")
+
+
+def skipped(wb):
+    """すでに埋まっていて飛ばしたセル (タブ, 行, 月, 既存値, 引落からの額)。"""
+    import build2
+    for (tab, plrow, m), (ex, _tax, _n, _d, _h) in sorted(collect().items()):
+        if (tab, plrow, m) in ADD_ON:
+            continue
+        v = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"].value
+        if v:
+            yield tab, plrow, m, int(v), ex
 
 
 # ★このモジュールの【上に】先に入っているセル。(タブ, 行, 月) -> (先に入る額, 理由)
@@ -332,15 +366,19 @@ def check(wb=None):
                    for k in got), f"{rule['name']} の引落が1件も見つからない"
     if wb is None:
         return True
+    #   ★すでに埋まっているセルは「請求書などが先に入れた」もの。飛ばすが、
+    #     そのとき金額が引落と一致することを確かめる（重なりは検算材料）。
     for (tab, plrow, m), (ex, _tax, _n, _d, _h) in sorted(got.items()):
         v = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"].value
         if not v:
             continue
         add = ADD_ON.get((tab, plrow, m))
-        assert add, (f"{tab} {plrow} {m} に既に {v} が入っている。"
-                     f"引落の {ex:,} を足すと二重計上になる")
-        assert int(v) == add[0], (f"{tab} {plrow} {m}: 先に入っている {int(v):,} が "
-                                  f"ADD_ON の {add[0]:,} と違う")
+        if add:
+            assert int(v) == add[0], (f"{tab} {plrow} {m}: 先に入っている {int(v):,} が "
+                                      f"ADD_ON の {add[0]:,} と違う")
+            continue
+        assert int(v) == ex, (f"{tab} {plrow} {m}: 先に入っている {int(v):,} と "
+                              f"引落からの {ex:,} が違う。どちらかが間違っている")
     return True
 
 

@@ -475,14 +475,16 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     #   引落45,486を足すため（debits.ADD_ON）。
     debits.check(wb)
     F_DEBIT = PatternFill("solid", fgColor="EDE7F6")
-    debit_rows = list(debits.rows())
+    debit_same = list(debits.skipped(wb))   # 請求書と重なったセル（金額一致を確認済み）
+    debit_rows = list(debits.rows(wb))
     for tab, plrow, m, ex, tax, name, src, note in debit_rows:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "口座引落")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + ex; c.fill = F_DEBIT; c.number_format = build2.NUMFMT
     print("口座引落セル", len(debit_rows), "／計", f"{sum(x[3] for x in debit_rows):,}",
-          "／", len({(t, r) for t, r, *_ in debit_rows}), "行 × 12か月")
+          "／", len({(t, r) for t, r, *_ in debits.rows()}), "行",
+          "／請求書と重なって飛ばしたセル", len(debit_same), "（金額は全部一致）")
 
     # ===== 毎月定額の自動引落・自動振込（請求書なし・全タブ）=====
     # ★請求書・カード明細・横丁の社内請求より後に置くこと。check() が
