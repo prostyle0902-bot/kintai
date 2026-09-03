@@ -6,6 +6,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll8
+import jimu
 
 STAMP = "2026-08-20 06:40"
 
@@ -370,6 +371,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
     print("新設行セル", len(nr_rows), "／計", f"{sum(x[3] for x in nr_rows):,}")
 
+    # ===== 地域活性舎からの事務代行手数料 → 本部「その他売上」=====
+    # 利用者指示 2026-09-03「本部のその他売上で」。千葉銀行3351509への
+    # 毎月33,000円の入金8件（計264,000・税込）。boardにも売掛にも請求書が無く、
+    # 記録は銀行明細だけ。★入金側なので bank.reconcile() の①②には出てこない。
+    jimu.check(wb)                 # 銀行明細の実額・取りこぼし・書き込み先が空か
+    jm_rows = list(jimu.rows())
+    for tab, plrow, m, val, src, note in jm_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "事務手数料")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
+    print("事務手数料セル", len(jm_rows), "／計", f"{sum(x[3] for x in jm_rows):,}")
+
     # ===== 椎名環境整備の産廃処分（大口2件）→ 本部 =====
     # 銀行に242,000（2025/11）と221,100（2026/05）の大きな支払いがあり、
     # 毎月の13,200とは桁が違った。業務フォルダに請求書があり、場所は
@@ -596,6 +610,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                    "請求書" if "MEG" in plrow else "銀行明細",
                    "", 10 if "MEG" in plrow else "", int(val), "",
                    plrow, m, src, STAMP, note])
+    for tab, plrow, m, val, src, note in jm_rows:
+        ws.append([f"21期 {m}", tab, "地域活性舎", "銀行明細（入金）",
+                   jimu.INC, jimu.RATE, int(val), jimu.INC - int(val),
+                   plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, note in car_rows:
         ws.append([f"21期 {m}", tab, "陸事総合協同組合" if "陸自" in plrow else "トヨタファイナンス",
                    "請求書", "", "", int(val), "", plrow, m, src, STAMP, note])
@@ -655,6 +673,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in norow.hold_rows():
         hs.append(["新設行", m, tab, item, "", reason])
+    for m, tab, item, reason in jimu.hold_rows():
+        hs.append(["事務手数料", m, tab, item, "", reason])
     # ★8月は書類だけで組む（利用者指示 2026-08-23「既存は無視してくださいね」）。
     #   まだ届いていない元データを保留リストに出して、何を待っているかを見えるようにする。
     for m, tab, item, reason in status8.hold_rows():
