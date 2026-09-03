@@ -1,508 +1,573 @@
 {
-  "note": "処理済み台帳。キーはDropboxのfile_id（支払い済フォルダへ移動されてもIDは変わらない）。baselineは2026-08-25の仕組み導入時点で既にフォルダにあったファイル＝利用者が手で転記済みとみなしスキップ。",
-  "baseline_at": "2026-08-25T13:00:00Z",
-  "watch": {
-    "21期": {
-      "root": "ns:7987961616//買掛/21期",
-      "months_from": "2607月"
-    },
-    "22期": {
-      "root": "ns:7987961616//買掛/22期",
-      "months_from": "2609月"
-    }
+ "note": "処理済み台帳。キーはDropboxのfile_id（支払い済フォルダへ移動されてもIDは変わらない）。baselineは2026-08-25の仕組み導入時点で既にフォルダにあったファイル＝利用者が手で転記済みとみなしスキップ。",
+ "baseline_at": "2026-08-25T13:00:00Z",
+ "watch": {
+  "21期": {
+   "root": "ns:7987961616//買掛/21期",
+   "months_from": "2607月"
   },
-  "baseline": {
-    "id:BKWmtQDznicAAAAAAAHjWg": "2607月/鳥害対策/日本鳩対策センター.pdf",
-    "id:BKWmtQDznicAAAAAAAHiqQ": "2607月/鳥害対策/西尾レントオール.pdf",
-    "id:BKWmtQDznicAAAAAAAIhmQ": "2607月/ハナ/東総食肉センター　ハナ8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjxw": "2607月/ハナ/片野商店　ハナ.pdf",
-    "id:BKWmtQDznicAAAAAAAHj3A": "2607月/ハナ/日本食研　ハナ・もも焼き・タコハイ8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIh0g": "2607月/ハナ/2026年07月請求分合計請求書.pdf",
-    "id:BKWmtQDznicAAAAAAAIhoQ": "2607月/ハナ/鹿島食品　ハナ8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjvg": "2607月/焼きたて屋/門倉石油　焼きたて屋.pdf",
-    "id:BKWmtQDznicAAAAAAAHirQ": "2607月/焼きたて屋/丸善エコアース実績.pdf",
-    "id:BKWmtQDznicAAAAAAAIhqQ": "2607月/焼きたて屋/鹿島食品　焼きたて屋8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHirA": "2607月/焼きたて屋/丸善エコアース　焼きたて屋.pdf",
-    "id:BKWmtQDznicAAAAAAAHh5w": "2607月/業務/支払い済/ピカピカ　7月末振替.pdf",
-    "id:BKWmtQDznicAAAAAAAHieA": "2607月/業務/日本ビルメン経営品質協議会.pdf",
-    "id:BKWmtQDznicAAAAAAAIifA": "2607月/業務/0000042400_高速_請求書_202607.pdf",
-    "id:BKWmtQDznicAAAAAAAHj2Q": "2607月/業務/ミノアカ.xlsx",
-    "id:BKWmtQDznicAAAAAAAHjuA": "2607月/業務/ニッセーデリカ.pdf",
-    "id:BKWmtQDznicAAAAAAAHjWQ": "2607月/業務/エスアイビーエス.pdf",
-    "id:BKWmtQDznicAAAAAAAIhHA": "2607月/業務/SUN-X.pdf",
-    "id:BKWmtQDznicAAAAAAAHjug": "2607月/業務/リペアボックス.pdf",
-    "id:BKWmtQDznicAAAAAAAIiZw": "2607月/業務/ENEOS_202609.csv",
-    "id:BKWmtQDznicAAAAAAAHjvQ": "2607月/業務/江東微生物研究所.pdf",
-    "id:BKWmtQDznicAAAAAAAHj3Q": "2607月/業務/帝国データバンク.pdf",
-    "id:BKWmtQDznicAAAAAAAHjWA": "2607月/業務/ビーエム　.pdf",
-    "id:BKWmtQDznicAAAAAAAIiVQ": "2607月/業務/0000042400_高速_CP請求鑑_202607.csv",
-    "id:BKWmtQDznicAAAAAAAHjtw": "2607月/業務/ケミカルテクノロジー.pdf",
-    "id:BKWmtQDznicAAAAAAAIhmg": "2607月/もも焼き/山食　もも焼き8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhnQ": "2607月/もも焼き/鈴喜　もも焼き振替.pdf",
-    "id:BKWmtQDznicAAAAAAAHjyQ": "2607月/もも焼き/片野商店　もも焼き.pdf",
-    "id:BKWmtQDznicAAAAAAAIhqw": "2607月/もも焼き/鹿島食品　もも焼き8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIijg": "2607月/もも焼き/2026年07月請求分合計請求書 (1).pdf",
-    "id:BKWmtQDznicAAAAAAAIh1A": "2607月/タコハイ/2026年07月請求分合計請求書.pdf",
-    "id:BKWmtQDznicAAAAAAAHj2w": "2607月/タコハイ/ヴィーナスダイニング　タコハイ8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhoA": "2607月/タコハイ/鹿島食品　タコハイ8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjvw": "2607月/タコハイ/片野商店　タコハイ.pdf",
-    "id:BKWmtQDznicAAAAAAAHjVQ": "2607月/横丁/業務　横丁.pdf",
-    "id:BKWmtQDznicAAAAAAAIhrw": "2607月/横丁/ガキゲン　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhrg": "2607月/横丁/居酒屋ドリーム　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhnw": "2607月/横丁/鹿島食品　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHiqw": "2607月/横丁/ウゴーク　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHiew": "2607月/横丁/アルソック　横丁振替.pdf",
-    "id:BKWmtQDznicAAAAAAAIhrA": "2607月/横丁/鉄板焼次郎　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjuw": "2607月/横丁/NTTファイアンス　横丁振替.pdf",
-    "id:BKWmtQDznicAAAAAAAHjvA": "2607月/横丁/水道料金　横丁振替.pdf",
-    "id:BKWmtQDznicAAAAAAAIhnA": "2607月/横丁/クリーズコネスト　横丁.pdf",
-    "id:BKWmtQDznicAAAAAAAIhsQ": "2607月/横丁/電気料金　横丁振替.pdf",
-    "id:BKWmtQDznicAAAAAAAIhmw": "2607月/横丁/銚子杉野　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjVg": "2607月/横丁/USEN 横丁振替.pdf",
-    "id:BKWmtQDznicAAAAAAAIhmA": "2607月/横丁/ダスキン　横丁.pdf",
-    "id:BKWmtQDznicAAAAAAAHjVw": "2607月/横丁/USEN　横丁振替.pdf",
-    "id:BKWmtQDznicAAAAAAAIhrQ": "2607月/横丁/ツマギアンズ　横丁8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjyg": "2607月/横丁/片野商店　横丁.pdf",
-    "id:BKWmtQDznicAAAAAAAHj1w": "2607月/本部/オニオン新聞社.pdf",
-    "id:BKWmtQDznicAAAAAAAHj2A": "2607月/本部/サクラクレーン学校 8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHiqA": "2607月/本部/ナビット　8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjtg": "2607月/本部/スギヤマ.pdf",
-    "id:BKWmtQDznicAAAAAAAHjXA": "2607月/本部/支払い済/ヤマト運輸.pdf",
-    "id:BKWmtQDznicAAAAAAAIh7w": "2607月/本部/支払い済/エクセレントリーダーズ.pdf",
-    "id:BKWmtQDznicAAAAAAAHipg": "2607月/本部/高塚誠.pdf",
-    "id:BKWmtQDznicAAAAAAAHjuQ": "2607月/本部/室田石油.pdf",
-    "id:BKWmtQDznicAAAAAAAIh8Q": "2607月/本部/Excellemt Leaders 8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhsw": "2607月/本部/CCMOコンサルティング　8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjWw": "2607月/本部/クリーンシステム科学研究所.pdf",
-    "id:BKWmtQDznicAAAAAAAHj3g": "2607月/十三里屋/椎名環境整備　十三里屋8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjVA": "2607月/十三里屋/なめがたしろはとふぁーむ　十三里屋8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhng": "2607月/十三里屋/鹿島食品　十三里屋8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIh0w": "2607月/りゅうちゃん/2026年07月請求分合計請求書 (1).pdf",
-    "id:BKWmtQDznicAAAAAAAIhsg": "2607月/りゅうちゃん/藤原ストアー　りゅうちゃん8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhqg": "2607月/りゅうちゃん/鹿島食品　りゅうちゃん8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAIhsA": "2607月/りゅうちゃん/沖縄六角堂　りゅうちゃん8月末.pdf",
-    "id:BKWmtQDznicAAAAAAAHjyA": "2607月/りゅうちゃん/片野商店　りゅうちゃん振替.pdf",
-    "id:BKWmtQDznicAAAAAAAIhQw": "2608月/横丁/かりすまーず　８／１８済.pdf",
-    "id:BKWmtQDznicAAAAAAAIh8A": "2608月/本部/JBQ.pdf",
-    "id:BKWmtQDznicAAAAAAAHj2g": "2608月/本部/ピカピカ　振替.pdf"
-  },
-  "processed": {
-    "2026-08-25_21期7月_利用者指示による転記": {
-      "when": "2026-08-25",
-      "note": "突き合わせで見つかった差異を利用者の指示で反映。対象ファイルはbaselineに入っているが、実際には未転記だったもの",
-      "written": [
-        {
-          "cell": "O49",
-          "store": "ハナ",
-          "vendor": "神栖横丁家賃",
-          "amount": 212501,
-          "src": "合計請求書 No.8210"
-        },
-        {
-          "cell": "M49",
-          "store": "りゅうちゃん",
-          "vendor": "神栖横丁家賃",
-          "amount": 397580,
-          "src": "合計請求書 No.8215"
-        },
-        {
-          "cell": "I49",
-          "store": "もも焼きJAPAN",
-          "vendor": "神栖横丁家賃",
-          "amount": 265647,
-          "src": "合計請求書 No.8219"
-        },
-        {
-          "cell": "K49",
-          "store": "タコハイ",
-          "vendor": "神栖横丁家賃",
-          "amount": 291753,
-          "src": "合計請求書 No.8214"
-        },
-        {
-          "cell": "C27",
-          "store": "業務課",
-          "vendor": "高塚誠",
-          "amount": 11000,
-          "src": "本部/高塚誠.pdf"
-        },
-        {
-          "cell": "B5,C5",
-          "store": "業務課",
-          "vendor": "ナビット",
-          "amount": 66000,
-          "src": "本部/ナビット　8月末.pdf"
-        },
-        {
-          "cell": "B62,C62",
-          "store": "業務課",
-          "vendor": "陸事総合協同組合",
-          "amount": 138805,
-          "src": "業務/0000042400_高速_請求書_202607.pdf"
-        },
-        {
-          "cell": "B63,C63",
-          "store": "業務課",
-          "vendor": "ENEOS",
-          "amount": 129993,
-          "src": "業務/ENEOS_202609.csv"
-        }
-      ],
-      "corrected": [
-        {
-          "cell": "E29",
-          "store": "鳥害対策課",
-          "vendor": "日本鳩対策センター",
-          "from": 1003398,
-          "to": 1103738,
-          "reason": "税抜→税込"
-        },
-        {
-          "cell": "O6",
-          "store": "ハナ",
-          "vendor": "日本食研",
-          "from": 31515,
-          "to": 34036,
-          "reason": "店計(税抜)→税込"
-        },
-        {
-          "cell": "K6",
-          "store": "タコハイ",
-          "vendor": "日本食研",
-          "from": 5056,
-          "to": 5460,
-          "reason": "店計(税抜)→税込"
-        },
-        {
-          "cell": "I9",
-          "store": "もも焼きJAPAN",
-          "vendor": "日本食研",
-          "from": 6087,
-          "to": 6257,
-          "reason": "税込6,574からポイント利用-317"
-        }
-      ],
-      "not_written": [
-        {
-          "vendor": "NTTファイナンス",
-          "amount": 8287,
-          "reason": "利用者指示により入れない"
-        },
-        {
-          "vendor": "エクセレントリーダーズ",
-          "amount": 22000,
-          "reason": "利用者指示により入れない（今後発生しないため）"
-        }
-      ],
-      "grand_total_after": 7262017
-    },
-    "id:BKWmtQDznicAAAAAAAIh8g": {
-      "when": "2026-08-27",
-      "path": "2606月/確認済/業務/エスアイビーエス８／２７.pdf",
-      "vendor": "エスアイビーエス",
-      "amount": 25300,
-      "tab": "6月",
-      "cell": "C32",
-      "section": "10日",
-      "action": "write",
-      "note": "6月分フォルダへの後入れ。請求日2026-06-30・現場けやき眼科。どのタブに入れるか利用者に確認し『請求日ベースで6月タブ』と指示を受けた。ファイル名の8/27は支払日"
-    },
-    "id:BKWmtQDznicAAAAAAAIjzQ": {
-      "when": "2026-08-31",
-      "path": "2608月/業務/エスアイビーエス.pdf",
-      "vendor": "エスアイビーエス",
-      "amount": 52800,
-      "tab": "8月",
-      "cell": "C32",
-      "section": "10日",
-      "action": "already",
-      "note": "請求日2026-08-31・現場ひまわり眼科/ローズ眼科。小計48,000+消費税4,800=52,800（税込）。C32に同額が既に入力済みだったため書き込みなし"
-    },
-    "id:BKWmtQDznicAAAAAAAIjzg": {
-      "when": "2026-09-01",
-      "path": "2608月/鳥害対策/西尾レントオール　.pdf",
-      "vendor": "西尾レントオール",
-      "amount": 454740,
-      "tab": "8月",
-      "cell": "E28",
-      "section": "10日",
-      "action": "already",
-      "note": "2026-08-31締切/発行。請求合計書の当月売上413,400+消費税41,340=454,740（税込・繰越なし）。現場9件の合計。E28に同額が既に入力済みだったため書き込みなし"
-    },
-    "id:BKWmtQDznicAAAAAAAIkWg": {
-      "when": "2026-09-01",
-      "path": "2608月/本部/ナビット202608.pdf",
-      "vendor": "ナビット",
-      "amount": 66000,
-      "tab": "8月",
-      "cell": "C9",
-      "section": "月末",
-      "action": "write",
-      "note": "請求日2026-08-31・振込期限2026-09-30。コンシェルジュサービス月額。税抜60,000+消費税6,000=66,000。8月タブに行が無かったので月末セクションの空き行9へ振込先ごと新規記入。7月も同額66,000"
-    },
-    "id:BKWmtQDznicAAAAAAAIkXA": {
-      "when": "2026-09-01",
-      "path": "2608月/りゅうちゃん/河野竜二8月.pdf",
-      "vendor": "河野竜二",
-      "amount": 300000,
-      "tab": "8月",
-      "cell": "M27",
-      "section": "10日",
-      "action": "already",
-      "note": "請求日2026-08-31。店舗運営業務委託料8月分、税込300,000。行27に同額が既に入力済みだったため書き込みなし"
-    },
-    "id:BKWmtQDznicAAAAAAAIjzw": {
-      "when": "2026-09-01",
-      "path": "2608月/業務　横丁.pdf",
-      "vendor": "業務課",
-      "amount": 154000,
-      "tab": "8月",
-      "cell": "G49",
-      "section": "小見川",
-      "action": "write",
-      "note": "★社内請求書（Prostyle業務課 → TAKEOUTPARK神栖横丁宛）。月フォルダ直下に置かれていたので宛名で列を決めた。神栖横丁の清掃・グリストラップ等、税抜140,000+消費税14,000=154,000。支払期限2026-10-10・振込先が千葉銀行小見川支店なので小見川セクション。既存の振込先行『業務課』行49に金額のみ記入（7月は44,000）"
-    },
-    "id:BKWmtQDznicAAAAAAAIk7g": {
-      "when": "2026-09-01",
-      "path": "2608月/ウゴーク.pdf",
-      "vendor": "ウゴーク",
-      "amount": 33000,
-      "tab": "8月",
-      "cell": "G10",
-      "section": "月末",
-      "action": "write",
-      "note": "請求日2026-09-01・2026年8月分・入金期日2026-09-30。MEO対策業務手数料 税抜30,000+消費税3,000=33,000。請求書の件名は『本部』でファイルも月フォルダ直下だが、既存の行は神栖横丁の月末・行10にしかなく4月〜7月とも同額33,000が入っている。フォルダ名で機械的に決めず既存運用に合わせて横丁列にした"
-    },
-    "id:BKWmtQDznicAAAAAAAIk7w": {
-      "when": "2026-09-01",
-      "path": "2608月/本部/徳栄自動車.pdf",
-      "vendor": "徳栄自動車",
-      "amount": 16467,
-      "tab": "8月",
-      "cell": "C37",
-      "section": "10日",
-      "action": "write",
-      "note": "発行日2026-05-14・売上日2026-02-16・伝票01-1039。キャラバン 右スライドドアローラ取替・タイヤ入れ替え。5枚を合算して189,834をC37へ記入した（利用者指示 2026-09-01『5枚まとめて8月タブ』）。発行日は2026-05-14が2枚・2026-09-01が3枚と分かれていたが、5枚とも2608月フォルダに置かれていたので8月にまとめて支払う扱い。業務課の行37は21期を通して空だったので二重計上の心配は無い"
-    },
-    "id:BKWmtQDznicAAAAAAAIk8A": {
-      "when": "2026-09-01",
-      "path": "2608月/本部/徳栄自動車２.pdf",
-      "vendor": "徳栄自動車",
-      "amount": 145669,
-      "tab": "8月",
-      "cell": "",
-      "section": "10日",
-      "action": "included",
-      "note": "発行日2026-05-14・売上日2026-04-21・伝票01-1032。キャラバン 車検（自賠責13,480・重量税16,400・印紙2,500は非課税）。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
-    },
-    "id:BKWmtQDznicAAAAAAAIk8Q": {
-      "when": "2026-09-01",
-      "path": "2608月/本部/徳栄自動車３.pdf",
-      "vendor": "徳栄自動車",
-      "amount": 5060,
-      "tab": "8月",
-      "cell": "",
-      "section": "10日",
-      "action": "included",
-      "note": "発行日2026-09-01・売上日2026-07-23・伝票01-1224。エブリィ オイル交換。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
-    },
-    "id:BKWmtQDznicAAAAAAAIk8g": {
-      "when": "2026-09-01",
-      "path": "2608月/本部/徳栄自動車４.pdf",
-      "vendor": "徳栄自動車",
-      "amount": 3432,
-      "tab": "8月",
-      "cell": "",
-      "section": "10日",
-      "action": "included",
-      "note": "発行日2026-09-01・売上日2026-07-23・伝票01-1225。ハイゼット オイル交換。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
-    },
-    "id:BKWmtQDznicAAAAAAAIk8w": {
-      "when": "2026-09-01",
-      "path": "2608月/本部/徳栄自動車５.pdf",
-      "vendor": "徳栄自動車",
-      "amount": 19206,
-      "tab": "8月",
-      "cell": "",
-      "section": "10日",
-      "action": "included",
-      "note": "発行日2026-09-01・売上日2026-08-01・伝票01-1220。キャラバン オイル交換・ADバンタイヤ交換。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
-    },
-    "id:BKWmtQDznicAAAAAAAIlEQ": {
-      "when": "2026-09-02",
-      "path": "2608月/十三里屋/2026年8月分プロスタイル様請求書.pdf",
-      "vendor": "なめファ",
-      "amount": 744202,
-      "tab": "8月",
-      "cell": "S7",
-      "section": "月末",
-      "action": "write",
-      "note": "株式会社なめがたしろはとファーム。請求日2026-08-31・支払期限2026-09-30。家賃200,000＋ロイヤリティ(ブランド3.0%)35,386＋ロイヤリティ(本部管理6.5%)76,671＋仕入食材282,068(8%)＋仕入資材27,940＋水道2,800＋電気23,573・33,239。小計681,677+消費税62,525=744,202。スキャン画像PDFで fetch が空だったため PNG に変換して読んだ。シートの振込先表記は『なめファ』（7月は737,289）"
-    },
-    "id:BKWmtQDznicAAAAAAAIk9Q": {
-      "when": "2026-09-02",
-      "path": "2608月/ビーエム.pdf",
-      "vendor": "ビーエム",
-      "amount": 140129,
-      "tab": "8月",
-      "cell": "C28",
-      "section": "10日",
-      "action": "write",
-      "note": "★繰越込みの注意案件。請求明細書 2026-08-31 締切。今回御請求額282,667は繰越142,538込みなので使わない。今回御買上額127,390＋消費税12,739＝140,129 を入れた（READMEの金額の取り方どおり）。整合も取れている: 繰越142,538＝7月タブのビーエムの額、請求書内の『2026/08/10 振込 千葉銀行 330,922』＝6月タブの額。スキャン画像PDFで fetch が空だったため PNG に変換して読んだ"
-    },
-    "id:BKWmtQDznicAAAAAAAIk9A": {
-      "when": "2026-09-02",
-      "path": "2608月/総合環境分析.pdf",
-      "vendor": "総合環境分析",
-      "amount": 7260,
-      "tab": "8月",
-      "cell": "C42",
-      "section": "10日",
-      "action": "write",
-      "note": "株式会社総合環境分析。令和8年8月31日・請求書番号2608474。トータルステイ本館とアネックスの飲料水11項目検査各3,300。税抜6,600+消費税660=7,260。月フォルダ直下にあり店舗が読み取れないが、同種の水質検査である江東微生物研究所が業務課の10日（7月660円）にあるので業務課とした。8月タブに行が無かったので空き行42へ新規記入"
-    },
-    "id:BKWmtQDznicAAAAAAAIlUQ": {
-      "when": "2026-09-02",
-      "path": "2608月/業務/SUN-X.pdf",
-      "vendor": "SUNX",
-      "amount": 19800,
-      "tab": "8月",
-      "cell": "C35",
-      "section": "10日",
-      "action": "write",
-      "note": "SUN-X 松下丈夫。発行日2026-08-31。8/8 国府台病院 1人工 18,000＋消費税1,800＝19,800。業務フォルダなので業務課列、既存の行35（7月は39,600）に記入"
-    },
-    "id:BKWmtQDznicAAAAAAAIk9w": {
-      "when": "2026-09-02",
-      "path": "2608月/USEN　横丁振替.pdf",
-      "vendor": "USEN",
-      "amount": 1408,
-      "tab": "8月",
-      "cell": "G63",
-      "section": "自動",
-      "action": "write",
-      "note": "請求番号21298539。USEN NETWORKS の請求書兼口座振替通知書。締日2026-08-31・振替日2026-09-28・引き落とし先は千葉銀行小見川支店。1通あたり税込1,408（USEN NET 1,280＋消費税128）。請求番号が21298539と21298540で別契約の2通なので合算2,816をG63へ入れた。7月も同額2,816でREADMEの一致リストにも『USEN（2契約で2,816）』とある。ファイル名の『横丁振替』どおり神栖横丁の自動引落セクション"
-    },
-    "id:BKWmtQDznicAAAAAAAIlUA": {
-      "when": "2026-09-02",
-      "path": "2608月/USEN２　横丁振替.pdf",
-      "vendor": "USEN",
-      "amount": 1408,
-      "tab": "8月",
-      "cell": "",
-      "section": "自動",
-      "action": "included",
-      "note": "請求番号21298540。上のUSEN（id:...Ik9w）と合算してG63に2,816として記入済み。単独の書き込みはしていない"
-    },
-    "id:BKWmtQDznicAAAAAAAIlUg": {
-      "when": "2026-09-02",
-      "path": "2608月/アルソック　横丁振替.pdf",
-      "vendor": "ALSOK",
-      "amount": 22550,
-      "tab": "8月",
-      "cell": "G62",
-      "section": "自動",
-      "action": "write",
-      "note": "ALSOK茨城支社。請求書作成2026-08-10・お振替日2026-08-26。2026/09月度ガードシステム料金 神栖横丁。税抜20,500+消費税2,050=22,550。7月と同額"
-    },
-    "id:BKWmtQDznicAAAAAAAIlVg": {
-      "when": "2026-09-02",
-      "path": "2608月/門倉石油　焼きたて屋振替.pdf",
-      "vendor": "門倉石油",
-      "amount": 23795,
-      "tab": "8月",
-      "cell": "Q59",
-      "section": "自動",
-      "action": "write",
-      "note": "門倉石油。2026-08-17発行・8月15日〆分・支払方法は自振。お買上げ先は焼きたて屋。前回23,234＝入金23,234で差引0。当月お買上21,632+消費税2,163=今回ご請求額23,795。前回23,234は7月タブの値と一致"
-    },
-    "id:BKWmtQDznicAAAAAAAIlXg": {
-      "when": "2026-09-02",
-      "path": "2608月/片野商店　横丁振替.pdf",
-      "vendor": "片野商店",
-      "amount": 22268,
-      "tab": "8月",
-      "cell": "G65",
-      "section": "自動",
-      "action": "write",
-      "note": "宛名は神栖横丁共同（食洗機）。御買上20,244+消費税2,024=22,268。前月21,169。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
-    },
-    "id:BKWmtQDznicAAAAAAAIlXQ": {
-      "when": "2026-09-02",
-      "path": "2608月/片野商店　もも焼き振替.pdf",
-      "vendor": "片野商店",
-      "amount": 10546,
-      "tab": "8月",
-      "cell": "I60",
-      "section": "自動",
-      "action": "write",
-      "note": "宛名は Prostyle もも焼JAPAN ⑬。御買上9,588+消費税958=10,546。前月8,511。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
-    },
-    "id:BKWmtQDznicAAAAAAAIlWw": {
-      "when": "2026-09-02",
-      "path": "2608月/片野商店　タコハイ振替.pdf",
-      "vendor": "片野商店",
-      "amount": 10465,
-      "tab": "8月",
-      "cell": "K60",
-      "section": "自動",
-      "action": "write",
-      "note": "宛名は タコとハイボール ⑧。御買上9,514+消費税951=10,465。前月8,959。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
-    },
-    "id:BKWmtQDznicAAAAAAAIlXw": {
-      "when": "2026-09-02",
-      "path": "2608月/片野商店　ハナ振替.pdf",
-      "vendor": "片野商店",
-      "amount": 7453,
-      "tab": "8月",
-      "cell": "O59",
-      "section": "自動",
-      "action": "write",
-      "note": "宛名は 韓国酒場ハナ ②（プロスタイル）。御買上6,776+消費税677=7,453。前月6,069。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
-    },
-    "id:BKWmtQDznicAAAAAAAIlXA": {
-      "when": "2026-09-02",
-      "path": "2608月/片野商店　りゅうちゃん振替.pdf",
-      "vendor": "片野商店",
-      "amount": 25895,
-      "tab": "8月",
-      "cell": "M59・M60",
-      "section": "自動",
-      "action": "write",
-      "note": "★1ファイルに2契約ぶん2ページ。大衆酒場りゅうちゃん⑨（1,796・前月2,081）を行59へ、⑩（24,099・前月19,460）を行60へ、7月と同じ並びで分けて記入した。合計25,895。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
-    },
-    "id:BKWmtQDznicAAAAAAAIlWg": {
-      "when": "2026-09-02",
-      "path": "2608月/NTTファイナンス　横丁振替.pdf",
-      "vendor": "NTTファイナンス",
-      "amount": 11880,
-      "tab": "8月",
-      "cell": "",
-      "section": "自動",
-      "action": "skip",
-      "note": "★利用者指示により入れない（2026-08-27『NTTファイナンスは入れない』）。念のため記録: 請求番号00-9326-3277・2026年8月ご請求分・振替金額11,880（うち消費税1,080）・振替日2026-08-31・千葉銀行小見川3543920。8月タブの神栖横丁 行64『NTT』は空のままにしてある"
-    },
-    "id:BKWmtQDznicAAAAAAAIlWQ": {
-      "when": "2026-09-02",
-      "path": "2608月/NTTファイアンス２　横丁振替.pdf",
-      "vendor": "NTTファイナンス",
-      "amount": 8657,
-      "tab": "8月",
-      "cell": "",
-      "section": "自動",
-      "action": "skip",
-      "note": "★利用者指示により入れない。念のため記録: 請求番号00-9326-3278・2026年8月ご請求分・振替金額8,657（うち消費税787）・振替日2026-08-31・千葉銀行小見川3543920"
-    },
-    "id:BKWmtQDznicAAAAAAAIlYQ": {
-      "when": "2026-09-03",
-      "path": "2608月/水道料金　横丁振替.pdf",
-      "vendor": "水道料金",
-      "amount": 89996,
-      "tab": "8月",
-      "cell": "G59",
-      "section": "自動",
-      "action": "write",
-      "note": "神栖市水道事業の納入通知書兼口座振替領収済通知書（令和8年8月25日発行）。上段が令和8年8月分＝水道料金53,982＋下水道使用料36,014＝89,996、振替日2026-09-28。使用水量193㎥（7/13〜8/12検針）。神栖市神栖1-17-7分。★下段は令和8年6月分72,979（7/27振替済）で、これは6月タブのG59と一致した。上段を8月に入れるのが正しいことの裏付けになる。スキャン画像PDFなのでPNGに変換して読んだ"
-    }
+  "22期": {
+   "root": "ns:7987961616//買掛/22期",
+   "months_from": "2609月"
   }
+ },
+ "baseline": {
+  "id:BKWmtQDznicAAAAAAAHjWg": "2607月/鳥害対策/日本鳩対策センター.pdf",
+  "id:BKWmtQDznicAAAAAAAHiqQ": "2607月/鳥害対策/西尾レントオール.pdf",
+  "id:BKWmtQDznicAAAAAAAIhmQ": "2607月/ハナ/東総食肉センター　ハナ8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjxw": "2607月/ハナ/片野商店　ハナ.pdf",
+  "id:BKWmtQDznicAAAAAAAHj3A": "2607月/ハナ/日本食研　ハナ・もも焼き・タコハイ8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIh0g": "2607月/ハナ/2026年07月請求分合計請求書.pdf",
+  "id:BKWmtQDznicAAAAAAAIhoQ": "2607月/ハナ/鹿島食品　ハナ8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjvg": "2607月/焼きたて屋/門倉石油　焼きたて屋.pdf",
+  "id:BKWmtQDznicAAAAAAAHirQ": "2607月/焼きたて屋/丸善エコアース実績.pdf",
+  "id:BKWmtQDznicAAAAAAAIhqQ": "2607月/焼きたて屋/鹿島食品　焼きたて屋8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHirA": "2607月/焼きたて屋/丸善エコアース　焼きたて屋.pdf",
+  "id:BKWmtQDznicAAAAAAAHh5w": "2607月/業務/支払い済/ピカピカ　7月末振替.pdf",
+  "id:BKWmtQDznicAAAAAAAHieA": "2607月/業務/日本ビルメン経営品質協議会.pdf",
+  "id:BKWmtQDznicAAAAAAAIifA": "2607月/業務/0000042400_高速_請求書_202607.pdf",
+  "id:BKWmtQDznicAAAAAAAHj2Q": "2607月/業務/ミノアカ.xlsx",
+  "id:BKWmtQDznicAAAAAAAHjuA": "2607月/業務/ニッセーデリカ.pdf",
+  "id:BKWmtQDznicAAAAAAAHjWQ": "2607月/業務/エスアイビーエス.pdf",
+  "id:BKWmtQDznicAAAAAAAIhHA": "2607月/業務/SUN-X.pdf",
+  "id:BKWmtQDznicAAAAAAAHjug": "2607月/業務/リペアボックス.pdf",
+  "id:BKWmtQDznicAAAAAAAIiZw": "2607月/業務/ENEOS_202609.csv",
+  "id:BKWmtQDznicAAAAAAAHjvQ": "2607月/業務/江東微生物研究所.pdf",
+  "id:BKWmtQDznicAAAAAAAHj3Q": "2607月/業務/帝国データバンク.pdf",
+  "id:BKWmtQDznicAAAAAAAHjWA": "2607月/業務/ビーエム　.pdf",
+  "id:BKWmtQDznicAAAAAAAIiVQ": "2607月/業務/0000042400_高速_CP請求鑑_202607.csv",
+  "id:BKWmtQDznicAAAAAAAHjtw": "2607月/業務/ケミカルテクノロジー.pdf",
+  "id:BKWmtQDznicAAAAAAAIhmg": "2607月/もも焼き/山食　もも焼き8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhnQ": "2607月/もも焼き/鈴喜　もも焼き振替.pdf",
+  "id:BKWmtQDznicAAAAAAAHjyQ": "2607月/もも焼き/片野商店　もも焼き.pdf",
+  "id:BKWmtQDznicAAAAAAAIhqw": "2607月/もも焼き/鹿島食品　もも焼き8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIijg": "2607月/もも焼き/2026年07月請求分合計請求書 (1).pdf",
+  "id:BKWmtQDznicAAAAAAAIh1A": "2607月/タコハイ/2026年07月請求分合計請求書.pdf",
+  "id:BKWmtQDznicAAAAAAAHj2w": "2607月/タコハイ/ヴィーナスダイニング　タコハイ8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhoA": "2607月/タコハイ/鹿島食品　タコハイ8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjvw": "2607月/タコハイ/片野商店　タコハイ.pdf",
+  "id:BKWmtQDznicAAAAAAAHjVQ": "2607月/横丁/業務　横丁.pdf",
+  "id:BKWmtQDznicAAAAAAAIhrw": "2607月/横丁/ガキゲン　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhrg": "2607月/横丁/居酒屋ドリーム　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhnw": "2607月/横丁/鹿島食品　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHiqw": "2607月/横丁/ウゴーク　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHiew": "2607月/横丁/アルソック　横丁振替.pdf",
+  "id:BKWmtQDznicAAAAAAAIhrA": "2607月/横丁/鉄板焼次郎　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjuw": "2607月/横丁/NTTファイアンス　横丁振替.pdf",
+  "id:BKWmtQDznicAAAAAAAHjvA": "2607月/横丁/水道料金　横丁振替.pdf",
+  "id:BKWmtQDznicAAAAAAAIhnA": "2607月/横丁/クリーズコネスト　横丁.pdf",
+  "id:BKWmtQDznicAAAAAAAIhsQ": "2607月/横丁/電気料金　横丁振替.pdf",
+  "id:BKWmtQDznicAAAAAAAIhmw": "2607月/横丁/銚子杉野　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjVg": "2607月/横丁/USEN 横丁振替.pdf",
+  "id:BKWmtQDznicAAAAAAAIhmA": "2607月/横丁/ダスキン　横丁.pdf",
+  "id:BKWmtQDznicAAAAAAAHjVw": "2607月/横丁/USEN　横丁振替.pdf",
+  "id:BKWmtQDznicAAAAAAAIhrQ": "2607月/横丁/ツマギアンズ　横丁8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjyg": "2607月/横丁/片野商店　横丁.pdf",
+  "id:BKWmtQDznicAAAAAAAHj1w": "2607月/本部/オニオン新聞社.pdf",
+  "id:BKWmtQDznicAAAAAAAHj2A": "2607月/本部/サクラクレーン学校 8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHiqA": "2607月/本部/ナビット　8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjtg": "2607月/本部/スギヤマ.pdf",
+  "id:BKWmtQDznicAAAAAAAHjXA": "2607月/本部/支払い済/ヤマト運輸.pdf",
+  "id:BKWmtQDznicAAAAAAAIh7w": "2607月/本部/支払い済/エクセレントリーダーズ.pdf",
+  "id:BKWmtQDznicAAAAAAAHipg": "2607月/本部/高塚誠.pdf",
+  "id:BKWmtQDznicAAAAAAAHjuQ": "2607月/本部/室田石油.pdf",
+  "id:BKWmtQDznicAAAAAAAIh8Q": "2607月/本部/Excellemt Leaders 8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhsw": "2607月/本部/CCMOコンサルティング　8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjWw": "2607月/本部/クリーンシステム科学研究所.pdf",
+  "id:BKWmtQDznicAAAAAAAHj3g": "2607月/十三里屋/椎名環境整備　十三里屋8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjVA": "2607月/十三里屋/なめがたしろはとふぁーむ　十三里屋8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhng": "2607月/十三里屋/鹿島食品　十三里屋8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIh0w": "2607月/りゅうちゃん/2026年07月請求分合計請求書 (1).pdf",
+  "id:BKWmtQDznicAAAAAAAIhsg": "2607月/りゅうちゃん/藤原ストアー　りゅうちゃん8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhqg": "2607月/りゅうちゃん/鹿島食品　りゅうちゃん8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAIhsA": "2607月/りゅうちゃん/沖縄六角堂　りゅうちゃん8月末.pdf",
+  "id:BKWmtQDznicAAAAAAAHjyA": "2607月/りゅうちゃん/片野商店　りゅうちゃん振替.pdf",
+  "id:BKWmtQDznicAAAAAAAIhQw": "2608月/横丁/かりすまーず　８／１８済.pdf",
+  "id:BKWmtQDznicAAAAAAAIh8A": "2608月/本部/JBQ.pdf",
+  "id:BKWmtQDznicAAAAAAAHj2g": "2608月/本部/ピカピカ　振替.pdf"
+ },
+ "processed": {
+  "2026-08-25_21期7月_利用者指示による転記": {
+   "when": "2026-08-25",
+   "note": "突き合わせで見つかった差異を利用者の指示で反映。対象ファイルはbaselineに入っているが、実際には未転記だったもの",
+   "written": [
+    {
+     "cell": "O49",
+     "store": "ハナ",
+     "vendor": "神栖横丁家賃",
+     "amount": 212501,
+     "src": "合計請求書 No.8210"
+    },
+    {
+     "cell": "M49",
+     "store": "りゅうちゃん",
+     "vendor": "神栖横丁家賃",
+     "amount": 397580,
+     "src": "合計請求書 No.8215"
+    },
+    {
+     "cell": "I49",
+     "store": "もも焼きJAPAN",
+     "vendor": "神栖横丁家賃",
+     "amount": 265647,
+     "src": "合計請求書 No.8219"
+    },
+    {
+     "cell": "K49",
+     "store": "タコハイ",
+     "vendor": "神栖横丁家賃",
+     "amount": 291753,
+     "src": "合計請求書 No.8214"
+    },
+    {
+     "cell": "C27",
+     "store": "業務課",
+     "vendor": "高塚誠",
+     "amount": 11000,
+     "src": "本部/高塚誠.pdf"
+    },
+    {
+     "cell": "B5,C5",
+     "store": "業務課",
+     "vendor": "ナビット",
+     "amount": 66000,
+     "src": "本部/ナビット　8月末.pdf"
+    },
+    {
+     "cell": "B62,C62",
+     "store": "業務課",
+     "vendor": "陸事総合協同組合",
+     "amount": 138805,
+     "src": "業務/0000042400_高速_請求書_202607.pdf"
+    },
+    {
+     "cell": "B63,C63",
+     "store": "業務課",
+     "vendor": "ENEOS",
+     "amount": 129993,
+     "src": "業務/ENEOS_202609.csv"
+    }
+   ],
+   "corrected": [
+    {
+     "cell": "E29",
+     "store": "鳥害対策課",
+     "vendor": "日本鳩対策センター",
+     "from": 1003398,
+     "to": 1103738,
+     "reason": "税抜→税込"
+    },
+    {
+     "cell": "O6",
+     "store": "ハナ",
+     "vendor": "日本食研",
+     "from": 31515,
+     "to": 34036,
+     "reason": "店計(税抜)→税込"
+    },
+    {
+     "cell": "K6",
+     "store": "タコハイ",
+     "vendor": "日本食研",
+     "from": 5056,
+     "to": 5460,
+     "reason": "店計(税抜)→税込"
+    },
+    {
+     "cell": "I9",
+     "store": "もも焼きJAPAN",
+     "vendor": "日本食研",
+     "from": 6087,
+     "to": 6257,
+     "reason": "税込6,574からポイント利用-317"
+    }
+   ],
+   "not_written": [
+    {
+     "vendor": "NTTファイナンス",
+     "amount": 8287,
+     "reason": "利用者指示により入れない"
+    },
+    {
+     "vendor": "エクセレントリーダーズ",
+     "amount": 22000,
+     "reason": "利用者指示により入れない（今後発生しないため）"
+    }
+   ],
+   "grand_total_after": 7262017
+  },
+  "id:BKWmtQDznicAAAAAAAIh8g": {
+   "when": "2026-08-27",
+   "path": "2606月/確認済/業務/エスアイビーエス８／２７.pdf",
+   "vendor": "エスアイビーエス",
+   "amount": 25300,
+   "tab": "6月",
+   "cell": "C32",
+   "section": "10日",
+   "action": "write",
+   "note": "6月分フォルダへの後入れ。請求日2026-06-30・現場けやき眼科。どのタブに入れるか利用者に確認し『請求日ベースで6月タブ』と指示を受けた。ファイル名の8/27は支払日"
+  },
+  "id:BKWmtQDznicAAAAAAAIjzQ": {
+   "when": "2026-08-31",
+   "path": "2608月/業務/エスアイビーエス.pdf",
+   "vendor": "エスアイビーエス",
+   "amount": 52800,
+   "tab": "8月",
+   "cell": "C32",
+   "section": "10日",
+   "action": "already",
+   "note": "請求日2026-08-31・現場ひまわり眼科/ローズ眼科。小計48,000+消費税4,800=52,800（税込）。C32に同額が既に入力済みだったため書き込みなし"
+  },
+  "id:BKWmtQDznicAAAAAAAIjzg": {
+   "when": "2026-09-01",
+   "path": "2608月/鳥害対策/西尾レントオール　.pdf",
+   "vendor": "西尾レントオール",
+   "amount": 454740,
+   "tab": "8月",
+   "cell": "E28",
+   "section": "10日",
+   "action": "already",
+   "note": "2026-08-31締切/発行。請求合計書の当月売上413,400+消費税41,340=454,740（税込・繰越なし）。現場9件の合計。E28に同額が既に入力済みだったため書き込みなし"
+  },
+  "id:BKWmtQDznicAAAAAAAIkWg": {
+   "when": "2026-09-01",
+   "path": "2608月/本部/ナビット202608.pdf",
+   "vendor": "ナビット",
+   "amount": 66000,
+   "tab": "8月",
+   "cell": "C9",
+   "section": "月末",
+   "action": "write",
+   "note": "請求日2026-08-31・振込期限2026-09-30。コンシェルジュサービス月額。税抜60,000+消費税6,000=66,000。8月タブに行が無かったので月末セクションの空き行9へ振込先ごと新規記入。7月も同額66,000"
+  },
+  "id:BKWmtQDznicAAAAAAAIkXA": {
+   "when": "2026-09-01",
+   "path": "2608月/りゅうちゃん/河野竜二8月.pdf",
+   "vendor": "河野竜二",
+   "amount": 300000,
+   "tab": "8月",
+   "cell": "M27",
+   "section": "10日",
+   "action": "already",
+   "note": "請求日2026-08-31。店舗運営業務委託料8月分、税込300,000。行27に同額が既に入力済みだったため書き込みなし"
+  },
+  "id:BKWmtQDznicAAAAAAAIjzw": {
+   "when": "2026-09-01",
+   "path": "2608月/業務　横丁.pdf",
+   "vendor": "業務課",
+   "amount": 154000,
+   "tab": "8月",
+   "cell": "G49",
+   "section": "小見川",
+   "action": "write",
+   "note": "★社内請求書（Prostyle業務課 → TAKEOUTPARK神栖横丁宛）。月フォルダ直下に置かれていたので宛名で列を決めた。神栖横丁の清掃・グリストラップ等、税抜140,000+消費税14,000=154,000。支払期限2026-10-10・振込先が千葉銀行小見川支店なので小見川セクション。既存の振込先行『業務課』行49に金額のみ記入（7月は44,000）"
+  },
+  "id:BKWmtQDznicAAAAAAAIk7g": {
+   "when": "2026-09-01",
+   "path": "2608月/ウゴーク.pdf",
+   "vendor": "ウゴーク",
+   "amount": 33000,
+   "tab": "8月",
+   "cell": "G10",
+   "section": "月末",
+   "action": "write",
+   "note": "請求日2026-09-01・2026年8月分・入金期日2026-09-30。MEO対策業務手数料 税抜30,000+消費税3,000=33,000。請求書の件名は『本部』でファイルも月フォルダ直下だが、既存の行は神栖横丁の月末・行10にしかなく4月〜7月とも同額33,000が入っている。フォルダ名で機械的に決めず既存運用に合わせて横丁列にした"
+  },
+  "id:BKWmtQDznicAAAAAAAIk7w": {
+   "when": "2026-09-01",
+   "path": "2608月/本部/徳栄自動車.pdf",
+   "vendor": "徳栄自動車",
+   "amount": 16467,
+   "tab": "8月",
+   "cell": "C37",
+   "section": "10日",
+   "action": "write",
+   "note": "発行日2026-05-14・売上日2026-02-16・伝票01-1039。キャラバン 右スライドドアローラ取替・タイヤ入れ替え。5枚を合算して189,834をC37へ記入した（利用者指示 2026-09-01『5枚まとめて8月タブ』）。発行日は2026-05-14が2枚・2026-09-01が3枚と分かれていたが、5枚とも2608月フォルダに置かれていたので8月にまとめて支払う扱い。業務課の行37は21期を通して空だったので二重計上の心配は無い"
+  },
+  "id:BKWmtQDznicAAAAAAAIk8A": {
+   "when": "2026-09-01",
+   "path": "2608月/本部/徳栄自動車２.pdf",
+   "vendor": "徳栄自動車",
+   "amount": 145669,
+   "tab": "8月",
+   "cell": "",
+   "section": "10日",
+   "action": "included",
+   "note": "発行日2026-05-14・売上日2026-04-21・伝票01-1032。キャラバン 車検（自賠責13,480・重量税16,400・印紙2,500は非課税）。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
+  },
+  "id:BKWmtQDznicAAAAAAAIk8Q": {
+   "when": "2026-09-01",
+   "path": "2608月/本部/徳栄自動車３.pdf",
+   "vendor": "徳栄自動車",
+   "amount": 5060,
+   "tab": "8月",
+   "cell": "",
+   "section": "10日",
+   "action": "included",
+   "note": "発行日2026-09-01・売上日2026-07-23・伝票01-1224。エブリィ オイル交換。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
+  },
+  "id:BKWmtQDznicAAAAAAAIk8g": {
+   "when": "2026-09-01",
+   "path": "2608月/本部/徳栄自動車４.pdf",
+   "vendor": "徳栄自動車",
+   "amount": 3432,
+   "tab": "8月",
+   "cell": "",
+   "section": "10日",
+   "action": "included",
+   "note": "発行日2026-09-01・売上日2026-07-23・伝票01-1225。ハイゼット オイル交換。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
+  },
+  "id:BKWmtQDznicAAAAAAAIk8w": {
+   "when": "2026-09-01",
+   "path": "2608月/本部/徳栄自動車５.pdf",
+   "vendor": "徳栄自動車",
+   "amount": 19206,
+   "tab": "8月",
+   "cell": "",
+   "section": "10日",
+   "action": "included",
+   "note": "発行日2026-09-01・売上日2026-08-01・伝票01-1220。キャラバン オイル交換・ADバンタイヤ交換。この分は徳栄自動車.pdf の行（C37）に合算済み。単独の書き込みはしていない"
+  },
+  "id:BKWmtQDznicAAAAAAAIlEQ": {
+   "when": "2026-09-02",
+   "path": "2608月/十三里屋/2026年8月分プロスタイル様請求書.pdf",
+   "vendor": "なめファ",
+   "amount": 744202,
+   "tab": "8月",
+   "cell": "S7",
+   "section": "月末",
+   "action": "write",
+   "note": "株式会社なめがたしろはとファーム。請求日2026-08-31・支払期限2026-09-30。家賃200,000＋ロイヤリティ(ブランド3.0%)35,386＋ロイヤリティ(本部管理6.5%)76,671＋仕入食材282,068(8%)＋仕入資材27,940＋水道2,800＋電気23,573・33,239。小計681,677+消費税62,525=744,202。スキャン画像PDFで fetch が空だったため PNG に変換して読んだ。シートの振込先表記は『なめファ』（7月は737,289）"
+  },
+  "id:BKWmtQDznicAAAAAAAIk9Q": {
+   "when": "2026-09-02",
+   "path": "2608月/ビーエム.pdf",
+   "vendor": "ビーエム",
+   "amount": 140129,
+   "tab": "8月",
+   "cell": "C28",
+   "section": "10日",
+   "action": "write",
+   "note": "★繰越込みの注意案件。請求明細書 2026-08-31 締切。今回御請求額282,667は繰越142,538込みなので使わない。今回御買上額127,390＋消費税12,739＝140,129 を入れた（READMEの金額の取り方どおり）。整合も取れている: 繰越142,538＝7月タブのビーエムの額、請求書内の『2026/08/10 振込 千葉銀行 330,922』＝6月タブの額。スキャン画像PDFで fetch が空だったため PNG に変換して読んだ"
+  },
+  "id:BKWmtQDznicAAAAAAAIk9A": {
+   "when": "2026-09-02",
+   "path": "2608月/総合環境分析.pdf",
+   "vendor": "総合環境分析",
+   "amount": 7260,
+   "tab": "8月",
+   "cell": "C42",
+   "section": "10日",
+   "action": "write",
+   "note": "株式会社総合環境分析。令和8年8月31日・請求書番号2608474。トータルステイ本館とアネックスの飲料水11項目検査各3,300。税抜6,600+消費税660=7,260。月フォルダ直下にあり店舗が読み取れないが、同種の水質検査である江東微生物研究所が業務課の10日（7月660円）にあるので業務課とした。8月タブに行が無かったので空き行42へ新規記入"
+  },
+  "id:BKWmtQDznicAAAAAAAIlUQ": {
+   "when": "2026-09-02",
+   "path": "2608月/業務/SUN-X.pdf",
+   "vendor": "SUNX",
+   "amount": 19800,
+   "tab": "8月",
+   "cell": "C35",
+   "section": "10日",
+   "action": "write",
+   "note": "SUN-X 松下丈夫。発行日2026-08-31。8/8 国府台病院 1人工 18,000＋消費税1,800＝19,800。業務フォルダなので業務課列、既存の行35（7月は39,600）に記入"
+  },
+  "id:BKWmtQDznicAAAAAAAIk9w": {
+   "when": "2026-09-02",
+   "path": "2608月/USEN　横丁振替.pdf",
+   "vendor": "USEN",
+   "amount": 1408,
+   "tab": "8月",
+   "cell": "G63",
+   "section": "自動",
+   "action": "write",
+   "note": "請求番号21298539。USEN NETWORKS の請求書兼口座振替通知書。締日2026-08-31・振替日2026-09-28・引き落とし先は千葉銀行小見川支店。1通あたり税込1,408（USEN NET 1,280＋消費税128）。請求番号が21298539と21298540で別契約の2通なので合算2,816をG63へ入れた。7月も同額2,816でREADMEの一致リストにも『USEN（2契約で2,816）』とある。ファイル名の『横丁振替』どおり神栖横丁の自動引落セクション"
+  },
+  "id:BKWmtQDznicAAAAAAAIlUA": {
+   "when": "2026-09-02",
+   "path": "2608月/USEN２　横丁振替.pdf",
+   "vendor": "USEN",
+   "amount": 1408,
+   "tab": "8月",
+   "cell": "",
+   "section": "自動",
+   "action": "included",
+   "note": "請求番号21298540。上のUSEN（id:...Ik9w）と合算してG63に2,816として記入済み。単独の書き込みはしていない"
+  },
+  "id:BKWmtQDznicAAAAAAAIlUg": {
+   "when": "2026-09-02",
+   "path": "2608月/アルソック　横丁振替.pdf",
+   "vendor": "ALSOK",
+   "amount": 22550,
+   "tab": "8月",
+   "cell": "G62",
+   "section": "自動",
+   "action": "write",
+   "note": "ALSOK茨城支社。請求書作成2026-08-10・お振替日2026-08-26。2026/09月度ガードシステム料金 神栖横丁。税抜20,500+消費税2,050=22,550。7月と同額"
+  },
+  "id:BKWmtQDznicAAAAAAAIlVg": {
+   "when": "2026-09-02",
+   "path": "2608月/門倉石油　焼きたて屋振替.pdf",
+   "vendor": "門倉石油",
+   "amount": 23795,
+   "tab": "8月",
+   "cell": "Q59",
+   "section": "自動",
+   "action": "write",
+   "note": "門倉石油。2026-08-17発行・8月15日〆分・支払方法は自振。お買上げ先は焼きたて屋。前回23,234＝入金23,234で差引0。当月お買上21,632+消費税2,163=今回ご請求額23,795。前回23,234は7月タブの値と一致"
+  },
+  "id:BKWmtQDznicAAAAAAAIlXg": {
+   "when": "2026-09-02",
+   "path": "2608月/片野商店　横丁振替.pdf",
+   "vendor": "片野商店",
+   "amount": 22268,
+   "tab": "8月",
+   "cell": "G65",
+   "section": "自動",
+   "action": "write",
+   "note": "宛名は神栖横丁共同（食洗機）。御買上20,244+消費税2,024=22,268。前月21,169。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
+  },
+  "id:BKWmtQDznicAAAAAAAIlXQ": {
+   "when": "2026-09-02",
+   "path": "2608月/片野商店　もも焼き振替.pdf",
+   "vendor": "片野商店",
+   "amount": 10546,
+   "tab": "8月",
+   "cell": "I60",
+   "section": "自動",
+   "action": "write",
+   "note": "宛名は Prostyle もも焼JAPAN ⑬。御買上9,588+消費税958=10,546。前月8,511。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
+  },
+  "id:BKWmtQDznicAAAAAAAIlWw": {
+   "when": "2026-09-02",
+   "path": "2608月/片野商店　タコハイ振替.pdf",
+   "vendor": "片野商店",
+   "amount": 10465,
+   "tab": "8月",
+   "cell": "K60",
+   "section": "自動",
+   "action": "write",
+   "note": "宛名は タコとハイボール ⑧。御買上9,514+消費税951=10,465。前月8,959。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
+  },
+  "id:BKWmtQDznicAAAAAAAIlXw": {
+   "when": "2026-09-02",
+   "path": "2608月/片野商店　ハナ振替.pdf",
+   "vendor": "片野商店",
+   "amount": 7453,
+   "tab": "8月",
+   "cell": "O59",
+   "section": "自動",
+   "action": "write",
+   "note": "宛名は 韓国酒場ハナ ②（プロスタイル）。御買上6,776+消費税677=7,453。前月6,069。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
+  },
+  "id:BKWmtQDznicAAAAAAAIlXA": {
+   "when": "2026-09-02",
+   "path": "2608月/片野商店　りゅうちゃん振替.pdf",
+   "vendor": "片野商店",
+   "amount": 25895,
+   "tab": "8月",
+   "cell": "M59・M60",
+   "section": "自動",
+   "action": "write",
+   "note": "★1ファイルに2契約ぶん2ページ。大衆酒場りゅうちゃん⑨（1,796・前月2,081）を行59へ、⑩（24,099・前月19,460）を行60へ、7月と同じ並びで分けて記入した。合計25,895。片野商店のガス料金。26年8月20日締・千葉銀行振替。前月御請求額＝御入金額で差引繰越0なので御請求額がそのまま当月分。前月御請求額が7月タブの値と一致することも確認した"
+  },
+  "id:BKWmtQDznicAAAAAAAIlWg": {
+   "when": "2026-09-02",
+   "path": "2608月/NTTファイナンス　横丁振替.pdf",
+   "vendor": "NTTファイナンス",
+   "amount": 11880,
+   "tab": "8月",
+   "cell": "",
+   "section": "自動",
+   "action": "skip",
+   "note": "★利用者指示により入れない（2026-08-27『NTTファイナンスは入れない』）。念のため記録: 請求番号00-9326-3277・2026年8月ご請求分・振替金額11,880（うち消費税1,080）・振替日2026-08-31・千葉銀行小見川3543920。8月タブの神栖横丁 行64『NTT』は空のままにしてある"
+  },
+  "id:BKWmtQDznicAAAAAAAIlWQ": {
+   "when": "2026-09-02",
+   "path": "2608月/NTTファイアンス２　横丁振替.pdf",
+   "vendor": "NTTファイナンス",
+   "amount": 8657,
+   "tab": "8月",
+   "cell": "",
+   "section": "自動",
+   "action": "skip",
+   "note": "★利用者指示により入れない。念のため記録: 請求番号00-9326-3278・2026年8月ご請求分・振替金額8,657（うち消費税787）・振替日2026-08-31・千葉銀行小見川3543920"
+  },
+  "id:BKWmtQDznicAAAAAAAIlYQ": {
+   "when": "2026-09-03",
+   "path": "2608月/水道料金　横丁振替.pdf",
+   "vendor": "水道料金",
+   "amount": 89996,
+   "tab": "8月",
+   "cell": "G59",
+   "section": "自動",
+   "action": "write",
+   "note": "神栖市水道事業の納入通知書兼口座振替領収済通知書（令和8年8月25日発行）。上段が令和8年8月分＝水道料金53,982＋下水道使用料36,014＝89,996、振替日2026-09-28。使用水量193㎥（7/13〜8/12検針）。神栖市神栖1-17-7分。★下段は令和8年6月分72,979（7/27振替済）で、これは6月タブのG59と一致した。上段を8月に入れるのが正しいことの裏付けになる。スキャン画像PDFなのでPNGに変換して読んだ"
+  },
+  "id:BKWmtQDznicAAAAAAAIlYA": {
+   "when": "2026-09-03",
+   "path": "2608月/本部/スギヤマ.pdf",
+   "vendor": "スギヤマ",
+   "amount": 41662,
+   "tab": "8月",
+   "cell": "C30",
+   "section": "10日",
+   "action": "write",
+   "note": "株式会社スギヤマ。26年8月20日締切分（No.26-1）。御入金額8,306／繰越金額27,366／御買上額41,662／今回御請求額69,028。README『今回御買上額（内消費税）を取る。繰越は含めない』に従い当月分41,662（内消費税3,787）を計上。検算: 繰越27,366＋当月41,662＝御請求額69,028 ✅／7月の請求書も御買上額16,463でシートの7月と一致していた。★繰越が19,209→27,366と増えている（毎月の入金が請求額に足りていない）。シートの転記としては当月分で正しいが、利用者に伝えた"
+  },
+  "id:BKWmtQDznicAAAAAAAIlVQ": {
+   "when": "2026-09-03",
+   "path": "2608月/本部/クリーンシステム科学研究所9月末.pdf",
+   "vendor": "クリーンシステム科学研究所",
+   "amount": 9900,
+   "tab": "8月",
+   "cell": "C12",
+   "section": "月末",
+   "action": "write",
+   "note": "株式会社クリーンシステム科学研究所。請求日2026-08-15。月刊「ビルクリーニング」誌の年間購読料（2026年11月号〜2027年10月号・1冊）。本体9,000＋消費税10%900＝9,900。支払は9月30日までなので月末セクション。年1回の請求で5〜7月には無い"
+  },
+  "id:BKWmtQDznicAAAAAAAIlUw": {
+   "when": "2026-09-03",
+   "path": "2608月/業務/ミノアカ.xlsx",
+   "vendor": "ミノアカ",
+   "amount": 291500,
+   "tab": "8月",
+   "cell": "C38",
+   "section": "10日",
+   "action": "write",
+   "note": "ミノアカ（小林智和）。Excelの請求書。作業日は8/8〜8/26の11件。小計265,000＋消費税10%26,500＝291,500（税込）。検算: 明細11行の合計＝265,000 ✅。★ひな形の請求日セルが2025-09-01のままだが、明細が8月なので2608月分とみた"
+  },
+  "id:BKWmtQDznicAAAAAAAIlVA": {
+   "when": "2026-09-03",
+   "path": "2608月/業務/ニッセーデリカ.pdf",
+   "vendor": "ニッセーデリカ",
+   "amount": 3487,
+   "tab": "8月",
+   "cell": "C29",
+   "section": "10日",
+   "action": "write",
+   "note": "株式会社ニッセーデリカ。No.C260812・発行日2026-08-31・8月分。検便12@160＝1,920＋マスク5@250＝1,250。小計3,170＋消費税10%317＝3,487。繰越残高なし"
+  },
+  "id:BKWmtQDznicAAAAAAAIk9g": {
+   "when": "2026-09-03",
+   "path": "2608月/十三里屋/なめがたしろはとふぁーむ　十三里屋9月末.pdf",
+   "vendor": "なめファ",
+   "amount": 744202,
+   "tab": "8月",
+   "cell": "S7",
+   "action": "already",
+   "note": "★同じ請求書の再アップロード。2026-09-02に id:BKWmtQDznicAAAAAAAIlEQ（2608月/十三里屋/2026年8月分プロスタイル様請求書.pdf）として転記済み。請求書番号20260901-6・2026/08/31発行・支払期限2026/09/30・合計744,202 が一致し、ファイルサイズも122,706で同じ。二重計上しないため書き込まない"
+  },
+  "id:BKWmtQDznicAAAAAAAIlVw": {
+   "when": "2026-09-03",
+   "path": "2607月/横丁/電気料金　振替.pdf",
+   "vendor": "電気料金（地域創生HD）",
+   "amount": 442975,
+   "tab": "7月",
+   "cell": null,
+   "section": "自動",
+   "action": "hold",
+   "note": "★保留。地域創生ホールディングス「ご請求明細書」請求コードOT97279318・利用年月2026年07月分・振替予定日2026年08月27日・合計442,975円（内消費税40,270）。銀行明細でも 2026/08/27 千葉銀行（横丁3543920）ＡＰ（チイキソウセイ 442,975 と1円まで一致するので中身は確実。\n書き込まなかった理由: 7月タブ神栖横丁の自動引落に「電気料金」の行が2本あり、行60は東京電力（TAKEOUT PARK神栖横丁看板・2026年7月分1,449円）で埋まっているが、行61は4月〜7月とも4か月連続で空。毎月24万〜45万の引落があるのに一度も入っていないので、意図的に載せていない可能性がある。44万円を新規に入れると月合計が大きく動くため、利用者に確認するまで書かない"
+  }
+ }
 }
