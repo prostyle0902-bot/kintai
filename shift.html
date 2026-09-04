@@ -227,14 +227,80 @@
   }
   .lbl { display: none; font-size: 10.5px; color: var(--text-secondary); margin-right: 4px; }
 
+  /* =========================================================
+     印刷
+     画面の表を無理に縮めると小さくて読めないので、
+     印刷のときは専用の紙面(#print-area)を組み立てて、そちらだけを出す。
+     ========================================================= */
+  #print-area { display: none; }
+
+  .p-sheet { page-break-after: always; break-after: page; }
+  .p-sheet:last-child { page-break-after: auto; break-after: auto; }
+  .p-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+    border-bottom: 2px solid #33312e; padding-bottom: 6px; margin-bottom: 10px; }
+  .p-title { font-size: 22px; font-weight: 700; color: #33312e; letter-spacing: .04em; }
+  .p-period { font-size: 15px; margin-top: 3px; color: #33312e; }
+  .p-meta { font-size: 11px; color: #55524d; text-align: right; line-height: 1.7;
+    max-width: 48%; min-width: 0; overflow-wrap: anywhere; }
+  .p-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .p-table th, .p-table td { border: 1px solid #8d887f; text-align: center; padding: 4px 2px;
+    overflow: hidden; color: #33312e; line-height: 1.3; }
+  .p-table thead th { background: #ece8e1; font-weight: 700; }
+  .p-table tbody tr { page-break-inside: avoid; break-inside: avoid; }
+  .p-dow { display: block; font-weight: 400; }
+  .p-table td.p-name { text-align: left; font-weight: 700; padding-left: 8px; background: #f7f5f1; }
+  .p-sun { color: #a8321b; }
+  .p-sat { color: #1f5f96; }
+  .p-closed { background: #e3e0da; color: #7d7970; }
+  .p-on { background: #d6efe4; font-weight: 700; font-size: 1.1em; }
+  .p-req { color: #a8a49c; }
+  .p-sum { background: #f7f5f1; font-weight: 700; }
+  .p-short { background: #f4d3c9; font-weight: 700; }
+  .p-span { display: block; white-space: nowrap; }
+  .p-legend { margin-top: 9px; font-size: 11px; color: #55524d; }
+  .p-legend i { display: inline-block; width: 11px; height: 11px; border: 1px solid #8d887f;
+    vertical-align: -1px; margin-right: 3px; }
+  .p-legend span { margin-right: 14px; white-space: nowrap; }
+  .p-foot { margin-top: 5px; font-size: 10px; color: #8d887f; text-align: right; }
+
+  /* 日別シフト（カレンダー）の紙面 */
+  .p-cal { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .p-cal th { border: 1px solid #8d887f; background: #ece8e1; padding: 5px 0; font-weight: 700; }
+  .p-cal td { border: 1px solid #8d887f; vertical-align: top; padding: 5px; }
+  .p-cal .p-day { font-weight: 700; margin-bottom: 3px; }
+  .p-cal .p-day small { font-weight: 400; margin-left: 3px; }
+  .p-cal .p-hol { color: #a8321b; margin-bottom: 3px; }
+  .p-cal .p-nm { display: block; background: #d6efe4; border-radius: 3px;
+    padding: 2px 5px; margin-bottom: 3px; font-weight: 700; overflow-wrap: anywhere; }
+  .p-cal .p-nm em { display: block; font-style: normal; font-weight: 400; font-size: .88em; }
+  .p-cal .p-blank { background: #f7f5f1; }
+  .p-cal .p-rest { color: #8d887f; }
+  .p-cal .p-lack { color: #a8321b; font-weight: 700; }
+
+  /* 印刷の設定 */
+  .pseg-row { margin-bottom: 1rem; }
+  .pseg-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .pseg-group { display: flex; }
+  .pseg { flex: 1; padding: 9px 6px; font-size: 13px; font-family: inherit; cursor: pointer;
+    border: 0.5px solid var(--border-md); background: var(--surface); color: var(--text-secondary);
+    border-left: none; }
+  .pseg:first-child { border-left: 0.5px solid var(--border-md); border-radius: var(--radius-md) 0 0 var(--radius-md); }
+  .pseg:last-child { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+  .pseg.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .pseg.on + .pseg { border-left: none; }
+  .p-hint { font-size: 12px; line-height: 1.7; color: #92650a; background: #FFF6E0;
+    border-radius: var(--radius-md); padding: 10px 12px; }
+
   @media print {
-    body { background: #fff; }
-    .no-print { display: none !important; }
-    .app { max-width: none; padding: 0; }
-    .scroll { border: none; overflow: visible; }
-    th, td { padding: 4px 3px; font-size: 10px; }
+    html, body { background: #fff; }
+    body > .app, .overlay { display: none !important; }
+    #print-area { display: block !important; }
+    /* 背景色（出勤の色分けなど）を紙にも出す */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
+<!-- 用紙の向きは印刷の設定に合わせて JS が書き換える -->
+<style id="print-page">@page { size: A4 landscape; margin: 8mm; }</style>
 </head>
 <body>
 <div class="app">
@@ -273,7 +339,7 @@
         <button class="btn ghost" onclick="clearShift()">シフトを消去</button>
         <button class="btn ghost" onclick="exportCsv()">CSV出力</button>
         <button class="btn ghost" onclick="exportTransferCsv(true)">転記用CSV</button>
-        <button class="btn ghost" onclick="window.print()">印刷</button>
+        <button class="btn ghost" onclick="openPrintDialog()">印刷</button>
       </div>
     </div>
 
@@ -301,6 +367,9 @@
     <div class="card" style="margin-top:1rem">
       <div class="card-title">日別シフト</div>
       <div class="card-desc">当日の出勤者を日ごとに確認できます。掲示用の印刷にも使えます。</div>
+      <div class="row-actions no-print" style="margin:0 0 1rem">
+        <button class="btn ghost" onclick="openPrintDialog('daily')">この形で印刷</button>
+      </div>
       <div id="daily-view"></div>
     </div>
   </div>
@@ -350,6 +419,35 @@
       <div class="row-actions" style="margin-top:1.25rem">
         <button class="btn primary" onclick="closeTimeEditor()">閉じる</button>
         <button class="btn ghost" id="edit-reset" onclick="resetTimeEditor()">この日の時間を既定に戻す</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 印刷の設定 ===== -->
+  <div class="overlay no-print" id="print-overlay" onclick="closePrintDialog(event)">
+    <div class="modal" style="max-width:470px" onclick="event.stopPropagation()">
+      <div class="modal-title">印刷</div>
+      <div class="modal-sub" id="print-sub"></div>
+      <div class="pseg-row">
+        <div class="pseg-label">印刷するもの</div>
+        <div class="pseg-group" id="po-what"></div>
+      </div>
+      <div class="pseg-row">
+        <div class="pseg-label">文字の大きさ</div>
+        <div class="pseg-group" id="po-size"></div>
+      </div>
+      <div class="pseg-row">
+        <div class="pseg-label">表に出す内容</div>
+        <div class="pseg-group" id="po-times"></div>
+      </div>
+      <div class="pseg-row">
+        <div class="pseg-label">用紙の向き</div>
+        <div class="pseg-group" id="po-orient"></div>
+      </div>
+      <div class="p-hint" id="print-hint"></div>
+      <div class="row-actions" style="margin-top:1.25rem">
+        <button class="btn primary" onclick="doPrint()">印刷する</button>
+        <button class="btn ghost" onclick="closePrintDialog()">閉じる</button>
       </div>
     </div>
   </div>
@@ -509,6 +607,9 @@
     </div>
   </div>
 </div>
+
+<!-- 印刷用の紙面。画面には出さず、印刷のときだけ組み立てて表示する -->
+<div id="print-area"></div>
 
 <script>
 /* =========================================================
@@ -2893,6 +2994,367 @@ function resetTimeEditor() {
   renderShift();
 }
 
+/* =========================================================
+   印刷
+   画面の表をそのまま紙に縮めると小さくて読めないので、
+   印刷のときは専用の紙面を組み立てる。
+   1枚に収まらない日数のときは自動で複数枚に分け、そのぶん文字を大きくする。
+   ========================================================= */
+
+// 文字の大きさごとの寸法（px）
+const P_SIZE = {
+  std: { name: 13, cell: 12.5, head: 12, dayW: 30, timeW: 62, nameW: 112, calFont: 11.5, calRow: 86 },
+  big: { name: 16, cell: 15.5, head: 14, dayW: 40, timeW: 80, nameW: 140, calFont: 14, calRow: 110 },
+  xl:  { name: 20, cell: 19, head: 17, dayW: 52, timeW: 102, nameW: 180, calFont: 17.5, calRow: 138 },
+};
+// A4・余白8mm で使える紙面の大きさ（px）
+const P_WIDTH = { landscape: 1062, portrait: 733 };
+const P_HEIGHT = { landscape: 733, portrait: 1062 };
+
+function printOpts() {
+  const o = DB.printOpts || (DB.printOpts = {});
+  if (!P_SIZE[o.size]) o.size = 'big';
+  if (['shift','daily','both'].indexOf(o.what) < 0) o.what = 'shift';
+  if (['auto','landscape','portrait'].indexOf(o.orient) < 0) o.orient = 'auto';
+  o.times = !!o.times;
+  return o;
+}
+
+function printOrient(o) {
+  if (o.orient === 'landscape' || o.orient === 'portrait') return o.orient;
+  return o.what === 'daily' ? 'portrait' : 'landscape';
+}
+
+// 1枚に何日ぶん入るかを見て、何枚に分けるかを決める
+function printPlan(o, days) {
+  const z = P_SIZE[o.size] || P_SIZE.big;
+  const avail = P_WIDTH[printOrient(o)];
+  const colW = o.times ? z.timeW : z.dayW;
+  const fixed = z.nameW + Math.round(z.dayW * 1.8);   // 名前の列と「出勤」の列
+  let cols = Math.floor((avail - fixed) / colW);
+  cols = Math.max(5, Math.min(cols, days || 1));
+  const sheets = Math.max(1, Math.ceil((days || 1) / cols));
+  return { z: z, avail: avail, sheets: sheets, per: Math.ceil((days || 1) / sheets) };
+}
+
+/* ---- 印刷の設定 ---------------------------------------------------- */
+function openPrintDialog(what) {
+  const o = printOpts();
+  if (what) { o.what = what; saveDB(); }
+  renderPrintDialog();
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+function closePrintDialog(ev) {
+  if (ev && ev.target !== ev.currentTarget) return;
+  document.getElementById('print-overlay').classList.remove('open');
+}
+
+function setPrintOpt(k, v) {
+  const o = printOpts();
+  if (k === 'times') o.times = (v === 'on'); else o[k] = v;
+  saveDB();
+  renderPrintDialog();
+}
+
+function pseg(group, cur, items) {
+  return items.map(function (it) {
+    return '<button class="pseg' + (it[0] === cur ? ' on' : '') + '"'
+      + ' onclick="setPrintOpt(\'' + group + '\',\'' + it[0] + '\')">' + esc(it[1]) + '</button>';
+  }).join('');
+}
+
+function renderPrintDialog() {
+  const o = printOpts();
+  const st = store();
+  const cal = buildCalendar();
+  const orient = printOrient(o);
+  const plan = printPlan(o, cal.length);
+
+  document.getElementById('print-sub').textContent = st.name + '　' + periodLabel();
+  document.getElementById('po-what').innerHTML = pseg('what', o.what,
+    [['shift', 'シフト表'], ['daily', '日別シフト'], ['both', '両方']]);
+  document.getElementById('po-size').innerHTML = pseg('size', o.size,
+    [['std', '標準'], ['big', '大きい'], ['xl', '特大']]);
+  const markLabel = usesPatterns(st)
+    ? '記号だけ（' + st.patterns.map(function (p) { return p.code; }).join('・') + '）'
+    : '記号だけ（○）';
+  document.getElementById('po-times').innerHTML = pseg('times', o.times ? 'on' : 'off',
+    [['off', markLabel], ['on', '勤務時間を入れる']]);
+  document.getElementById('po-orient').innerHTML = pseg('orient', o.orient,
+    [['auto', 'おまかせ'], ['landscape', '横'], ['portrait', '縦']]);
+
+  let msg = '<b>A4 ' + (orient === 'landscape' ? '横' : '縦') + '向き';
+  if (o.what !== 'daily') {
+    msg += '／シフト表 ' + plan.sheets + '枚';
+    if (plan.sheets > 1) {
+      const parts = [];
+      for (let i = 0; i < plan.sheets; i++) {
+        const p = cal.slice(i * plan.per, (i + 1) * plan.per);
+        if (p.length) parts.push(printRangeLabel(p));
+      }
+      msg += '（' + parts.join(' ／ ') + '）';
+    }
+  }
+  if (o.what !== 'shift') {
+    const dp = printCalPlan(st, cal, getShift(), o);
+    msg += (o.what === 'both' ? '＋' : '／') + '日別 ' + dp.sheets + '枚';
+  }
+  msg += '</b><br />文字が小さいときは「大きい」「特大」を選ぶと、期間を分けて大きく印刷します。'
+    + '<br />色が付かないときは、印刷画面の「背景のグラフィック」にチェックを入れてください。';
+  document.getElementById('print-hint').innerHTML = msg;
+}
+
+function doPrint() {
+  closePrintDialog();
+  buildPrintArea();
+  // 画面の描画が終わってから印刷を呼ぶ
+  setTimeout(function () { window.print(); }, 80);
+}
+
+/* ---- 紙面を組み立てる ---------------------------------------------- */
+function buildPrintArea() {
+  const area = document.getElementById('print-area');
+  if (!area) return;
+  const o = printOpts();
+  const st = store();
+  const cal = buildCalendar();
+  const staff = activeStaff();
+  const sh = getShift();
+
+  const page = document.getElementById('print-page');
+  if (page) page.textContent = '@page { size: A4 ' + printOrient(o) + '; margin: 8mm; }';
+
+  let h = '';
+  if (o.what !== 'daily') h += printShiftSheets(st, cal, staff, sh, o);
+  if (o.what !== 'shift') h += printDailySheet(st, cal, sh, o);
+  area.innerHTML = h;
+}
+
+function printRangeLabel(part) {
+  const a = part[0], b = part[part.length - 1];
+  return a.m + '/' + a.day + '〜' + b.m + '/' + b.day;
+}
+
+// 見出し（店舗名・期間・条件・作成日）
+function printHeader(st, right) {
+  return '<div class="p-head">'
+    + '<div><div class="p-title">' + esc(st.name) + '　シフト表</div>'
+    + '<div class="p-period">' + esc(periodLabel()) + '</div></div>'
+    + '<div class="p-meta">' + right + '</div></div>';
+}
+
+function printRuleText(st) {
+  const closed = st.closedDays.length
+    ? st.closedDays.map(function (d) { return DOW[d] + '曜'; }).join('・') + '定休' : '定休日なし';
+  const need = usesPatterns(st)
+    ? st.patterns.map(function (p) {
+        return p.code + ' ' + p.start + '〜' + timeLabel(p.end, st.openHour);
+      }).join('・')
+    : '平日 ' + st.weekdayStaff + '人・土日' + (st.holidayAsWeekend ? '祝' : '') + ' ' + st.weekendStaff + '人'
+      + '／' + st.startTime + '〜' + timeLabel(st.endTime, st.openHour)
+      + '（土日祝 ' + st.startTimeWeekend + '〜' + timeLabel(st.endTimeWeekend, st.openHour) + '）';
+  return closed + '／' + need;
+}
+
+function printDayHead(c) {
+  const cls = (c.dow === 0 || c.holiday) ? 'p-sun' : (c.dow === 6 ? 'p-sat' : '');
+  const d = c.day === 1 ? c.m + '/1' : String(c.day);
+  return '<th class="' + cls + '" title="' + esc(c.holiday || '') + '">' + d
+    + '<span class="p-dow">' + DOW[c.dow] + '</span></th>';
+}
+
+// その人のその日のマス
+function printCell(st, sh, c, u, req, o) {
+  if (c.closed) return { cls: 'p-closed', txt: '休' };
+  const on = sh && sh.days[c.key] && sh.days[c.key].indexOf(u.id) >= 0;
+  if (on) {
+    if (o.times) {
+      const spans = daySpans(st, sh, c, u);
+      return { cls: 'p-on', txt: spans.map(function (s) {
+        return '<span class="p-span">' + (s.code ? esc(s.code) + ' ' : '')
+          + esc(compactSpan(s.start, s.end)) + '</span>';
+      }).join('') };
+    }
+    return { cls: 'p-on', txt: usesPatterns(st)
+      ? esc(getPat(sh, c.key, u.id).replace(/,/g, '・') || '○') : '○' };
+  }
+  if (req[c.key] === 'off') return { cls: 'p-req', txt: '×' };
+  return { cls: '', txt: '' };
+}
+
+function printShiftSheets(st, cal, staff, sh, o) {
+  const plan = printPlan(o, cal.length);
+  // 期間全体の出勤日数（分けて印刷しても同じ数字を出す）
+  const totals = {};
+  staff.forEach(function (u) {
+    totals[u.id] = cal.filter(function (c) {
+      return sh && sh.days[c.key] && sh.days[c.key].indexOf(u.id) >= 0;
+    }).length;
+  });
+  // 紙の高さが余るぶんは行を高くして、貼り出しても読めるようにする
+  const z = plan.z;
+  const rows = staff.length + 2.6;                     // 見出しの行（2段）と合計の行
+  const room = P_HEIGHT[printOrient(o)] - 175;         // 見出し・凡例・作成日のぶんを引く
+  const rowH = Math.max(Math.round(z.cell * 2), Math.min(Math.round(z.cell * 4.5), Math.floor(room / rows)));
+  const pad = Math.max(3, Math.round((rowH - z.cell * 1.4) / 2));
+  let h = '<style>#print-area .p-table th, #print-area .p-table td'
+    + ' { padding-top:' + pad + 'px; padding-bottom:' + pad + 'px; }</style>';
+  for (let i = 0; i < plan.sheets; i++) {
+    const part = cal.slice(i * plan.per, (i + 1) * plan.per);
+    if (!part.length) break;
+    h += printShiftSheet(st, part, staff, sh, o, plan, totals, i);
+  }
+  return h;
+}
+
+function printShiftSheet(st, part, staff, sh, o, plan, totals, idx) {
+  const z = plan.z;
+  const totW = Math.round(z.dayW * 1.8);
+  const right = esc(printRangeLabel(part))
+    + (plan.sheets > 1 ? '（' + (idx + 1) + '/' + plan.sheets + '枚）' : '')
+    + '<br />' + esc(printRuleText(st))
+    + '<br />' + esc(new Date().toLocaleDateString('ja-JP')) + ' 作成';
+
+  let h = '<section class="p-sheet">' + printHeader(st, right);
+  h += '<table class="p-table" style="font-size:' + z.cell + 'px">'
+    + '<colgroup><col style="width:' + z.nameW + 'px" />'
+    + part.map(function () { return '<col />'; }).join('')
+    + '<col style="width:' + totW + 'px" /></colgroup>';
+  h += '<thead><tr><th style="font-size:' + z.head + 'px">スタッフ</th>';
+  part.forEach(function (c) { h += printDayHead(c); });
+  h += '<th style="font-size:' + z.head + 'px">出勤</th></tr></thead><tbody>';
+
+  if (!staff.length) {
+    h += '<tr><td class="p-name" style="font-size:' + z.name + 'px">（スタッフ未登録）</td>'
+      + part.map(function () { return '<td></td>'; }).join('') + '<td></td></tr>';
+  }
+  staff.forEach(function (u) {
+    const req = getReq(u.id);
+    h += '<tr><td class="p-name" style="font-size:' + z.name + 'px">' + esc(u.name) + '</td>';
+    part.forEach(function (c) {
+      const cell = printCell(st, sh, c, u, req, o);
+      h += '<td' + (cell.cls ? ' class="' + cell.cls + '"' : '') + '>' + cell.txt + '</td>';
+    });
+    h += '<td class="p-sum">' + (totals[u.id] || 0) + '</td></tr>';
+  });
+
+  // 一番下に、その日の人数（埋まった数／必要な数）
+  h += '<tr><td class="p-name p-sum" style="font-size:' + Math.round(z.name * 0.85) + 'px">人数 / 必要</td>';
+  let sum = 0;
+  part.forEach(function (c) {
+    if (c.closed) { h += '<td class="p-closed">休</td>'; return; }
+    const n = filledSlots(st, sh, c.key);
+    sum += n;
+    h += '<td class="' + (n < c.need ? 'p-short' : 'p-sum') + '">' + n + '/' + c.need + '</td>';
+  });
+  h += '<td class="p-sum">' + sum + '</td></tr></tbody></table>';
+
+  h += '<div class="p-legend">'
+    + '<span><i style="background:#d6efe4"></i>出勤</span>'
+    + '<span><i style="background:#e3e0da"></i>休業日（休）</span>'
+    + '<span>× 希望休</span>'
+    + '<span>「出勤」の列は期間全体の出勤日数です。</span></div>';
+  h += '<div class="p-foot">Prostyle シフト作成</div></section>';
+  return h;
+}
+
+// カレンダーの1マスに要る高さ（px）。文字の大きさ f で見積もる
+function printCalCellH(st, sh, c, f) {
+  let h = 12 + f * 1.7;                       // マスの余白と日付
+  if (c.holiday) h += f * 1.4;
+  if (c.closed) return h + f * 1.4;
+  const ids = (sh && sh.days[c.key]) || [];
+  ids.forEach(function (id) {
+    const u = st.staff.find(function (x) { return x.id === id; });
+    const n = u ? daySpans(st, sh, c, u).length : 1;
+    h += f * 1.4 + n * f * 1.2 + 7;           // 名前＋時間＋枠の余白
+  });
+  if (filledSlots(st, sh, c.key) < c.need) h += f * 1.4;
+  return h;
+}
+
+/* カレンダーの割り付け。人数の多い現場は1枚に収まらないので、
+   収まるところまで文字を小さくし、それでも無理なら2枚に分ける。
+   余った高さは各週に配って、紙いっぱいに使う。 */
+function printCalPlan(st, cal, sh, o) {
+  const z = P_SIZE[o.size] || P_SIZE.big;
+  const weeks = Math.ceil((cal[0].dow + cal.length) / 7);
+  let font = z.calFont, rows = [], room = 0;
+  for (;;) {
+    room = P_HEIGHT[printOrient(o)] - 105 - (font * 1.4 + 12);   // 見出しと曜日の行のぶん
+    rows = new Array(weeks).fill(0);
+    cal.forEach(function (c, i) {
+      const r = Math.floor((cal[0].dow + i) / 7);
+      rows[r] = Math.max(rows[r], printCalCellH(st, sh, c, font));
+    });
+    const total = rows.reduce(function (a, n) { return a + n; }, 0);
+    if (total <= room || font <= 9) {
+      const extra = Math.max(0, Math.floor((room - total) / weeks));
+      return {
+        font: Math.round(font * 10) / 10,
+        rows: rows.map(function (n) { return Math.floor(n) + extra; }),
+        sheets: Math.max(1, Math.ceil(total / room)),
+      };
+    }
+    font -= 0.5;
+  }
+}
+
+function printDailySheet(st, cal, sh, o) {
+  const plan = printCalPlan(st, cal, sh, o);
+  const f = plan.font;
+  const staff = st.staff;
+  const nameOf = function (id) { const u = staff.find(function (x) { return x.id === id; }); return u ? u.name : '?'; };
+
+  const cells = [];
+  for (let i = 0; i < cal[0].dow; i++) cells.push(null);
+  cal.forEach(function (c) { cells.push(c); });
+  while (cells.length % 7) cells.push(null);
+
+  const right = esc(printRuleText(st))
+    + '<br />' + esc(new Date().toLocaleDateString('ja-JP')) + ' 作成';
+  let h = '<section class="p-sheet">' + printHeader(st, right);
+  h += '<table class="p-cal" style="font-size:' + f + 'px"><thead><tr>';
+  DOW.forEach(function (d, i) {
+    h += '<th class="' + (i === 0 ? 'p-sun' : i === 6 ? 'p-sat' : '') + '">' + d + '</th>';
+  });
+  h += '</tr></thead><tbody>';
+
+  for (let r = 0; r * 7 < cells.length; r++) {
+    const rowH = plan.rows[r] || plan.rows[plan.rows.length - 1];
+    h += '<tr>';
+    for (let k = 0; k < 7; k++) {
+      const c = cells[r * 7 + k];
+      if (!c) { h += '<td class="p-blank" style="height:' + rowH + 'px"></td>'; continue; }
+      const cls = (c.dow === 0 || c.holiday) ? 'p-sun' : (c.dow === 6 ? 'p-sat' : '');
+      h += '<td style="height:' + rowH + 'px"' + (c.closed ? ' class="p-closed"' : '') + '>';
+      h += '<div class="p-day ' + cls + '" style="font-size:' + Math.round(f * 1.25) + 'px">'
+        + c.day + (c.day === 1 || c === cal[0] ? '<small>' + c.m + '月</small>' : '') + '</div>';
+      if (c.holiday) h += '<div class="p-hol">' + esc(c.holiday) + '</div>';
+      if (c.closed) h += '<div class="p-rest">休業</div>';
+      else {
+        const ids = (sh && sh.days[c.key]) || [];
+        ids.forEach(function (id) {
+          const u = staff.find(function (x) { return x.id === id; });
+          const spans = u ? daySpans(st, sh, c, u) : [];
+          h += '<span class="p-nm">' + esc(nameOf(id));
+          spans.forEach(function (s) {
+            h += '<em>' + (s.code ? esc(s.code) + ' ' : '') + esc(compactSpan(s.start, s.end)) + '</em>';
+          });
+          h += '</span>';
+        });
+        const n = filledSlots(st, sh, c.key);
+        if (n < c.need) h += '<div class="p-lack">あと' + (c.need - n) + '人</div>';
+      }
+      h += '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '</tbody></table><div class="p-foot">Prostyle シフト作成</div></section>';
+  return h;
+}
+
 function onStoreChange() { DB.activeStoreId = document.getElementById('store-select').value; saveDB(); renderAll(); }
 function onMonthChange() { currentYM = document.getElementById('month-input').value || todayYM(); renderAll(); }
 
@@ -2911,6 +3373,8 @@ function renderAll() {
 }
 
 renderAll();
+// ブラウザの印刷（Ctrl+P など）から呼ばれたときも、同じ紙面を組み立てる
+window.addEventListener('beforeprint', buildPrintArea);
 // 共有が設定されていれば、開いたときに最新を読み込む
 if (syncOn()) syncPull();
 </script>
