@@ -32,38 +32,57 @@ var CHUNK = 40000;                   // 1セルに入れる文字数（上限5�
 function doPost(e) {
   var p = {};
   try { p = JSON.parse(e.postData.contents); } catch (err) { p = e.parameter || {}; }
-  return handle_(p);
+  return handle_(p, '');
 }
 
 function doGet(e) {
-  return handle_(e.parameter || {});
+  var p = (e && e.parameter) || {};
+  return handle_(p, p.callback || '');
 }
 
-function handle_(p) {
+function handle_(p, cb) {
   try {
     if (String(p.token || '') !== TOKEN) {
-      return json_({ status: 'error', message: '合言葉が違います' });
+      return json_({ status: 'error', message: '合言葉が違います' }, cb);
     }
+    // 版数を見るだけなら、待たされないように鍵を取らない
+    if (p.action === 'rev') return json_(revOnly_(getSheet_()), cb);
+
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(20000)) {
-      return json_({ status: 'error', message: '混み合っています。少し待ってからもう一度お試しください' });
+      return json_({ status: 'error', message: '混み合っています。少し待ってからもう一度お試しください' }, cb);
     }
     try {
       var sh = getSheet_();
-      if (p.action === 'load') return json_(loadAll_(sh));
-      if (p.action === 'save') return json_(saveAll_(sh, p));
-      return json_({ status: 'error', message: '不明な操作です: ' + p.action });
+      if (p.action === 'load') return json_(loadAll_(sh), cb);
+      if (p.action === 'save') return json_(saveAll_(sh, p), cb);
+      return json_({ status: 'error', message: '不明な操作です: ' + p.action }, cb);
     } finally {
       lock.releaseLock();
     }
   } catch (err) {
-    return json_({ status: 'error', message: String(err) });
+    return json_({ status: 'error', message: String(err) }, cb);
   }
 }
 
-function json_(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+// callback が付いていれば JSONP で返す（ブラウザから読むときに使う）
+function json_(obj, cb) {
+  var body = JSON.stringify(obj);
+  if (cb) {
+    return ContentService.createTextOutput(cb + '(' + body + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(body).setMimeType(ContentService.MimeType.JSON);
+}
+
+// 誰かが更新したかを見るだけの、軽い問い合わせ
+function revOnly_(sh) {
+  return {
+    status: 'ok',
+    rev: Number(sh.getRange('B1').getValue() || 0),
+    updatedAt: String(sh.getRange('B2').getValue() || ''),
+    updatedBy: String(sh.getRange('B3').getValue() || ''),
+  };
 }
 
 function getSheet_() {

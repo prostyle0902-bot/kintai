@@ -590,7 +590,8 @@
       <div class="card-desc">
         URLを設定すると、店舗設定・スタッフ・営業日・希望休・作成したシフトを
         Googleスプレッドシートに保存して<b>全員で同じ内容</b>を見られるようになります。<br />
-        変更すると数秒後に自動で保存され、開いたときに最新を読み込みます。<br />
+        変更すると数秒後に自動で保存され、<b>誰かが更新したら1分以内に全員の画面へ反映</b>します
+        （開いたとき・画面に戻ったときはすぐ確認します）。<br />
         時間の表示切替など<b>画面の見え方は各自のまま</b>です。設定していなければ従来どおりこの端末だけに保存します。
       </div>
       <div id="sync-box"></div>
@@ -2721,12 +2722,16 @@ async function transferTest() {
    表示の設定（時間表示など）と、いま見ている現場は各自のままにする。
    ========================================================= */
 const SYNCED_KEYS = ['stores', 'dayOverrides', 'requests', 'shifts', 'transfers', 'rosterSync'];
+const SYNC_POLL = 60000;          // 誰かが更新していないか見にいく間隔
+const SYNC_IDLE = 15 * 60 * 1000; // ずっと触っていなければ見にいくのをやめる
 
 let syncRev = 0;            // 最後にやりとりしたときの版数
 let syncTimer = null;
 let syncBusy = false;
+let syncDirty = false;      // まだ送っていない変更がある
 let applyingRemote = false; // 受信内容を反映している間は送り返さない
 let syncInfo = { state: 'off', text: '' };
+let lastActive = Date.now();
 
 function syncUrl() { return (DB.syncUrl || SYNC_API || '').trim(); }
 function syncOn() { return !!syncUrl(); }
@@ -2748,10 +2753,16 @@ function applyPayload(o) {
   }
 }
 
+// 読み取り（load / rev）。GET なので JSONP で確実に読める
+function syncGet(params) {
+  return jsonpCall(syncUrl(), Object.assign({ token: SYNC_TOKEN }, params));
+}
+
+// 書き込み（save）。中身が大きいので POST で送る
 function syncCall(body) {
   return fetch(syncUrl(), {
     method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain' },
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ token: SYNC_TOKEN }, body)),
   }).then(function (r) { return r.json(); });
 }
@@ -2772,15 +2783,17 @@ async function syncPull(showAlert) {
   if (!syncOn()) { setSyncInfo('off', ''); return; }
   setSyncInfo('busy', '読込中…');
   try {
-    const res = await syncCall({ action: 'load' });
+    const res = await syncGet({ action: 'load' });
     if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
     syncRev = res.rev || 0;
     if (res.data) {
       applyPayload(JSON.parse(res.data));
       renderAll();
     }
-    setSyncInfo('ok', '同期済み' + (res.updatedAt ? '（' + res.updatedAt + (res.updatedBy ? ' ' + res.updatedBy : '') + '）' : ''));
+    setSyncInfo('ok', syncStamp(res));
     if (showAlert) alert('最新の内容を読み込みました。');
+    // 共有先がまだ空なら、この端末の内容を先に入れておく
+    if (!res.data) syncPush();
   } catch (e) {
     setSyncInfo('err', '未同期：' + e.message);
     if (showAlert) alert('読み込めませんでした：' + e.message);
@@ -2790,9 +2803,16 @@ async function syncPull(showAlert) {
 // 変更を送る。連続した変更はまとめて1回にする
 function scheduleSync() {
   if (!syncOn() || applyingRemote) return;
+  syncDirty = true;
+  lastActive = Date.now();
   setSyncInfo('busy', '未保存の変更あり');
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(syncPush, 2500);
+  syncTimer = setTimeout(function () { syncPush(); }, 2500);
+}
+
+function syncStamp(res) {
+  return '同期済み' + (res.updatedAt
+    ? '（' + res.updatedAt + (res.updatedBy ? ' ' + res.updatedBy : '') + '）' : '');
 }
 
 async function syncPush(force) {
@@ -2812,6 +2832,7 @@ async function syncPush(force) {
         + 'OK  … 相手の内容を読み込む（こちらの変更は破棄）\n'
         + 'キャンセル … こちらの内容で上書きする')) {
         syncBusy = false;
+        syncDirty = false;      // こちらの変更は捨てるので、送るものは残っていない
         await syncPull();
         return;
       }
@@ -2821,7 +2842,8 @@ async function syncPush(force) {
     }
     if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
     syncRev = res.rev || syncRev + 1;
-    setSyncInfo('ok', '同期済み' + (res.updatedAt ? '（' + res.updatedAt + '）' : ''));
+    syncDirty = false;
+    setSyncInfo('ok', syncStamp(res));
   } catch (e) {
     setSyncInfo('err', '未保存：' + e.message);
   } finally {
@@ -2835,24 +2857,111 @@ function syncNow() {
   syncPush();
 }
 
-function updSyncUrl(v) { DB.syncUrl = v.trim(); saveDB(); renderStore(); syncPull(); }
+/* 誰かが保存していないかを見にいく。版数だけなので軽い。
+   自分が編集中・送信中・画面を開いていないときは邪魔しない。 */
+async function syncCheck() {
+  if (!syncOn() || syncBusy || syncDirty || applyingRemote) return;
+  if (typeof document.hidden === 'boolean' && document.hidden) return;
+  if (document.querySelector('.overlay.open')) return;   // 何かの入力中は割り込まない
+  try {
+    const res = await syncGet({ action: 'rev' });
+    if (res.status !== 'ok') return;
+    if ((res.rev || 0) === syncRev) {
+      setSyncInfo('ok', syncStamp(res));
+      return;
+    }
+    await syncPull();                                     // 誰かが更新していたので取り込む
+  } catch (e) { /* つながらないときは次の回に持ち越す */ }
+}
+
+// 定期的に見にいく。ずっと触っていない端末は止めて、戻ってきたら再開する
+let syncWatching = false;
+function startSyncWatch() {
+  if (syncWatching) return;
+  syncWatching = true;
+  const wake = function () { lastActive = Date.now(); syncCheck(); };
+  ['click', 'keydown', 'touchstart'].forEach(function (ev) {
+    window.addEventListener(ev, function () { lastActive = Date.now(); }, { passive: true });
+  });
+  window.addEventListener('focus', wake);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) wake(); });
+  setInterval(function () {
+    if (Date.now() - lastActive > SYNC_IDLE) return;
+    syncCheck();
+  }, SYNC_POLL);
+}
+
+// URLを入れ替えたときは、この端末の内容を送らずに、まず共有先を読みにいく
+function updSyncUrl(v) {
+  DB.syncUrl = v.trim();
+  clearTimeout(syncTimer);
+  syncDirty = false;
+  localStorage.setItem(LS_KEY, JSON.stringify(DB));   // saveDB を通さない
+  renderStore();
+  syncPull();
+}
 function updUserName(v) { DB.userName = v.trim(); saveDB(); }
+
+// リンクで渡された共有先が Apps Script のものかを確かめる
+function isSyncUrl(u) { return /^https:\/\/script\.google\.com\/macros\//.test(String(u || '')); }
+
+// 共有先をリンクで配れるようにする（受け取った人はタップするだけ）
+function syncShareLink() {
+  const url = syncUrl();
+  if (!url) { alert('先に共有用のURLを入れてください。'); return; }
+  const link = location.origin + location.pathname + '#sync=' + encodeURIComponent(url);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function () {
+      alert('共有リンクをコピーしました。\n\nこのリンクを送ると、受け取った人はタップするだけで同じ内容を見られます。');
+    }, function () { prompt('このリンクを送ってください', link); });
+  } else {
+    prompt('このリンクを送ってください', link);
+  }
+}
+
+// #sync=... 付きで開かれたら、その共有先につなぐ
+function applySyncHash() {
+  const m = /[#&]sync=([^&]+)/.exec(location.hash || '');
+  if (!m) return false;
+  let url = '';
+  try { url = decodeURIComponent(m[1]); } catch (e) { return false; }
+  history.replaceState(null, '', location.pathname + location.search);
+  // 知らない相手につながないよう、Apps Script のURLだけ受け付ける
+  if (!isSyncUrl(url)) {
+    alert('このリンクの共有先は受け付けられません。');
+    return false;
+  }
+  if (DB.syncUrl === url) return false;
+  if (!confirm('全員で共有する設定にします。\n\n' + url + '\n\n'
+    + 'この端末に入っている内容は、共有先の内容に置きかわります。よろしいですか？')) return false;
+  DB.syncUrl = url;
+  localStorage.setItem(LS_KEY, JSON.stringify(DB));
+  return true;
+}
 
 function renderSyncBox() {
   const el = document.getElementById('sync-box');
   if (!el) return;
   const url = DB.syncUrl || '';
+  const on = syncOn();
   el.innerHTML =
     '<div class="field"><label>共有用のURL（Apps Script のウェブアプリURL）</label>'
     + '<input type="text" value="' + esc(url) + '" placeholder="' + (SYNC_API ? esc(SYNC_API) : 'https://script.google.com/macros/s/.../exec')
     + '" onchange="updSyncUrl(this.value)" /></div>'
     + '<div class="field" style="margin-top:.75rem"><label>あなたの名前（誰が更新したか分かるように）</label>'
     + '<input type="text" value="' + esc(DB.userName || '') + '" placeholder="例：花見" onchange="updUserName(this.value)" /></div>'
-    + '<div class="muted" style="margin-top:.75rem" id="sync-detail">' + esc(syncInfo.text || (syncOn() ? '' : '共有は使っていません（この端末だけに保存）')) + '</div>'
+    + '<div class="muted" style="margin-top:.75rem" id="sync-detail">'
+    + esc(syncInfo.text || (on ? '' : '共有は使っていません（この端末だけに保存）')) + '</div>'
     + '<div class="row-actions">'
     + '<button class="btn" onclick="syncNow()">今すぐ保存</button>'
     + '<button class="btn" onclick="syncPull(true)">最新を読み込む</button>'
-    + '</div>';
+    + (on ? '<button class="btn primary" onclick="syncShareLink()">共有リンクをコピー</button>' : '')
+    + '</div>'
+    + (on
+      ? '<div class="muted" style="margin-top:.6rem">「共有リンクをコピー」で作ったリンクを送ると、'
+        + '受け取った人はタップするだけで同じ内容につながります（URLの入力は不要）。<br />'
+        + 'つないだ端末の内容は共有先の内容に置きかわります。</div>'
+      : '<div class="muted" style="margin-top:.6rem">設定のしかたは <b>SHIFT_README.md</b> の「全員で共有する（同期）」を見てください。</div>');
 }
 
 /* =========================================================
@@ -3375,8 +3484,13 @@ function renderAll() {
 renderAll();
 // ブラウザの印刷（Ctrl+P など）から呼ばれたときも、同じ紙面を組み立てる
 window.addEventListener('beforeprint', buildPrintArea);
+// 共有リンク（#sync=...）で開かれたときは、その共有先につなぐ
+if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
 // 共有が設定されていれば、開いたときに最新を読み込む
 if (syncOn()) syncPull();
+// あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
+// （共有していない端末では syncCheck が何もしない）
+startSyncWatch();
 </script>
 </body>
 </html>
