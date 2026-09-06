@@ -138,7 +138,11 @@ function fixDailyWageStaff(ss, log) {
     const at = readAttendanceLayout(sh);
     if (!at || !at.isDailyWage) return;
 
-    const formula = '=K3*COUNTIF(G' + at.dataStart + ':G' + at.dataEnd + ',">0")';
+    // 出勤日数は合計行の D（"21日出勤" という文字列）から取る。
+    // 通勤手当の行が同じ書き方をしているので、それに揃えている。
+    const formula = '=ROUND(K3*VALUE(SUBSTITUTE(D' + at.totalRow + ',"日出勤","")),0)';
+    if (sh.getRange(at.basicRow, AT.AMOUNT).getFormula() === formula) return; // 修正済み
+
     log.push('- ' + sh.getName() + ' 基本賃金 R' + at.basicRow + ': ' + formula);
     if (CONFIG.DRY_RUN) return;
 
