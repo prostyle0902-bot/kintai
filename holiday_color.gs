@@ -2,15 +2,21 @@
  * 出勤簿の祝日を赤字にするスクリプト
  *
  * 対象：22期_PA勤怠フォルダの給与一覧スプレッドシート（2026/9/16〜2027/9/15 の12本）
+ * 必要ファイル：attendance_lib.gs
  *
- * 各スプレッドシートの出勤簿タブについて、日付欄が祝日（振替休日・国民の休日を含む）
- * にあたる行の B〜H 列を、日曜と同じ赤字 #cc0000 にする。
+ * 各スプレッドシートの出勤簿タブについて、祝日（振替休日・国民の休日を含む）に
+ * あたる行の B〜H 列を、日曜と同じ赤字 #cc0000 にする。
  *
  * 既存の書式は getFontColors() で読んでから該当行だけ差し替えるため、
  * 日曜の赤・土曜の青・備考欄の色はそのまま残る。
  *
+ * どの行が何月何日かは、B列の日付ではなく4行目の集計期間から決める。
+ * 事前作成された22期のスプレッドシートは、2027年になるはずの日付が2026年で
+ * 入っている個体があり、B列をそのまま使うと1年ずれた祝日を塗ってしまうため。
+ * sheet_cleanup.gs の fixDateColumn() を先に流しておくのが望ましい。
+ *
  * 使い方
- *   1. Apps Script プロジェクトにこのファイルを追加
+ *   1. attendance_lib.gs と一緒に Apps Script プロジェクトに追加
  *   2. HOL.DRY_RUN = true のまま colorHolidays() を実行し、ログで対象日を確認
  *   3. 問題なければ HOL.DRY_RUN = false にして再実行
  *      （初回は日本の祝日カレンダーへのアクセス許可を求められる）
@@ -70,7 +76,11 @@ function colorHolidays() {
   const log = [];
   const holidays = loadHolidays(log);
 
-  targetSpreadsheets(log).forEach(function (file) {
+  const books = HOL.SPREADSHEET_IDS.length
+    ? HOL.SPREADSHEET_IDS.map(function (id) { return { id: id, name: id }; })
+    : listPayrollBooks(HOL.FOLDER_IDS, log);
+
+  books.forEach(function (file) {
     let ss;
     try {
       ss = SpreadsheetApp.openById(file.id);
@@ -98,21 +108,24 @@ function colorHolidays() {
 function colorOneSpreadsheet(ss, holidays, log) {
   let done = 0, skipped = 0;
   const hit = {};
+  const bookPeriod = readBookPeriod(ss);
+  if (!bookPeriod) log.push('  ? 給与一覧タブから期間を読めません。タブ側の集計期間だけで判断します');
 
   ss.getSheets().forEach(function (sh) {
     const at = readAttendanceRows(sh);
     if (!at) { skipped += 1; return; }
 
-    const rows = at.dataEnd - at.dataStart + 1;
-    const dates = sh.getRange(at.dataStart, HOL.FIRST_COL, rows, 1).getValues();
+    const p = tabPeriod(sh, at, bookPeriod, log);
+    if (!p) return;
+
     const cols = HOL.LAST_COL - HOL.FIRST_COL + 1;
-    const block = sh.getRange(at.dataStart, HOL.FIRST_COL, rows, cols);
+    const block = sh.getRange(at.dataStart, HOL.FIRST_COL, p.days, cols);
     const colors = block.getFontColors();
 
     let changed = 0;
-    for (let i = 0; i < rows; i++) {
-      const key = dateKey(dates[i][0]);
-      if (!key || !holidays[key]) continue;
+    for (let i = 0; i < p.days; i++) {
+      const key = dateKey(addDays(p.start, i));
+      if (!holidays[key]) continue;
       hit[key] = holidays[key];
       if (colors[i].every(function (c) { return sameColor(c, HOL.COLOR); })) continue;
       for (let k = 0; k < cols; k++) colors[i][k] = HOL.COLOR;
@@ -157,76 +170,4 @@ function loadHolidays(log) {
     HOLIDAY_FALLBACK.forEach(function (d) { map[d] = '祝日'; });
     return map;
   }
-}
-
-/** Date を 'yyyy-MM-dd' に。日付でなければ null */
-function dateKey(v) {
-  if (!(v instanceof Date) || isNaN(v.getTime())) return null;
-  return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
-}
-
-function sameColor(a, b) {
-  return String(a).toLowerCase() === String(b).toLowerCase();
-}
-
-
-/* ------------------------------------------------------------------ *
- * 対象スプレッドシートの列挙
- * ------------------------------------------------------------------ */
-function targetSpreadsheets(log) {
-  if (HOL.SPREADSHEET_IDS.length) {
-    return HOL.SPREADSHEET_IDS.map(function (id) { return { id: id, name: id }; });
-  }
-  const out = [];
-  HOL.FOLDER_IDS.forEach(function (fid) {
-    const folder = DriveApp.getFolderById(fid);
-    const it = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
-    while (it.hasNext()) {
-      const f = it.next();
-      if (f.getName().indexOf('給与一覧') !== 0) continue; // 給与一覧以外は触らない
-      out.push({ id: f.getId(), name: f.getName() });
-    }
-  });
-  out.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
-  log.push('対象スプレッドシート ' + out.length + '本');
-  return out;
-}
-
-
-/* ------------------------------------------------------------------ *
- * 出勤簿タブの構造。payroll_fix.gs と同じ判定だが、同じプロジェクトに
- * 両方を入れても衝突しないよう独立した名前にしてある
- * ------------------------------------------------------------------ */
-function readAttendanceRows(sh) {
-  const last = sh.getLastRow();
-  if (last < 10) return null;
-  const labels = sh.getRange(1, 2, last, 1).getValues().map(function (r) {
-    return String(r[0]).trim();
-  });
-  if (labels[0].indexOf('出勤簿') < 0) return null;
-
-  const rateLabel = labels[2];
-  if (rateLabel.indexOf('時給') < 0 && rateLabel.indexOf('日給') < 0) return null;
-
-  const headerRow = labels.indexOf('日付') + 1;
-  const totalRow = labels.indexOf('合計') + 1;
-  if (!headerRow || !totalRow || totalRow <= headerRow) return null;
-
-  let basicRow = 0, netRow = 0, netLabel = '';
-  for (let i = totalRow; i < labels.length; i++) {
-    if (!basicRow && labels[i].indexOf('基本賃金') === 0) basicRow = i + 1;
-    if (!netRow && labels[i].indexOf('差引支給額') === 0) { netRow = i + 1; netLabel = labels[i]; }
-  }
-  if (!basicRow || !netRow) return null;
-
-  return {
-    isDailyWage: rateLabel.indexOf('日給') >= 0,
-    headerRow: headerRow,
-    dataStart: headerRow + 1,
-    dataEnd: totalRow - 1,
-    totalRow: totalRow,
-    basicRow: basicRow,
-    netRow: netRow,
-    netLabel: netLabel,
-  };
 }
