@@ -1730,10 +1730,19 @@ function renderTransferInfo(st, sh) {
   let h = '転記先：<a href="' + url + '" target="_blank" rel="noopener">' + dest + '</a>'
     + timeTxt + '<br />'
     + 'この期間の転記対象：<b>' + n + '件</b>。'
-    + '同じ日・同じ人の予定がすでにある場合は二重登録しません。';
+    + 'こちらで直したぶん（時間・担当者・取り消し）は、'
+    + '<b>もう一度この転記を押したときに</b>連携先へ反映されます。';
+  const df = transferDiff(st);
+  if (df && df.any) {
+    h += '<br /><span style="color:#92650a"><b>前回の転記のあとに'
+      + (df.add ? ' 追加' + df.add + '件' : '') + (df.upd ? ' 変更' + df.upd + '件' : '')
+      + (df.del ? ' 取消' + df.del + '件' : '')
+      + ' の違いがあります。</b>もう一度「確定してシフト管理アプリへ転記」を押してください。</span>';
+  }
   if (tr) {
     h += '<br /><span style="color:#0F6E56">最終転記：' + esc(new Date(tr.at).toLocaleString('ja-JP'))
-      + '（追加 ' + tr.added + '・既存 ' + tr.skipped + (tr.removed ? '・取消 ' + tr.removed : '') + '）</span>';
+      + '（追加 ' + tr.added + (tr.updated ? '・変更 ' + tr.updated : '')
+      + '・そのまま ' + tr.skipped + (tr.removed ? '・取消 ' + tr.removed : '') + '）</span>';
   }
   el.innerHTML = h;
 }
@@ -2577,6 +2586,52 @@ function buildTransferPlan(st) {
   });
 }
 
+/* 前回こちらから送った1件の記録。
+   古い形式（idの文字列だけ）も読めるようにしておく。 */
+function prevSent(v) {
+  if (!v) return null;
+  if (typeof v === 'string') return { id: v, sig: '' };
+  return v;
+}
+
+// こちらの予定の中身を1本の文字列にする（前回送ったものと見比べるため）
+function planSig(st, p) {
+  return [p.staff, p.start, p.end, autoBreak(p.staff, p.start, p.end),
+    st.dept === 'gyomu' ? (p.pattern || '') : ''].join('|');
+}
+
+// 連携先にあるものと、こちらが送ろうとしているものが同じ中身か
+function sameEvent(st, a, b) {
+  if (!a) return false;
+  if (a.staff !== b.staff || a.start !== b.start || a.end !== b.end) return false;
+  if (Number(a.break || 0) !== Number(b.break || 0)) return false;
+  if (st.dept === 'gyomu') {
+    const pa = (a.patterns && a.patterns[0]) || '';
+    const pb = (b.patterns && b.patterns[0]) || '';
+    if (String(pa) !== String(pb)) return false;
+  }
+  return true;
+}
+
+/* 前回の転記のあと、こちらで変わったぶんを数える。
+   連携先には問い合わせず、手元の記録だけで見る（画面表示用）。 */
+function transferDiff(st) {
+  const rec = DB.transfers[st.id + '|' + currentYM];
+  if (!rec || !rec.ids) return null;
+  const prev = rec.ids;
+  const plan = buildTransferPlan(st);
+  const seen = {};
+  let add = 0, upd = 0;
+  plan.forEach(function (p) {
+    seen[p.key] = 1;
+    const was = prevSent(prev[p.key]);
+    if (!was) { add++; return; }
+    if (was.sig && was.sig !== planSig(st, p)) upd++;
+  });
+  const del = Object.keys(prev).filter(function (k) { return !seen[k]; }).length;
+  return { add: add, upd: upd, del: del, any: !!(add || upd || del) };
+}
+
 function setTransferStatus(html) {
   const els = document.querySelectorAll('.transfer-status');
   for (let i = 0; i < els.length; i++) els[i].innerHTML = html;
@@ -2593,27 +2648,58 @@ async function transferStore(st, ym, report) {
   // 連携先の既存データを取得して突き合わせる
   const remote = await jsonpCall(TRANSFER_API, apiParams(st, { action: 'getShifts' })) || {};
   // 同じ日に午前・午後と2件入ることがあるので、開始時刻まで含めて突き合わせる
-  const existing = {};   // 'date|staffName|start' -> id
+  const existing = {};    // 'date|staffName|start' -> id
+  const remoteById = {};  // id -> 連携先にある予定そのもの
   Object.keys(remote).forEach(function (d) {
     (remote[d] || []).forEach(function (ev) {
-      if (ev && ev.store === st.name) existing[d + '|' + ev.staff + '|' + ev.start] = ev.id;
+      if (!ev || ev.store !== st.name) return;
+      existing[d + '|' + ev.staff + '|' + ev.start] = ev.id;
+      remoteById[ev.id] = ev;
     });
   });
 
   const ids = {};
-  let added = 0, skipped = 0, removed = 0, kyuyoOk = 0, kyuyoNg = 0;
+  let added = 0, updated = 0, skipped = 0, removed = 0, kyuyoOk = 0, kyuyoNg = 0;
+  const countKyuyo = function (k) { if (k === 'ok') kyuyoOk++; else if (k === 'ng') kyuyoNg++; };
 
   for (let i = 0; i < plan.length; i++) {
     if (transferCancelled) throw new Error('中止しました');
     const p = plan[i];
-    const hit = existing[p.date + '|' + p.staff + '|' + p.start];
-    if (hit) { ids[p.key] = hit; skipped++; report(st.name, i + 1, plan.length); continue; }
-
     const ev = buildEvent(st, p);
+    const rec = { sig: planSig(st, p) };
+    const was = prevSent(prev[p.key]);
+    const mine = was && remoteById[was.id];   // 前回こちらから送ったものが、まだ連携先にある
+
+    if (mine) {
+      // すでに送ってある予定。中身が変わっていれば、同じ予定を書き換える
+      if (sameEvent(st, mine, ev)) {
+        ids[p.key] = { id: was.id, sig: rec.sig };
+        skipped++;
+        report(st.name, i + 1, plan.length);
+        continue;
+      }
+      ev.id = was.id;
+      if (!ev.memo && mine.memo) ev.memo = mine.memo;   // 連携先で書かれたメモは残す
+      await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+      countKyuyo(await kyuyoCall('writeShift', ev));
+      ids[p.key] = { id: ev.id, sig: rec.sig };
+      updated++;
+      report(st.name, i + 1, plan.length);
+      continue;
+    }
+
+    // 連携先で手入力されたものと同じ日・同じ人・同じ開始時刻なら、二重登録しない
+    const hit = existing[p.date + '|' + p.staff + '|' + p.start];
+    if (hit) {
+      ids[p.key] = { id: hit, sig: rec.sig };
+      skipped++;
+      report(st.name, i + 1, plan.length);
+      continue;
+    }
+
     await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
-    const k = await kyuyoCall('writeShift', ev);
-    if (k === 'ok') kyuyoOk++; else if (k === 'ng') kyuyoNg++;
-    ids[p.key] = ev.id;
+    countKyuyo(await kyuyoCall('writeShift', ev));
+    ids[p.key] = { id: ev.id, sig: rec.sig };
     added++;
     report(st.name, i + 1, plan.length);
   }
@@ -2622,21 +2708,20 @@ async function transferStore(st, ym, report) {
   const planKeys = {};
   plan.forEach(function (p) { planKeys[p.key] = 1; });
   const stale = Object.keys(prev).filter(function (k) { return !planKeys[k]; });
-  const remoteIds = {};
-  Object.keys(existing).forEach(function (k) { remoteIds[existing[k]] = k; });
   for (let i = 0; i < stale.length; i++) {
     if (transferCancelled) throw new Error('中止しました');
-    const rid = prev[stale[i]];
-    if (!remoteIds[rid]) continue;   // 連携先に無ければ何もしない
-    const parts = remoteIds[rid].split('|');
-    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'deleteShift', data: { id: rid } }));
-    await kyuyoCall('deleteShift', { id: rid, date: parts[0], store: st.name, staff: parts[1], start: parts[2] });
+    const was = prevSent(prev[stale[i]]);
+    const gone = was && remoteById[was.id];
+    if (!gone) continue;   // 連携先に無ければ何もしない
+    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'deleteShift', data: { id: was.id } }));
+    countKyuyo(await kyuyoCall('deleteShift', gone));
     removed++;
   }
 
-  DB.transfers[key] = { ids: ids, at: new Date().toISOString(), added: added, skipped: skipped, removed: removed };
+  DB.transfers[key] = { ids: ids, at: new Date().toISOString(),
+    added: added, updated: updated, skipped: skipped, removed: removed };
   saveDB();
-  return { added: added, skipped: skipped, removed: removed, total: plan.length,
+  return { added: added, updated: updated, skipped: skipped, removed: removed, total: plan.length,
     kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg };
 }
 
@@ -2670,7 +2755,9 @@ async function runTransfer(stores, ym) {
       const st = targets[i];
       const r = await transferStore(st, ym, report);
       doneRows += r.total;
-      results.push(st.name + '：追加 ' + r.added + '・既存 ' + r.skipped + (r.removed ? '・取消 ' + r.removed : '')
+      results.push(st.name + '：追加 ' + r.added
+        + (r.updated ? '・変更 ' + r.updated : '') + '・そのまま ' + r.skipped
+        + (r.removed ? '・取消 ' + r.removed : '')
         + '／出勤簿 ' + r.kyuyoOk + '件' + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件）' : ''));
     }
     setTransferStatus('<div class="alert ok"><b>転記しました。</b><br />' + results.map(esc).join('<br />')
