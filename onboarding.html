@@ -249,10 +249,13 @@ function kyuyoGroup(id) { const s = site(id); return s ? (s.kyuyoGroup || s.dept
    ========================================================= */
 let jsonpSeq = 0;
 
-function jsonpCall(url, params) {
+function jsonpCall(url, params, waitMs) {
   return new Promise(function (resolve, reject) {
     const cb = '_obcb' + (++jsonpSeq);
-    const timer = setTimeout(function () { cleanup(); reject(new Error('タイムアウト')); }, 25000);
+    const timer = setTimeout(function () {
+      cleanup();
+      reject(new Error('返事がありませんでした（Googleの画面が返っている可能性があります）'));
+    }, waitMs || 25000);
     function cleanup() {
       clearTimeout(timer);
       delete window[cb];
@@ -997,13 +1000,8 @@ function renderSetup() {
     + '<div class="muted">いまのつなぎ先：' + (apiOn() ? esc(apiUrl()) : '未設定') + '</div>'
     + (apiOn()
         ? '<div class="row-actions" style="margin-top:.75rem">'
-          + '<a class="btn" target="_blank" rel="noopener" href="'
-          + esc(apiUrl() + '?action=ping&token=' + encodeURIComponent(apiToken()))
-          + '">つなぎ先を確かめる</a></div>'
-          + '<div class="muted" style="margin-top:.5rem">'
-          + '別のタブが開きます。<b>{"status":"ok","message":"動いています"…}</b> と出れば正常です。<br />'
-          + '<b>「現在、ファイルを開くことができません」</b>と出たら、このURLのデプロイがもうありません。'
-          + 'Apps Script の「デプロイ → デプロイを管理」で、いまのURLをコピーして上に貼り直してください。</div>'
+          + '<button class="btn" onclick="checkLink()">つなぎ先を確かめる</button></div>'
+          + '<div id="link-result" style="margin-top:.75rem"></div>'
         : '')
     + '</div>';
 
@@ -1119,6 +1117,73 @@ async function doImportOnly() {
 }
 
 // 取り込み済みの人に、空いている欄だけを入れる
+/* 読み込み（JSONP）と書き込み（POST）を、それぞれ試して結果を出す。
+   どちらが通ってどちらが通らないかで、原因が絞れる。 */
+async function checkLink() {
+  const el = document.getElementById('link-result');
+  el.innerHTML = '<div class="alert info">確かめています…</div>';
+
+  const rows = [];
+  // 読み込み：JSONP（<script>で読む。ログイン中のアカウントとして送られる）
+  try {
+    const r = await jsonpCall(apiUrl(), { token: apiToken(), action: 'ping' }, 8000);
+    rows.push(r && r.status === 'ok'
+      ? ['ok', '読み込み（JSONP）', '通りました' + (r.at ? '　' + esc(r.at) : '')]
+      : ['err', '読み込み（JSONP）', esc((r && r.message) || '返事が変です')]);
+  } catch (e) {
+    rows.push(['err', '読み込み（JSONP）', esc(e.message)]);
+  }
+
+  // 書き込み：POST（ログイン情報を送らないので、匿名でも通る設定が要る）
+  try {
+    const res = await fetch(apiUrl(), {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ token: apiToken(), action: 'ping' }),
+    });
+    const t = await res.text();
+    let j = null;
+    try { j = JSON.parse(t); } catch (e) { j = null; }
+    rows.push(j && j.status === 'ok'
+      ? ['ok', '書き込み（POST）', '通りました']
+      : ['err', '書き込み（POST）', 'Googleの画面が返りました（' + esc(t.slice(0, 60).replace(/\s+/g, ' ')) + '…）']);
+  } catch (e) {
+    rows.push(['err', '書き込み（POST）', esc(e.message)]);
+  }
+
+  const okRead = rows[0][0] === 'ok';
+  const okWrite = rows[1][0] === 'ok';
+
+  let h = '<div class="table-wrap"><table><tbody>'
+    + rows.map(function (x) {
+        return '<tr><td style="white-space:nowrap">' + (x[0] === 'ok' ? '✅' : '⚠️') + ' <b>' + x[1] + '</b></td>'
+          + '<td>' + x[2] + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+
+  if (okRead && okWrite) {
+    h += '<div class="alert ok" style="margin-top:.75rem"><b>どちらも通っています。</b>'
+      + 'つなぎ先に問題はありません。</div>';
+  } else if (okRead && !okWrite) {
+    h += '<div class="alert warn" style="margin-top:.75rem">'
+      + '<b>読み込みは通り、書き込みだけが通りません。</b><br />'
+      + 'デプロイの<b>「アクセスできるユーザー」が「全員」以外</b>になっているときの症状です。'
+      + '書き込みはログイン情報を送らないため、「全員」でないと弾かれます。<br /><br />'
+      + '<b>直し方</b>：Apps Script →「デプロイ」→「デプロイを管理」→ 鉛筆マーク →'
+      + '<b>アクセスできるユーザーを「全員」</b>にして「デプロイ」。<br />'
+      + '（このアプリは書き込みを読み込みと同じやり方で送り直すので、'
+      + 'この状態でも登録はできます。ただ、直したほうが速く確実です）</div>';
+  } else if (!okRead && !okWrite) {
+    h += '<div class="alert err" style="margin-top:.75rem">'
+      + '<b>どちらも通りません。</b>URLか合言葉が違うか、デプロイが無い可能性があります。'
+      + 'Apps Script の「デプロイを管理」で、いまのURLを上に貼り直してください。</div>';
+  } else {
+    h += '<div class="alert warn" style="margin-top:.75rem">'
+      + '<b>書き込みは通り、読み込みが通りません。</b>合言葉（TOKEN）が合っているか確認してください。</div>';
+  }
+  el.innerHTML = h;
+}
+
 async function doFill() {
   const known = {};
   STAFF.forEach(function (r) { known[r.name] = r; });
