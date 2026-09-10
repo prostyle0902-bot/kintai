@@ -35,7 +35,22 @@ DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
 #                 業務課・鳥害対策課の13件が落ちていた
 #   両方を請求書Noで和集合にすると68件になり、鳥害対策課7月が 6,217,800 と
 #   既存PLに一致する（CHECK）。だから cards/invoices*.csv を全部読んで束ねる。
-FILES = [("invoices*.csv", "7月")]          # (ファイル名パターン, PL列)
+# (ファイル名パターン, PL列, 検算値, 元ファイルの表示名, 重複除去キー)
+# ★エクスポートの粒度が月によって違う。重複除去のキーを間違えると行が消える。
+#   7月ぶん（invoices_2026082*.csv）… **合計請求書**単位。1行=1合計請求書。請求書No列が無い
+#   8月ぶん（8月売上invoices.csv）  … **請求書**単位。1合計請求書に複数行ぶら下がる
+#   8月を合計請求書Noで束ねると90行→67行になり、業務課が 7,334,577→2,673,423 と
+#   激減してしまう（2026-09-10 に気づいた）。だからキーはファイルごとに持つ。
+# ★2026-09-10 追加: 8月ぶんは1本のエクスポート（8月売上invoices.csv・90件）で来た。
+#   請求日は全件 2026-08 なので月で切る必要が無い。7月のような取り直しの和集合も不要。
+#   検算値は7月のときだけ（既存PLスプシと突き合わせた値）。8月は既存PLを使わない方針
+#   なので突き合わせ先が無い。
+FILES = [
+    ("invoices*.csv", "7月", {"鳥害対策課": 6217800},
+     "freeeカード明細/21期/invoices*.csv（8/20版＋8/21版の和集合）", "合計請求書No"),
+    ("8月売上invoices.csv", "8月", {},
+     "freeeカード明細/21期/8月売上invoices.csv", "請求書No"),
+]
 
 GROUP2PL = {
     "業務課":    ("業務課", "売上"),
@@ -54,8 +69,9 @@ SUPPRESS = [("神栖横丁", "キッチンカー", "7月"),
             ("神栖横丁", "ビアガーデン", "7月"),
             ("神栖横丁", "横丁加盟金", "7月")]
 
-# 検算値（既存PLスプシの7月）
-CHECK = {"鳥害対策課": 6217800}
+# ★グループが空の請求は、どの部門か決められないので計上せず保留に出す。
+#   board側で部門が付いていない＝データからは判別できない（推測で埋めない）。
+NOGROUP = []          # rows() が埋める。(月, 請求書No, 請求日, 顧客名, 案件名, 税抜)
 
 
 def _read(path):
@@ -68,35 +84,63 @@ def _read(path):
     raise RuntimeError(path)
 
 
-def _union(pattern):
-    """cards/invoices*.csv を全部読んで、合計請求書Noで重複を落とす。
-    後から読んだファイルで上書きする（新しいエクスポートを優先）。"""
+def _union(pattern, key):
+    """パターンに合うCSVを全部読んで、key の列で重複を落とす。
+    後から読んだファイルで上書きする（新しいエクスポートを優先）。
+    ★key はファイルごと（FILES の5番目）。粒度を取り違えると行が消える。"""
     merged = {}
     for path in sorted(glob.glob(os.path.join(DIR, pattern))):
         for r in _read(path):
-            merged[r["合計請求書No"]] = r
+            assert key in r, f"{path} に「{key}」列が無い"
+            merged[r[key]] = r
     return list(merged.values())
 
 
 def rows():
     """(タブ, PL行, 月, 税抜, 消費税, 件数, 元ファイル, 内訳) を列挙。"""
-    for pattern, month in FILES:
-        det = _union(pattern)
+    NOGROUP.clear()
+    for pattern, month, check, srclabel, key in FILES:
+        det = _union(pattern, key)
         by = {}
         for r in det:
-            g = r["グループ"]
+            g = r["グループ"].strip()
+            ex = int(float(r["請求金額（JPY・税抜）"]))
             if g not in GROUP2PL:
+                if not g:
+                    NOGROUP.append((month, r["請求書No"], r["請求日"],
+                                    r["顧客名"], r.get("案件名", ""), ex))
                 continue
             tab, plrow = GROUP2PL[g]
             k = (tab, plrow)
-            ex = int(float(r["請求金額（JPY・税抜）"]))
             tax = int(float(r["消費税"]))
             by.setdefault(k, {"ex": 0, "tax": 0, "n": 0, "detail": []})
             by[k]["ex"] += ex; by[k]["tax"] += tax; by[k]["n"] += 1
             by[k]["detail"].append((r["請求日"], r["顧客名"], ex))
-        for tab, v in CHECK.items():
+        for tab, v in check.items():
             got = by[(tab, "売上")]["ex"]
-            assert got == v, f"{tab}: board {got:,} ≠ 既存スプシ {v:,}"
+            assert got == v, f"{month} {tab}: board {got:,} ≠ 既存スプシ {v:,}"
         for (tab, plrow), v in by.items():
             yield (tab, plrow, month, v["ex"], v["tax"], v["n"],
-                   "freeeカード明細/21期/invoices*.csv（8/20版＋8/21版の和集合）", sorted(v["detail"], key=lambda d: -d[2]))
+                   srclabel, sorted(v["detail"], key=lambda d: -d[2]))
+
+
+def hold_rows():
+    """グループが空でどの部門か決められなかった請求。(月, タブ, 内容, 理由)"""
+    out = []
+    for month, no, date, cust, anken, ex in NOGROUP:
+        out.append((month, "（未定）",
+                    f"board請求 No.{no} {cust} {anken}（税抜{ex:,}円）",
+                    "boardの「グループ」列が空で、業務課／鳥害対策課／飲食事業部の"
+                    "どれか決められない。データからは判別できないので計上していない。"
+                    f"請求日{date}。グループを埋めてエクスポートし直すか、"
+                    "どの部門か教えてもらえれば入ります"))
+    return out
+
+
+if __name__ == "__main__":
+    for tab, plrow, m, ex, tax, n, src, det in sorted(rows(), key=lambda r: (r[2], r[0])):
+        print(f"{m:<4}{tab:<10}{plrow:<8}{n:>3}件  税抜{ex:>12,}  消費税{tax:>10,}")
+    if NOGROUP:
+        print(f"\n★グループ空で保留 {len(NOGROUP)}件")
+        for month, no, date, cust, anken, ex in NOGROUP:
+            print(f"  {month} No.{no} {date} {cust} {anken} 税抜{ex:,}")

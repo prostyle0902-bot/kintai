@@ -673,6 +673,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in norow.hold_rows():
         hs.append(["新設行", m, tab, item, "", reason])
+    for m, tab, item, reason in board.hold_rows():
+        hs.append(["board売掛", m, tab, item, "", reason])
     for m, tab, item, reason in jimu.hold_rows():
         hs.append(["事務手数料", m, tab, item, "", reason])
     # ★8月は書類だけで組む（利用者指示 2026-08-23「既存は無視してくださいね」）。

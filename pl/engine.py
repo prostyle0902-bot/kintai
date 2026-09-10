@@ -60,6 +60,25 @@ MASTER = [
  ("ミズノ",10,"資材","仕入（その他）"),
  ("CHIMNEY TOWN",10,"物販","その他経費"),
  ("古河ＳＳ",10,"燃料","旅費・交通費"),   # 利用者確認済 2026-08-17
+
+ # ---- ローマ字表記（2026-09-10 追加）--------------------------------------
+ # ★8月ぶん（statement-2026-09.csv）から freee の利用店名がローマ字に変わった。
+ #   同じ取引先が別表記になっただけなので、上の日本語表記と同じ税率・分類・PL行を割り当てる。
+ #   6月・7月の実績で同一先であることを確かめた（件数は6-7月ぶん）:
+ #     TAIYO=タイヨー130件／KASUMI=カスミ31件／SAKAGURAYAMANAKA=酒蔵やまなか5件／
+ #     BIGHOUSE=ビッグハウス10件／KUSURINOAOKI=クスリのアオキ4件／RAKSUL=ラクスル2件／
+ #     MICREED=ミクリード1件／ﾐﾁﾉｴｷ=道の駅5件／BESTLIQUR=ベストリカー21件
+ ("TAIYO",8,"スーパー","仕入（freeeカード）"),
+ ("KASUMI",8,"スーパー","仕入（freeeカード）"),
+ ("BIGHOUSE",8,"スーパー","仕入（freeeカード）"),
+ ("GIYOUMUSU-PA-",8,"スーパー","仕入（freeeカード）"),
+ ("KUSURINOAOKI",8,"ドラッグ","消耗品費（freeeカード）"),
+ ("ﾐﾁﾉｴｷ",8,"直売所","仕入（freeeカード）"),
+ ("SAKAGURAYAMANAKA",10,"酒","仕入（やまなか）"),
+ ("BESTLIQUR",10,"酒","仕入（freeeカード）"),
+ ("MICREED",10,"業務用","仕入（freeeカード）"),
+ ("RAKSUL",10,"印刷","広告宣伝費（共通宣伝費）"),
+ ("RAKUTENTRAVEL",10,"宿泊","旅費・交通費"),
 ]
 
 # ---- カード名(下4桁) → 店舗タブ ----
@@ -77,7 +96,9 @@ MEMO8  = ("食材",)
 
 # 税率が矛盾したときに勝つキーワード（利用者確認済 2026-08-17）
 # 例: 「セリア　カスミ神栖店」→セリア10% / 「タイヨーベストリカー神栖店」→ベストリカー10%
-OVERRIDE_WINNERS = ("セリア", "ベストリカー")
+# 「TAIYOBESTLIQUR KAMISU」はTAIYO(8%)とBESTLIQUR(10%)が両方ヒットする。
+# 日本語表記の「タイヨーベストリカー神栖店」と同じ扱いにするため BESTLIQUR を勝たせる。
+OVERRIDE_WINNERS = ("セリア", "ベストリカー", "BESTLIQUR")
 
 
 def norm(s):
@@ -213,7 +234,9 @@ def classify(d):
 if __name__ == "__main__":
     frames = []
     for path, m, src in [("csv/statement-2026-07.csv", 6, "statement-2026-07.csv"),
-                         ("csv/statement-2026-08.csv", 7, "statement-2026-08.csv")]:
+                         ("csv/statement-2026-08.csv", 7, "statement-2026-08.csv"),
+                         # 2026-09-10 追加。9月ファイル＝8月利用分（月次）
+                         ("csv/statement-2026-09.csv", 8, "statement-2026-09.csv")]:
         d = load(path, m); d["_srcfile"] = src; frames.append(d)
     d = pd.concat(frames, ignore_index=True)
     ok, hold = classify(d)
