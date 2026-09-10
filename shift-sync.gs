@@ -40,18 +40,31 @@
  * （許可が済むまで、アプリからは「登録できませんでした」と出ます）
  * ======================================================================= */
 function authorizeOnce() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var names = [];
-  for (var i = 0; i < PAYROLL_FOLDERS.length; i++) {
-    try {
-      names.push(DriveApp.getFolderById(PAYROLL_FOLDERS[i]).getName());
-    } catch (e) {
-      names.push('（見つかりません：' + PAYROLL_FOLDERS[i] + '）');
-    }
+  var lines = [];
+
+  try {
+    lines.push('名簿の置き場所：' + SpreadsheetApp.getActiveSpreadsheet().getName());
+  } catch (e) {
+    lines.push('【要対応】名簿のスプレッドシートを開けません：' + String(e));
   }
-  var msg = '許可できました。\n\n'
-    + '名簿の置き場所：' + ss.getName() + '\n'
-    + '給与一覧のフォルダ：' + names.join(' / ');
+
+  // 給与一覧を開けるか。ここが通れば、給与一覧への登録は動く
+  try {
+    var t = SpreadsheetApp.openById(PAYROLL_FILES[PAYROLL_FILES.length - 1].id);
+    lines.push('給与一覧を開けました：' + t.getName());
+  } catch (e) {
+    lines.push('【要対応】給与一覧を開けません：' + String(e));
+  }
+
+  // ドライブは、新しく増えた期間のファイルを自動で見つけるためだけに使う
+  try {
+    DriveApp.getRootFolder().getName();
+    lines.push('ドライブも見られます（新しい期間のファイルを自動で見つけられます）');
+  } catch (e) {
+    lines.push('ドライブは見られません（上の一覧に書いたファイルだけを使います）：' + String(e));
+  }
+
+  var msg = lines.join('\n');
   Logger.log(msg);
   return msg;
 }
@@ -555,7 +568,30 @@ function staffRetire_(p) {
    すでに同じ名前のシートがある期間には何もしない（上書きしない）。
    ========================================================= */
 
-// 給与一覧のスプレッドシートが入っているフォルダ（過去ぶん・今後ぶん）
+/* 給与一覧のスプレッドシート。
+   ここに書いておけば、ドライブを見に行く権限が無くても使える。
+   期間のファイルを新しく作ったら、ここに1行足してください
+   （ドライブの権限がある場合は、名前で自動的にも見つかります）。 */
+var PAYROLL_FILES = [
+  { title: '給与一覧_2026_5_16-2026_6_15', id: '1iRes5ZY-EMu7dAeJnkYdl5KBoNPb8OI0cwkzg37pb7o' },
+  { title: '給与一覧_2026_6_16-2026_7_15', id: '1yIkbj5iHAQ6VKWp0LtTcvF_HugELHWhy_fwbON1yR6M' },
+  { title: '給与一覧_2026_7_16-2026_8_15', id: '1-v2ZJE46vG3GKTrwSUnJtduT0O8jKFyc9-YsybRF468' },
+  { title: '給与一覧_2026_8_16-2026_9_15', id: '1kknpC_KPyaHrldOpXTxC3rQke_sbRXRgYGq2IXlayAw' },
+  { title: '給与一覧_2026_9_16-2026_10_15', id: '1Dxr27E2tGwiPKESxWWB8HCGDaX0i2jwtSqfL5Lyc9tw' },
+  { title: '給与一覧_2026_10_16-2026_11_15', id: '1SSRb1I2RD6cOkRmBqW0tcZBVIntf_4RHDzDpzqXHi4w' },
+  { title: '給与一覧_2026_11_16-2026_12_15', id: '1ARP6ApVaj7VzSKBuz0P5TcdnbH8BQJ5J5IzB_AQgmBw' },
+  { title: '給与一覧_2026_12_16-2027_1_15', id: '1MwAXLQfBF-tBQ0jMHyJqLaNlUSbImikp23IdvD9CDBs' },
+  { title: '給与一覧_2027_1_16-2027_2_15', id: '1awRXj9U0C18D_gT0tM5u14AENE-zak4d6pafseX5gAM' },
+  { title: '給与一覧_2027_2_16-2027_3_15', id: '1rju65K08_cefudwVkKcfw4gJh4uPAWc8kDgpqmeFYC4' },
+  { title: '給与一覧_2027_3_16-2027_4_15', id: '18bugMUJZtAQucKRLLA8CAawEiw7IrndNGHhDBIfOpbs' },
+  { title: '給与一覧_2027_4_16-2027_5_15', id: '1QUPZqD496tJqtLUh04su1FmmzD4Q8GmcN0yTS9YhsD0' },
+  { title: '給与一覧_2027_5_16-2027_6_15', id: '1S5Oq5bHtxBM2JaQApzfkOk2BPu9_GN04MjVCGM5XDn8' },
+  { title: '給与一覧_2027_6_16-2027_7_15', id: '1K2q7smAXcqW0VF12FbSmo4vWSjOEwewYgAKfzX6dzWU' },
+  { title: '給与一覧_2027_7_16-2027_8_15', id: '1MrtFtRVKxG97mIHiRkX27fkVXxrQNYy9Y5-Q__oZE8Y' },
+  { title: '給与一覧_2027_8_16-2027_9_15', id: '1TrgIpopQedhDhzCyx4I0-uqg38ravAP0lw1HnBd3Y6o' },
+];
+
+// 給与一覧のスプレッドシートが入っているフォルダ（分かれば自動で探すのに使う）
 var PAYROLL_FOLDERS = [
   '1JQPlAe-jOMhCxg2jIbajcIyG0w7zXa6F',
   '1d40nJ_7fQ18xYbO_clSe14m18vFnzspd'
@@ -594,6 +630,15 @@ function payrollPush_(f, out, seen) {
 function payrollFiles_() {
   var out = [], seen = {}, errors = [];
 
+  // まず、上に書いてある一覧から。ドライブの権限が無くてもここは動く
+  for (var k = 0; k < PAYROLL_FILES.length; k++) {
+    var f0 = PAYROLL_FILES[k];
+    var pr0 = payrollPeriod_(f0.title);
+    if (!pr0 || seen[f0.id]) continue;
+    seen[f0.id] = true;
+    out.push({ id: f0.id, title: f0.title, start: pr0.start, end: pr0.end, label: pr0.label });
+  }
+
   try {
     var q = 'title contains "' + PAYROLL_PREFIX + '"'
           + ' and mimeType = "application/vnd.google-apps.spreadsheet"'
@@ -615,6 +660,8 @@ function payrollFiles_() {
   }
 
   out.sort(function (a, b) { return a.start < b.start ? 1 : a.start > b.start ? -1 : 0; });
+  // 上の一覧から取れているなら、ドライブを見られなくても困らないので黙っておく
+  if (out.length) errors = [];
   return { status: 'ok', files: out, errors: errors };
 }
 
