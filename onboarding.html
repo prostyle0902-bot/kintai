@@ -1136,6 +1136,7 @@ async function sendImport(recs) {
    給与一覧表の行を作る。給与に触るので、押したときだけ動かす。
    ========================================================= */
 let payrollFiles = null;   // 給与一覧のファイル一覧（読み込むまで null）
+let payrollErrors = [];    // 読み込めなかった理由
 let payrollPick = {};
 
 async function openPayroll(id) {
@@ -1152,6 +1153,7 @@ async function openPayroll(id) {
       const res = await apiGet({ action: 'payrollFiles' });
       if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
       payrollFiles = res.files || [];
+      payrollErrors = res.errors || [];
     } catch (e) {
       openSheet('<div class="card-title">給与一覧に作る</div>'
         + '<div class="alert err">給与一覧のファイルを読めませんでした：' + esc(e.message) + '</div>'
@@ -1194,6 +1196,22 @@ function renderPayroll(r) {
   if (!r.payRate) {
     h += '<div class="alert err">単価が入っていないため作れません。先に「編集」から時給または日給を入れてください。</div>'
       + '<div class="row-actions"><button class="btn" onclick="closeSheet();openEdit(\'' + r.id + '\')">編集する</button>'
+      + '<button class="btn ghost" onclick="closeSheet()">閉じる</button></div>';
+    openSheet(h);
+    return;
+  }
+
+  if (!payrollFiles.length) {
+    h += '<div class="alert err"><b>給与一覧のスプレッドシートが1つも見つかりませんでした。</b><br />'
+      + 'Apps Script からドライブを見られていない可能性が高いです。'
+      + '<b>Apps Script のエディタで「デプロイ → デプロイを管理 → 鉛筆 → 新バージョン → デプロイ」</b>'
+      + 'をもう一度行ってください。権限を許可したあとに、デプロイをやり直す必要があります。</div>'
+      + (payrollErrors.length
+          ? '<div class="alert warn"><b>Apps Script からの知らせ</b><br />'
+            + payrollErrors.map(esc).join('<br />') + '</div>'
+          : '<div class="muted">Apps Script からのエラーの知らせはありませんでした。'
+            + '「給与一覧_2026_9_16-2026_10_15」のような名前のファイルがドライブにあるか確認してください。</div>')
+      + '<div class="row-actions"><button class="btn" onclick="payrollFiles=null;closeSheet();openPayroll(\'' + r.id + '\')">もう一度読み込む</button>'
       + '<button class="btn ghost" onclick="closeSheet()">閉じる</button></div>';
     openSheet(h);
     return;

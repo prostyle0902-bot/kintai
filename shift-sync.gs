@@ -575,24 +575,47 @@ function payrollPeriod_(title) {
   };
 }
 
-// 給与一覧のファイルを新しい順に並べて返す
+// 見つけたファイルを、重ならないように足す
+function payrollPush_(f, out, seen) {
+  var t = f.getName();
+  if (t.indexOf(PAYROLL_PREFIX) !== 0) return;
+  var pr = payrollPeriod_(t);
+  if (!pr) return;
+  var id = f.getId();
+  if (seen[id]) return;
+  seen[id] = true;
+  out.push({ id: id, title: t, start: pr.start, end: pr.end, label: pr.label });
+}
+
+/* 給与一覧のファイルを新しい順に並べて返す。
+   まず名前で探し（フォルダを移動しても見つかる）、そのうえで
+   決まったフォルダの中も見る。うまくいかなかったことは errors に入れて返す。
+   黙って0件を返すと、何が起きているのか分からなくなるため。 */
 function payrollFiles_() {
-  var out = [];
+  var out = [], seen = {}, errors = [];
+
+  try {
+    var q = 'title contains "' + PAYROLL_PREFIX + '"'
+          + ' and mimeType = "application/vnd.google-apps.spreadsheet"'
+          + ' and trashed = false';
+    var it = DriveApp.searchFiles(q);
+    while (it.hasNext()) payrollPush_(it.next(), out, seen);
+  } catch (e) {
+    errors.push('ドライブを名前で検索できませんでした：' + String(e));
+  }
+
   for (var i = 0; i < PAYROLL_FOLDERS.length; i++) {
-    var folder;
-    try { folder = DriveApp.getFolderById(PAYROLL_FOLDERS[i]); } catch (e) { continue; }
-    var it = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
-    while (it.hasNext()) {
-      var f = it.next();
-      var t = f.getName();
-      if (t.indexOf(PAYROLL_PREFIX) !== 0) continue;
-      var pr = payrollPeriod_(t);
-      if (!pr) continue;
-      out.push({ id: f.getId(), title: t, start: pr.start, end: pr.end, label: pr.label });
+    try {
+      var folder = DriveApp.getFolderById(PAYROLL_FOLDERS[i]);
+      var it2 = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+      while (it2.hasNext()) payrollPush_(it2.next(), out, seen);
+    } catch (e) {
+      errors.push('フォルダ ' + PAYROLL_FOLDERS[i] + ' を開けませんでした：' + String(e));
     }
   }
+
   out.sort(function (a, b) { return a.start < b.start ? 1 : a.start > b.start ? -1 : 0; });
-  return { status: 'ok', files: out };
+  return { status: 'ok', files: out, errors: errors };
 }
 
 // まとめの表のシートを見つける
