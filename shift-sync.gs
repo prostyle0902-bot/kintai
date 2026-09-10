@@ -600,7 +600,7 @@ var PAYROLL_FILES = [
   { title: '給与一覧_2026_9_16-2026_10_15', id: '1Dxr27E2tGwiPKESxWWB8HCGDaX0i2jwtSqfL5Lyc9tw' },
   { title: '給与一覧_2026_10_16-2026_11_15', id: '1SSRb1I2RD6cOkRmBqW0tcZBVIntf_4RHDzDpzqXHi4w' },
   { title: '給与一覧_2026_11_16-2026_12_15', id: '1ARP6ApVaj7VzSKBuz0P5TcdnbH8BQJ5J5IzB_AQgmBw' },
-  { title: '給与一覧_2026_12_16-2027_1_15', id: '1MwAXLQfBF-tBQ0jMHyJqLaNlUSbImikp23IdvD9CDBs' },
+  { title: '給与一覧_2026_12_16-2027_1_15', id: '19IalEf2e3nv3aUak30IaLBY8VgnySob9qm2BiflMjcs' },   // 作り直したもの
   { title: '給与一覧_2027_1_16-2027_2_15', id: '1awRXj9U0C18D_gT0tM5u14AENE-zak4d6pafseX5gAM' },
   { title: '給与一覧_2027_2_16-2027_3_15', id: '1rju65K08_cefudwVkKcfw4gJh4uPAWc8kDgpqmeFYC4' },
   { title: '給与一覧_2027_3_16-2027_4_15', id: '18bugMUJZtAQucKRLLA8CAawEiw7IrndNGHhDBIfOpbs' },
@@ -1187,6 +1187,60 @@ function fixDecemberDates() {
     + 'URL：' + ss.getUrl()
     + (notes.length ? '\n\n触らなかったもの：\n' + notes.join('\n') : '')
     + '\n\n中身を確かめて問題なければ、古い方のファイルをゴミ箱へ移してください。';
+  Logger.log(msg);
+  return msg;
+}
+
+/* ===== 台帳（SS_ID管理）の古いIDを直す ==================================
+ * 12月分が更新されなくなった大もとの原因は、各ファイルの「SS_ID管理」
+ * シートに載っている12月分のIDが、すでに消えたファイルを指していたこと。
+ * このままだと、自動で作る仕組みが同じ場所を見にいって、また外れます。
+ *
+ * エディタで fixLedger を実行すると、対象の全ファイルの台帳を見て、
+ * 古いIDを新しいIDに書きかえます。該当が無いファイルには触りません。
+ * ===================================================================== */
+var LEDGER_SHEET = 'SS_ID管理';
+var LEDGER_OLD_ID = '1lJELTatMMTK2oUzV--tyxdybmSKWiczwv4s0iacbf6A';  // 消えている12月分
+var LEDGER_NEW_ID = '19IalEf2e3nv3aUak30IaLBY8VgnySob9qm2BiflMjcs';  // 作り直した12月分
+
+function fixLedger() {
+  var done = [], skipped = [], failed = [];
+
+  for (var i = 0; i < PAYROLL_FILES.length; i++) {
+    var f = PAYROLL_FILES[i];
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var sh = ss.getSheetByName(LEDGER_SHEET);
+      if (!sh) { skipped.push(f.title + '（台帳なし）'); continue; }
+
+      var rows = sh.getLastRow(), cols = sh.getLastColumn();
+      if (rows < 2 || cols < 1) { skipped.push(f.title + '（台帳が空）'); continue; }
+
+      var rng = sh.getRange(1, 1, rows, cols);
+      var vals = rng.getValues();
+      var fs = rng.getFormulas();
+      var hit = 0;
+
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          if (fs[r][c]) continue;                     // 計算式には触らない
+          var v = vals[r][c];
+          if (typeof v !== 'string' || v.indexOf(LEDGER_OLD_ID) < 0) continue;
+          sh.getRange(r + 1, c + 1).setValue(v.split(LEDGER_OLD_ID).join(LEDGER_NEW_ID));
+          hit++;
+        }
+      }
+      if (hit) done.push(f.title + '（' + hit + 'か所）');
+      else skipped.push(f.title + '（古いIDなし）');
+    } catch (e) {
+      failed.push(f.title + '：' + String(e));
+    }
+  }
+
+  var msg = '台帳を直しました：' + done.length + ' ファイル\n'
+    + (done.length ? done.join('\n') + '\n' : '')
+    + '\n触らなかったもの：' + skipped.length + ' ファイル'
+    + (failed.length ? '\n\n直せなかったもの：\n' + failed.join('\n') : '');
   Logger.log(msg);
   return msg;
 }
