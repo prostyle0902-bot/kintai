@@ -355,11 +355,11 @@
     </div>
 
     <div class="card no-print">
-      <div class="card-title">シフト管理アプリへ転記</div>
+      <div class="card-title">確定して転記</div>
       <div class="card-desc" id="transfer-desc"></div>
       <div class="transfer-status"></div>
       <div class="row-actions" style="margin-top:0">
-        <button class="btn primary" onclick="transferCurrent()">確定してシフト管理アプリへ転記</button>
+        <button class="btn primary" onclick="transferCurrent()">確定して転記</button>
         <button class="btn" onclick="transferTest()">1件だけテスト送信</button>
       </div>
     </div>
@@ -462,7 +462,7 @@
       </div>
       <div class="row-actions" style="margin-top:0">
         <button class="btn primary" onclick="generateAll()">設定済みの現場をまとめて自動作成</button>
-        <button class="btn primary" onclick="transferAll()">まとめてシフト管理アプリへ転記</button>
+        <button class="btn primary" onclick="transferAll()">まとめて転記</button>
         <button class="btn" onclick="exportTransferCsv()">転記用CSVを出力（全現場）</button>
       </div>
       <div class="transfer-status" style="margin-top:1rem"></div>
@@ -775,7 +775,8 @@ function defaultDB() {
     dayOverrides: {},
     requests: {},
     shifts: {},
-    transfers: {},  // key: storeId|YYYY-MM -> { ids: { 'YYYY-MM-DD|staffId': 連携先のid }, at: ISO }
+    transfers: {},  // key: storeId|YYYY-MM -> { ids: { 'YYYY-MM-DD|staffId': 送った記録 }, at: ISO }
+    transferDest: 'kyuyo',   // 'kyuyo' = 出勤簿だけ／'both' = シフト管理アプリにも送る
     rosterSync: ROSTER_SYNC,
   };
 }
@@ -819,6 +820,7 @@ function normalizeDB(d) {
   d.requests = d.requests || {};
   d.shifts = d.shifts || {};
   d.transfers = d.transfers || {};
+  d.transferDest = (d.transferDest === 'both') ? 'both' : 'kyuyo';
   if (num(d.rosterSync, 0) < ROSTER_SYNC) {
     syncFromRoster(d);
     d.rosterSync = ROSTER_SYNC;
@@ -1714,10 +1716,7 @@ function renderShift() {
 function renderTransferInfo(st, sh) {
   const el = document.getElementById('transfer-desc');
   if (!el) return;
-  const dest = st.dept === 'gyomu' ? '業務課シフト' : '飲食事業部シフト';
-  const url = st.dept === 'gyomu'
-    ? 'https://prostyle0902-bot.github.io/prostyle-calendar/gyomu-shift.html'
-    : 'https://prostyle0902-bot.github.io/prostyle-calendar/shift.html';
+  const useCal = toCalendar();
   const n = sh ? buildTransferPlan(st).length : 0;
   const tr = getTransfer();
   const timeTxt = usesPatterns(st)
@@ -1727,17 +1726,28 @@ function renderTransferInfo(st, sh) {
     : '　勤務時間：平日 ' + esc(st.startTime) + '〜' + esc(timeLabel(st.endTime, st.openHour))
       + '／土日祝 ' + esc(st.startTimeWeekend) + '〜' + esc(timeLabel(st.endTimeWeekend, st.openHour))
       + '（スタッフごとの指定があればそちらを使います）';
-  let h = '転記先：<a href="' + url + '" target="_blank" rel="noopener">' + dest + '</a>'
+  const kyuyoN = sh ? buildTransferPlan(st).filter(function (p) {
+    return PART_TIME_STAFF.indexOf(p.staff) >= 0;
+  }).length : 0;
+
+  let h = '<div class="chip-row" style="margin-bottom:.6rem">転記先：'
+    + '<span class="chip' + (!useCal ? ' on' : '') + '" onclick="setTransferDest(\'kyuyo\')">出勤簿だけ</span>'
+    + '<span class="chip' + (useCal ? ' on' : '') + '" onclick="setTransferDest(\'both\')">'
+    + '出勤簿＋<a href="' + calendarUrl(st) + '" target="_blank" rel="noopener" style="color:inherit">'
+    + esc(calendarName(st)) + '</a></span></div>'
     + timeTxt + '<br />'
-    + 'この期間の転記対象：<b>' + n + '件</b>。'
+    + 'この期間のシフト：<b>' + n + '件</b>'
+    + '（うち出勤簿へ送る対象者：<b>' + kyuyoN + '件</b>）。'
     + 'こちらで直したぶん（時間・担当者・取り消し）は、'
-    + '<b>もう一度この転記を押したときに</b>連携先へ反映されます。';
+    + '<b>もう一度この転記を押したときに</b>送り先へ反映されます。'
+    + (useCal ? '' : '<br /><span class="muted">シフト管理アプリ（prostyle-calendar）へは送っていません。'
+        + '向こうを見ている人がいたら「出勤簿＋」に切り替えてください。</span>');
   const df = transferDiff(st);
   if (df && df.any) {
     h += '<br /><span style="color:#92650a"><b>前回の転記のあとに'
       + (df.add ? ' 追加' + df.add + '件' : '') + (df.upd ? ' 変更' + df.upd + '件' : '')
       + (df.del ? ' 取消' + df.del + '件' : '')
-      + ' の違いがあります。</b>もう一度「確定してシフト管理アプリへ転記」を押してください。</span>';
+      + ' の違いがあります。</b>もう一度「確定して転記」を押してください。</span>';
   }
   if (tr) {
     h += '<br /><span style="color:#0F6E56">最終転記：' + esc(new Date(tr.at).toLocaleString('ja-JP'))
@@ -2461,6 +2471,33 @@ function download(blob, filename) {
 let jsonpSeq = 0;
 let transferCancelled = false;
 
+/* ---------- どこへ転記するか ----------
+   'kyuyo' … 出勤簿（給与）だけに送る。シフトの正本はこのアプリになる。
+   'both'  … これまでどおり、シフト管理アプリにも送る。
+   出勤簿へは どちらでも同じ内容が届く。切り替えても二重には登録されない
+   （送った記録を持っていて、同じ予定は同じ id で書き換えるため）。 */
+function toCalendar() { return DB.transferDest === 'both'; }
+
+function calendarName(st) { return st.dept === 'gyomu' ? '業務課シフト' : '飲食事業部シフト'; }
+function calendarUrl(st) {
+  return st.dept === 'gyomu'
+    ? 'https://prostyle0902-bot.github.io/prostyle-calendar/gyomu-shift.html'
+    : 'https://prostyle0902-bot.github.io/prostyle-calendar/shift.html';
+}
+function destLabel(st) {
+  return toCalendar() ? '出勤簿と' + calendarName(st) : '出勤簿';
+}
+
+function setTransferDest(v) {
+  const next = (v === 'both') ? 'both' : 'kyuyo';
+  if (next === DB.transferDest) return;
+  if (next === 'both' && !confirm('シフト管理アプリ（prostyle-calendar）にも転記するようにします。\n\n'
+    + '次に転記を押したときから、向こうにもシフトが入ります。よろしいですか？')) return;
+  DB.transferDest = next;
+  saveDB();
+  renderAll();
+}
+
 function jsonpCall(url, params) {
   return new Promise(function (resolve, reject) {
     const cb = '_pscb' + (++jsonpSeq);
@@ -2644,19 +2681,22 @@ async function transferStore(st, ym, report) {
   const key = st.id + '|' + ym;
   const plan = buildTransferPlan(st);
   const prev = (DB.transfers[key] && DB.transfers[key].ids) || {};
+  const useCal = toCalendar();
 
-  // 連携先の既存データを取得して突き合わせる
-  const remote = await jsonpCall(TRANSFER_API, apiParams(st, { action: 'getShifts' })) || {};
   // 同じ日に午前・午後と2件入ることがあるので、開始時刻まで含めて突き合わせる
   const existing = {};    // 'date|staffName|start' -> id
   const remoteById = {};  // id -> 連携先にある予定そのもの
-  Object.keys(remote).forEach(function (d) {
-    (remote[d] || []).forEach(function (ev) {
-      if (!ev || ev.store !== st.name) return;
-      existing[d + '|' + ev.staff + '|' + ev.start] = ev.id;
-      remoteById[ev.id] = ev;
+  if (useCal) {
+    // シフト管理アプリにも送るときだけ、向こうの既存データを読んで突き合わせる
+    const remote = await jsonpCall(TRANSFER_API, apiParams(st, { action: 'getShifts' })) || {};
+    Object.keys(remote).forEach(function (d) {
+      (remote[d] || []).forEach(function (ev) {
+        if (!ev || ev.store !== st.name) return;
+        existing[d + '|' + ev.staff + '|' + ev.start] = ev.id;
+        remoteById[ev.id] = ev;
+      });
     });
-  });
+  }
 
   const ids = {};
   let added = 0, updated = 0, skipped = 0, removed = 0, kyuyoOk = 0, kyuyoNg = 0;
@@ -2666,40 +2706,50 @@ async function transferStore(st, ym, report) {
     if (transferCancelled) throw new Error('中止しました');
     const p = plan[i];
     const ev = buildEvent(st, p);
-    const rec = { sig: planSig(st, p) };
+    const sig = planSig(st, p);
     const was = prevSent(prev[p.key]);
-    const mine = was && remoteById[was.id];   // 前回こちらから送ったものが、まだ連携先にある
+    // 前回こちらから送ったもの。シフト管理アプリにも送る設定なら、向こうにまだ残っているかも見る
+    const mine = useCal ? (was && remoteById[was.id]) : (was || null);
 
     if (mine) {
       // すでに送ってある予定。中身が変わっていれば、同じ予定を書き換える
-      if (sameEvent(st, mine, ev)) {
-        ids[p.key] = { id: was.id, sig: rec.sig };
+      const same = useCal ? sameEvent(st, mine, ev) : (was.sig === sig);
+      if (same) {
+        // 送った内容を控えておく（取り消すときに必要になる）
+        ids[p.key] = { id: was.id, sig: sig, ev: was.ev || Object.assign({}, ev, { id: was.id }) };
         skipped++;
         report(st.name, i + 1, plan.length);
         continue;
       }
       ev.id = was.id;
-      if (!ev.memo && mine.memo) ev.memo = mine.memo;   // 連携先で書かれたメモは残す
-      await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+      if (useCal) {
+        if (!ev.memo && mine.memo) ev.memo = mine.memo;   // 連携先で書かれたメモは残す
+        await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+      }
       countKyuyo(await kyuyoCall('writeShift', ev));
-      ids[p.key] = { id: ev.id, sig: rec.sig };
+      ids[p.key] = { id: ev.id, sig: sig, ev: ev };
       updated++;
       report(st.name, i + 1, plan.length);
       continue;
     }
 
     // 連携先で手入力されたものと同じ日・同じ人・同じ開始時刻なら、二重登録しない
-    const hit = existing[p.date + '|' + p.staff + '|' + p.start];
+    // （こちらに送った記録がある予定は、こちらのidを使うのでここは通らない）
+    const hit = (useCal && !was) ? existing[p.date + '|' + p.staff + '|' + p.start] : null;
     if (hit) {
-      ids[p.key] = { id: hit, sig: rec.sig };
+      ids[p.key] = { id: hit, sig: sig, ev: Object.assign({}, ev, { id: hit }) };
       skipped++;
       report(st.name, i + 1, plan.length);
       continue;
     }
 
-    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+    // 前に送ったことがあるなら、そのときと同じidで送る。
+    // 転記先を切り替えても、出勤簿に同じ予定が二重に入らないようにするため。
+    if (was && was.id) ev.id = was.id;
+
+    if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
     countKyuyo(await kyuyoCall('writeShift', ev));
-    ids[p.key] = { id: ev.id, sig: rec.sig };
+    ids[p.key] = { id: ev.id, sig: sig, ev: ev };
     added++;
     report(st.name, i + 1, plan.length);
   }
@@ -2711,10 +2761,17 @@ async function transferStore(st, ym, report) {
   for (let i = 0; i < stale.length; i++) {
     if (transferCancelled) throw new Error('中止しました');
     const was = prevSent(prev[stale[i]]);
-    const gone = was && remoteById[was.id];
-    if (!gone) continue;   // 連携先に無ければ何もしない
-    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'deleteShift', data: { id: was.id } }));
-    countKyuyo(await kyuyoCall('deleteShift', gone));
+    if (!was) continue;
+    if (useCal) {
+      const gone = remoteById[was.id];
+      if (!gone) continue;   // 連携先に無ければ何もしない
+      await jsonpCall(TRANSFER_API, apiParams(st, { action: 'deleteShift', data: { id: was.id } }));
+      countKyuyo(await kyuyoCall('deleteShift', gone));
+    } else {
+      // 出勤簿だけのときは、前に送った内容の控えを使って取り消す
+      if (!was.ev) continue;   // 何を送ったか分からないものには触らない
+      countKyuyo(await kyuyoCall('deleteShift', was.ev));
+    }
     removed++;
   }
 
@@ -2732,14 +2789,22 @@ async function runTransfer(stores, ym) {
   if (!targets.length) { alert('転記できるシフトがありません。先にシフトを作成してください。'); return; }
 
   const totalRows = targets.reduce(function (a, st) { return a + buildTransferPlan(st).length; }, 0);
-  const dest = targets.some(function (s) { return s.dept === 'gyomu'; })
+  const useCal = toCalendar();
+  const cals = targets.some(function (s) { return s.dept === 'gyomu'; })
     ? (targets.every(function (s) { return s.dept === 'gyomu'; }) ? '業務課シフト' : '飲食事業部シフト・業務課シフト')
     : '飲食事業部シフト';
-  if (!confirm(targets.map(function (s) { return s.name; }).join('、') + '\\n'
-    + periodLabel() + ' のシフト（のべ ' + totalRows + '件）を\\n'
-    + dest + ' へ転記します。\\n\\n'
-    + '同じ日・同じ人の予定がすでにあるぶんは二重登録しません。\\n'
-    + '1件ずつ送るため ' + Math.ceil(totalRows * 0.7 / 60) + '分ほどかかります。よろしいですか？')) return;
+  const dest = useCal ? '出勤簿と' + cals : '出勤簿';
+  // 出勤簿へ実際に送るのは対象者だけ。待ち時間の目安はその件数で見る
+  const kyuyoRows = targets.reduce(function (a, st) {
+    return a + buildTransferPlan(st).filter(function (p) { return PART_TIME_STAFF.indexOf(p.staff) >= 0; }).length;
+  }, 0);
+  const sendRows = useCal ? totalRows : kyuyoRows;
+  if (!confirm(targets.map(function (s) { return s.name; }).join('、') + '\n'
+    + periodLabel() + ' のシフト（のべ ' + totalRows + '件）を\n'
+    + dest + ' へ転記します。\n\n'
+    + (useCal ? '' : '出勤簿の対象者は ' + kyuyoRows + '件です。\n')
+    + '前に送ったぶんは二重登録せず、直したところだけ書き換えます。\n'
+    + '1件ずつ送るため ' + Math.max(1, Math.ceil(sendRows * 0.7 / 60)) + '分ほどかかります。よろしいですか？')) return;
 
   transferCancelled = false;
   let doneRows = 0;
@@ -2761,7 +2826,8 @@ async function runTransfer(stores, ym) {
         + '／出勤簿 ' + r.kyuyoOk + '件' + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件）' : ''));
     }
     setTransferStatus('<div class="alert ok"><b>転記しました。</b><br />' + results.map(esc).join('<br />')
-      + '<br />シフト管理アプリを開いて確認してください。</div>');
+      + '<br />' + (useCal ? 'シフト管理アプリと出勤簿を開いて確認してください。'
+                           : '出勤簿を開いて確認してください。') + '</div>');
   } catch (e) {
     setTransferStatus('<div class="alert warn"><b>転記を中断しました：</b>' + esc(e.message)
       + '<br />' + (results.length ? results.map(esc).join('<br />') + '<br />' : '')
@@ -2781,22 +2847,23 @@ async function transferTest() {
   const plan = buildTransferPlan(st);
   if (!plan.length) { alert('先にこの現場のシフトを作成してください。'); return; }
   const p = plan[0];
-  if (!confirm('確認のため、次の1件だけをシフト管理アプリへ送ります。\\n\\n'
+  const useCal = toCalendar();
+  if (!confirm('確認のため、次の1件だけを' + destLabel(st) + 'へ送ります。\n\n'
     + p.date + '　' + p.store + '　' + p.staff + '　'
-    + (p.pattern ? p.pattern + '　' : '') + p.start + '〜' + p.end + '\\n\\n'
-    + 'よろしいですか？（うまくいかない場合は連携先アプリ側で削除してください）')) return;
+    + (p.pattern ? p.pattern + '　' : '') + p.start + '〜' + p.end + '\n\n'
+    + 'よろしいですか？（うまくいかない場合は送り先の画面で削除してください）')) return;
   setTransferStatus('<div class="alert info">テスト送信中…</div>');
   try {
     const ev = buildEvent(st, p);
-    await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
-    // 本番の転記と同じく、対象者は出勤簿へも送る
+    if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+    // 本番の転記と同じく、対象者は出勤簿へ送る
     const k = await kyuyoCall('writeShift', ev);
-    const kyuyoTxt = k === 'ok' ? '出勤簿にも送信しました。'
+    const kyuyoTxt = k === 'ok' ? '出勤簿に送信しました。'
       : k === 'skip' ? esc(p.staff) + ' さんは出勤簿の転記対象ではないため、出勤簿には送っていません。'
       : '<span style="color:#a32d2d">出勤簿への送信は失敗しました。</span>';
     setTransferStatus('<div class="alert ok"><b>テスト送信できました。</b><br />'
-      + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end)
-      + ' がシフト管理アプリに入っているか確認してください。<br />' + kyuyoTxt + '</div>');
+      + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end) + '<br />'
+      + kyuyoTxt + (useCal ? '　シフト管理アプリにも入っているか確認してください。' : '') + '</div>');
   } catch (e) {
     setTransferStatus('<div class="alert warn"><b>送信できませんでした：</b>' + esc(e.message)
       + '<br />通信環境と、連携先アプリが動いているかを確認してください。</div>');
@@ -2897,7 +2964,7 @@ async function masterPull(force) {
    店舗設定・スタッフ・営業日・希望休・作成したシフトを全員で共有する。
    表示の設定（時間表示など）と、いま見ている現場は各自のままにする。
    ========================================================= */
-const SYNCED_KEYS = ['stores', 'dayOverrides', 'requests', 'shifts', 'transfers', 'rosterSync'];
+const SYNCED_KEYS = ['stores', 'dayOverrides', 'requests', 'shifts', 'transfers', 'transferDest', 'rosterSync'];
 const SYNC_POLL = 60000;          // 誰かが更新していないか見にいく間隔
 const SYNC_IDLE = 15 * 60 * 1000; // ずっと触っていなければ見にいくのをやめる
 
