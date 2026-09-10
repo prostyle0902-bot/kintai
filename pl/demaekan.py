@@ -44,7 +44,7 @@ Google Drive の共有フォルダ（オーナー: brothertak83davab@gmail.com�
   期の途中で方法を変えると混在するので、yakitateya.py の A-2 と同じ考え方で
   22期から揃える。
 """
-from decimal import Decimal, ROUND_FLOOR
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 
 FOLDER_ID = "14TTFrm69mDNHiAFo68PTVrdNic3DXgvV"
 FOLDER_ID_2025 = "1dmfYPNaMBGwCb9s4aUZp-8NOmmLvgTiS"
@@ -63,8 +63,31 @@ DATA = {
     "5月":  (38080, 14739, 1339,    0, "13608422_202605_payment.pdf"),
     "6月":  (22450,  8845,  804, 1131, "13608422_202606_payment.pdf"),
     "7月":  (24530,  9330,  848,    0, "13608422_202607_payment.pdf"),
+    "8月":  (34450,  9915,  901,  903, "13608422_202608_payment.pdf"),
 }
 SRC = "Drive 2.焼きたて屋/取引集計（出前館）/"
+
+# ★2026-09-10 に見つかった【2つめの出前館アカウント】--------------------
+#   13575701 ＝ タコとハイボール神栖横丁店（店舗コード TAQV9_0101）。
+#   フォルダID 1xKGTn1SwZbDHIfhK9atsk2MRt3GsrDZT（202601〜202608＋2025サブフォルダ）。
+#   焼きたて屋（13608422）とは別物で、これまで一度も読んでいなかった。
+#
+#   ★売上は二重計上しない。エアレジの会計明細に「出前館支払合計額」列があり、
+#     タコハイ8月は 64,100 で支払通知書の①と1円まで一致した。つまり
+#     タコとハイボールの「売上（税込）」には出前館ぶんが最初から入っている。
+#     既存21期PLも手数料だけを計上していて、同じ考え方だった。
+#     → このモジュールが入れるのは【手数料だけ】。
+#
+#   検算（PDFから ⑥−内税 を計算して既存PLと突き合わせ）:
+#       7月 19,420−1,765＝17,655  … 既存PL 17,655 と1円まで一致 ✅
+#       6月 26,878−2,443＝24,435  … 既存PL 24,430（5円ちがい。既存PLは手入力なので
+#                                    丸め違いか打ち間違いとみられる。書類のほうが正）
+TACO_TAB = "タコとハイボール"
+TACO = {
+    "8月": (64100, 18351, 1668, 0, "13575701_202608_payment.pdf"),
+}
+TACO_SRC = "Drive 3.タコとハイボール/取引集計（出前館）/"
+TACO_CHECK = {"7月": (19420, 1765, 17655), "6月": (26878, 2443, 24430)}
 
 
 def sales_tax(inc):
@@ -76,6 +99,28 @@ def fee_rows():
     """21期に入れるぶん: 支払手数料（出前館）＝⑥の税抜"""
     for month, (inc, fee, fee_tax, back, src) in DATA.items():
         yield TAB, "支払手数料（出前館）", month, fee - fee_tax, SRC + src, (fee, fee_tax)
+    for month, (inc, fee, fee_tax, back, src) in TACO.items():
+        yield TACO_TAB, "支払手数料（出前館）", month, fee - fee_tax, TACO_SRC + src, (fee, fee_tax)
+
+
+# 焼きたて屋の「出前館売上（税込）」「出前館消費税」は9月〜7月は既存PL（sales.py）
+# から入る。8月は既存PLに無いので支払通知書から入れる。
+#   ★消費税は21期のやり方（①×8%を四捨五入）に揃える。内税抽出（①×8/108）に
+#     変えるのは22期から（このファイル冒頭の★を参照）。混ぜると期の中で方法が割れる。
+SALES_FROM_PDF = ["8月"]
+
+
+def sales_rows():
+    """(タブ, PL行, 月, 金額, 元ファイル, メモ) — 既存PLに無い月の売上・消費税"""
+    for month in SALES_FROM_PDF:
+        inc, fee, fee_tax, back, src = DATA[month]
+        tax = int((Decimal(inc) * 8 / 100).quantize(Decimal("1"), ROUND_HALF_UP))
+        yield (TAB, "出前館売上（税込）", month, inc, SRC + src,
+               f"加盟店売上合計① {inc:,}（現金決済＋ネット決済＋ポイント/クーポン）。"
+               "既存21期PLに8月は無いので支払通知書から入れた")
+        yield (TAB, "出前館消費税", month, tax, SRC + src,
+               f"①{inc:,}×8%を四捨五入して {tax:,}。"
+               "21期は既存PLと同じやり方に揃えている（22期から①×8/108の内税抽出に変える）")
 
 
 # 既存PLスプシ（21期）の実測値。本モジュールの計算値と一致することを assert する。
@@ -99,6 +144,9 @@ def refund_rows():
     for month, (inc, fee, fee_tax, back, src) in DATA.items():
         if back:
             yield TAB, "支払手数料（出前館返金）", month, -back, SRC + src, back
+    for month, (inc, fee, fee_tax, back, src) in TACO.items():
+        if back:
+            yield TACO_TAB, "支払手数料（出前館返金）", month, -back, TACO_SRC + src, back
 
 
 def check(sales_module):
@@ -106,13 +154,22 @@ def check(sales_module):
     import build2
     vals = sales_module.SALES[TAB]["出前館売上（税込）"]
     for i, m in enumerate(build2.MONTHS):
-        if m in DATA:
+        if m in DATA and vals[i] is not None:      # 8月は既存PLに無い
             got, want = DATA[m][0], vals[i]
             assert got == want, f"{m}: 売上① PDF {got:,} ≠ 既存PL {want:,}"
-    for _, _, m, v, _, _ in fee_rows():
+    for tab, _, m, v, _, _ in fee_rows():
+        if tab != TAB or m not in EXIST_21_FEE:    # 8月・タコハイは既存PLと比べない
+            continue
         assert v == EXIST_21_FEE[m], f"{m}: 手数料 PDF {v:,} ≠ 既存PL {EXIST_21_FEE[m]:,}"
-    for _, _, m, v, _, back in refund_rows():
+    for tab, _, m, v, _, back in refund_rows():
+        if tab != TAB or m not in EXIST_21_REFUND:
+            continue
         assert back == EXIST_21_REFUND[m], f"{m}: 返金 PDF {back:,} ≠ 既存PL {EXIST_21_REFUND[m]:,}"
+    # タコハイは7月のPDFで方法の裏を取っている（6月は既存PLが5円ちがい・下の★参照）
+    fee, tax, want = TACO_CHECK["7月"]
+    assert fee - tax == want, f"タコハイ7月の検算がずれた: {fee - tax:,} ≠ {want:,}"
+    for tab, plrow, m, v, _s, _n in sales_rows():
+        assert plrow in build2.RIDX[tab], f"{tab} に「{plrow}」行が無い"
     return True
 
 

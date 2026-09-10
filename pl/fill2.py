@@ -275,9 +275,18 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
             missing.append((tab, plrow, "出前館返金")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
-    print("出前館セル", len(demae_rows) + len(demae_refund),
+    # 既存PLに無い月（8月）の 出前館売上（税込）・出前館消費税 は支払通知書から
+    demae_sales = list(demaekan.sales_rows())
+    for tab, plrow, m, val, src, _note in demae_sales:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "出前館売上")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
+    demae_owned = {(t, r, m) for t, r, m, *_ in demae_sales}
+    print("出前館セル", len(demae_rows) + len(demae_refund) + len(demae_sales),
           "／手数料", f"{sum(x[3] for x in demae_rows):,}",
-          "／返金", f"{sum(x[3] for x in demae_refund):,}")
+          "／返金", f"{sum(x[3] for x in demae_refund):,}",
+          "／売上（8月）", f"{sum(x[3] for x in demae_sales):,}")
 
     # ===== かめや（焼きたて屋のFC本部）=====
     kameya.check()                 # ロイヤリティの式が既存PLと合うことを確認
@@ -553,7 +562,9 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         tana_cells += 1
     print("棚卸しセル", tana_cells, "／期首",
           f"{sum(v for _t, r, m, v, _s, _n in tanaoroshi.rows() if r == '期首棚卸し' and m == '9月'):,}",
-          "（9月＝21期の期首の合計）／★8月は実地棚卸がまだなので空のまま")
+          "（9月＝21期の期首の合計）／8月の実地",
+          "・".join(sorted({t for t, _r, m, *_ in tanaoroshi.rows() if m == "8月"})),
+          "／★韓国酒場ハナだけ8月が空（棚卸表がSAに未共有）")
 
     # ===== 売上 =====
     F_SALES = PatternFill("solid", fgColor="FDE9D9")
@@ -582,6 +593,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                     continue          # かめや精算書を正とする（焼きたて屋の売上・消費税）
                 if (tab, rowname, m) in air_owned:
                     continue          # ★エアレジの会計明細を正とする（書類なので優先）
+                if (tab, rowname, m) in demae_owned:
+                    continue          # 出前館の支払通知書を正とする（8月）
                 c = wb[tab][f"{build2.MCOL[m]}{r}"]
                 c.value = int(vals[i]); c.fill = F_SALES; c.number_format = build2.NUMFMT
                 sales_cells += 1
@@ -683,6 +696,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         ws.append(["", tab, "出前館", "支払通知書", fee, 10, val, fee_tax, plrow, m, src, STAMP,
                    "出前館利用料⑥の税抜（サービス利用料10%＋配達代行25%＋振込手数料＋決済手数料）。"
                    "既存PLと11か月とも一致することを確認済み（demaekan.EXIST_21_FEE）"])
+    for tab, plrow, m, val, src, note in demae_sales:
+        ws.append(["", tab, "出前館", "支払通知書", "", 8, val, "", plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, back in demae_refund:
         ws.append(["", tab, "出前館", "支払通知書", back, "", val, "", plrow, m, src, STAMP,
                    "お戻し金額⑦（商品代金補填・不課税）を費用のマイナスで計上。"
