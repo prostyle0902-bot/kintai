@@ -1230,8 +1230,60 @@ function renderPayroll(r) {
 
   h += '<div class="row-actions">'
     + '<button class="btn primary" onclick="runPayroll(\'' + r.id + '\')">' + n + ' 件に作る</button>'
-    + '<button class="btn ghost" onclick="closeSheet()">やめる</button></div>';
+    + '<button class="btn" onclick="runPayrollRate(\'' + r.id + '\')">単価だけ入れ直す</button>'
+    + '<button class="btn ghost" onclick="closeSheet()">やめる</button></div>'
+    + '<div class="muted" style="margin-top:.6rem">'
+    + '<b>単価だけ入れ直す</b>…すでにある出勤簿の時給・通勤手当を、いまの登録内容に合わせます。'
+    + '昇給したときや、登録を直したときに使ってください。出勤・退勤の記録には触りません。</div>';
   openSheet(h);
+}
+
+// すでにある出勤簿の単価だけを入れ直す
+async function runPayrollRate(id) {
+  const r = findRec(id);
+  const ids = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; });
+  if (!ids.length) { alert('期間を1つ以上選んでください。'); return; }
+  if (!r.payRate) { alert('単価が入っていません。先に「編集」から入れてください。'); return; }
+  if (!confirm(r.name + ' さんの出勤簿 ' + ids.length + ' 件の単価を、いまの登録内容に合わせます。\n\n'
+    + (r.payKind === 'daily' ? '日給' : '時給') + ' ' + Number(r.payRate).toLocaleString() + '円\n'
+    + '通勤手当 ' + (r.commuteKind === 'monthly' ? Number(r.commute).toLocaleString() + '円（月ぎめ）'
+        : r.commuteKind === 'daily' ? Number(r.commute).toLocaleString() + '円 × 出勤日数' : 'なし') + '\n\n'
+    + '出勤・退勤の記録には触りません。よろしいですか？')) return;
+
+  openSheet('<div class="card-title">単価を入れ直す</div>'
+    + '<div class="alert info">直しています。' + ids.length + ' 件ぶんあるので、少し時間がかかります…</div>');
+  try {
+    const res = await apiPost({
+      action: 'payrollRate', fileIds: ids,
+      rec: { name: r.kyuyoName || r.name, payKind: r.payKind, payRate: r.payRate,
+             commute: r.commute, commuteKind: r.commuteKind },
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
+    openSheet(payrollResultHtml('単価を入れ直しました', res));
+  } catch (e) {
+    openSheet('<div class="card-title">単価を入れ直す</div>'
+      + '<div class="alert err">直せませんでした：' + esc(e.message) + '</div>'
+      + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
+  }
+}
+
+// 作成・入れ直しの結果を同じ形で出す
+function payrollResultHtml(title, res) {
+  let h = '<div class="card-title">' + esc(title) + '</div>';
+  if ((res.done || []).length) {
+    h += '<div class="alert ok"><b>' + res.done.length + ' 件を直しました。</b><br />'
+      + res.done.map(esc).join('<br />') + '</div>';
+  }
+  if ((res.skipped || []).length) {
+    h += '<div class="alert info"><b>' + res.skipped.length + ' 件は飛ばしました。</b><br />'
+      + res.skipped.map(esc).join('<br />') + '</div>';
+  }
+  if ((res.failed || []).length) {
+    h += '<div class="alert err"><b>' + res.failed.length + ' 件は直せませんでした。</b><br />'
+      + res.failed.map(esc).join('<br />') + '</div>';
+  }
+  return h + '<div class="muted">スプレッドシートを開いて確認してください。</div>'
+    + '<div class="row-actions"><button class="btn" onclick="closeSheet()">閉じる</button></div>';
 }
 
 async function runPayroll(id) {

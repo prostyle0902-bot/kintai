@@ -126,6 +126,7 @@ function handle_(p, cb) {
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
       if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
+      if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
       return json_({ status: 'error', message: '不明な操作です: ' + p.action }, cb);
     } finally {
       lock.releaseLock();
@@ -771,27 +772,42 @@ function payrollFillSheet_(sheet, fromName, toName, rec) {
     }
   }
 
-  // 単価と手当の数値セル（見出しの右にある）を入れ替える
-  payrollSetNumberAfter_(sheet, vals, formulas, rows, cols, /^(時給|日給)：/, rate);
-  payrollSetNumberAfter_(sheet, vals, formulas, rows, cols, /^通勤手当：/, commute);
+  // 計算に使う数値（単価・通勤手当）を入れ替える
+  payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute);
 
   // 前の人の出勤・退勤・備考を消す（計算式の入ったセルには触らない）
   payrollClearPunches_(sheet);
 }
 
-// 「時給：1094円」のような見出しと同じ行にある数値セルを書き換える
-function payrollSetNumberAfter_(sheet, vals, formulas, rows, cols, re, value) {
+/* 「時給：1140円」「通勤手当：120円×出勤日数」の行にある、計算に使う数値を書き換える。
+
+   この行は
+     （空） | 時給のラベル | 通勤手当のラベル | 単価の数値 | 手当の数値
+   の並びで、ラベルは2つとも数値の左にある。
+   そのため「ラベルの右にある最初の数値」を探すやり方だと、
+   通勤手当の値を単価のセルに書いてしまう。
+   同じ行の数値セルを左から順に見て、1つめを単価、2つめを手当として入れる。 */
+function payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute) {
   for (var r = 0; r < rows; r++) {
-    var found = -1;
+    var hasRate = false, hasCommute = false;
     for (var c = 0; c < cols; c++) {
-      if (typeof vals[r][c] === 'string' && re.test(vals[r][c])) { found = c; break; }
+      var v = vals[r][c];
+      if (typeof v !== 'string' || !v) continue;
+      if (/^(時給|日給)：/.test(v)) hasRate = true;
+      if (v.indexOf('通勤手当：') === 0) hasCommute = true;
     }
-    if (found < 0) continue;
-    for (var c2 = found + 1; c2 < cols; c2++) {
-      if (formulas[r][c2]) continue;
-      if (typeof vals[r][c2] === 'number') { sheet.getRange(r + 1, c2 + 1).setValue(value); return; }
+    if (!hasRate) continue;
+
+    var nums = [];
+    for (var c2 = 0; c2 < cols; c2++) {
+      if (formulas[r][c2]) continue;              // 計算式のセルは動かさない
+      if (typeof vals[r][c2] === 'number') nums.push(c2);
     }
+    if (nums.length >= 1) sheet.getRange(r + 1, nums[0] + 1).setValue(rate);
+    if (nums.length >= 2 && hasCommute) sheet.getRange(r + 1, nums[1] + 1).setValue(commute);
+    return true;
   }
+  return false;
 }
 
 // 日付の表の「出勤・退勤・備考」を空にする
@@ -880,4 +896,63 @@ function fixSheetNames() {
                   : '直すシートはありませんでした。';
   Logger.log(msg);
   return msg;
+}
+
+/* すでにある出勤簿の、単価と通勤手当だけを入れ直す。
+   昇給したときや、登録の内容を直したときに使う。
+   出勤・退勤の記録には触らない。 */
+function payrollRate_(p) {
+  var rec = p.rec;
+  if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch (e) { rec = null; } }
+  if (!rec || !String(rec.name || '').trim()) return { status: 'error', message: '氏名が入っていません' };
+  var ids = p.fileIds;
+  if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch (e) { ids = null; } }
+  if (!ids || !ids.length) return { status: 'error', message: '直す期間が選ばれていません' };
+
+  var name = String(rec.name).trim();
+  var done = [], skipped = [], failed = [];
+
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var ss = SpreadsheetApp.openById(String(ids[i]));
+      var sheet = payrollStaffSheet_(ss, name);
+      if (!sheet) { skipped.push(ss.getName() + '（この人の出勤簿がありません）'); continue; }
+
+      var rows = Math.min(sheet.getLastRow(), 60);
+      var cols = Math.min(sheet.getLastColumn(), 15);
+      var rng = sheet.getRange(1, 1, rows, cols);
+      var vals = rng.getValues();
+      var formulas = rng.getFormulas();
+
+      var payKind = (rec.payKind === 'daily') ? '日給' : '時給';
+      var rate = Number(rec.payRate) || 0;
+      var commute = Number(rec.commute) || 0;
+      var ck = rec.commuteKind;
+      var commuteTxt = (ck === 'none' || !commute) ? '通勤手当：なし'
+        : (ck === 'monthly') ? '通勤手当：' + commute + '円（月固定）'
+        : '通勤手当：' + commute + '円×出勤日数';
+
+      // 見出しの文字
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          if (formulas[r][c]) continue;
+          var v = vals[r][c];
+          if (typeof v !== 'string' || !v) continue;
+          if (/^(時給|日給)：/.test(v)) {
+            sheet.getRange(r + 1, c + 1).setValue(payKind + '：' + rate + '円');
+          } else if (v.indexOf('通勤手当：') === 0) {
+            sheet.getRange(r + 1, c + 1).setValue(commuteTxt + v.replace(/^通勤手当：[^　]*/, ''));
+          }
+        }
+      }
+      // 計算に使う数値
+      var okCells = payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute);
+      if (!okCells) { failed.push(ss.getName() + '：単価の欄が見つかりませんでした'); continue; }
+
+      done.push(ss.getName());
+    } catch (e) {
+      failed.push(String(ids[i]) + '：' + String(e));
+    }
+  }
+  return { status: 'ok', done: done, skipped: skipped, failed: failed };
 }
