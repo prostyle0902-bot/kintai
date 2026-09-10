@@ -2804,6 +2804,95 @@ async function transferTest() {
 }
 
 /* =========================================================
+   共通スタッフ名簿の取り込み
+   入社登録アプリ（onboarding.html）で登録された人を、配属先の現場へ自動で足す。
+   共有と同じ Apps Script・同じスプレッドシートの「staff」シートを読む。
+
+   ・名簿にいる人が現場に居なければ足す（勤務できる曜日・時間もそのまま入る）
+   ・退職にした人は、どの現場でも「使わない」にする（消さないので戻せる）
+   ・異動（配属先が変わった）ときは、外れた現場で「使わない」にする
+   ・この画面で手で足した人は、名簿にいないので触らない
+   ========================================================= */
+let masterRev = -1;
+
+// 名簿から来た人かどうかの目印。異動で外すかどうかの判断に使う
+function markFromMaster(u) { if (!u.fromMaster) { u.fromMaster = true; } }
+
+function applyMaster(list) {
+  let changed = false;
+
+  list.forEach(function (rec) {
+    const nm = String(rec.shiftName || rec.name || '').trim();
+    if (!nm) return;
+
+    // 退職した人は、どの現場でも使わないようにする
+    if (rec.status === 'retired') {
+      DB.stores.forEach(function (st) {
+        (st.staff || []).forEach(function (u) {
+          if (u.name === nm && u.active !== false) { u.active = false; changed = true; }
+        });
+      });
+      return;
+    }
+
+    // 出勤簿（給与）への転記対象
+    if (rec.kyuyo && PART_TIME_STAFF.indexOf(nm) < 0) PART_TIME_STAFF.push(nm);
+
+    const ids = String(rec.storeIds || '').split(',').filter(Boolean);
+    if (!ids.length) return;   // シフトに入らない人（社員など）
+
+    // 配属されている現場に居なければ足す
+    ids.forEach(function (id) {
+      const st = DB.stores.find(function (x) { return x.id === id; });
+      if (!st) return;
+      let u = (st.staff || []).find(function (x) { return x.name === nm; });
+      if (!u) {
+        u = newStaff({
+          name: nm,
+          availableDays: String(rec.days || '0,1,2,3,4,5,6').split(',')
+            .filter(function (x) { return x !== ''; }).map(Number),
+          holidayOk: rec.holidayOk !== false,
+          startTime: rec.startTime || '', endTime: rec.endTime || '',
+          startTimeWeekend: rec.startTimeWeekend || '', endTimeWeekend: rec.endTimeWeekend || '',
+          targetDays: num(rec.targetDays, 0), maxDays: num(rec.maxDays, 0), maxPerWeek: num(rec.maxPerWeek, 0),
+        });
+        markFromMaster(u);
+        st.staff.push(u);
+        changed = true;
+      } else {
+        if (!u.fromMaster) { markFromMaster(u); changed = true; }
+        if (u.active === false) { u.active = true; changed = true; }
+      }
+    });
+
+    // 配属から外れた現場では使わないようにする（異動）
+    DB.stores.forEach(function (st) {
+      if (ids.indexOf(st.id) >= 0) return;
+      (st.staff || []).forEach(function (u) {
+        if (u.name === nm && u.fromMaster && u.active !== false) { u.active = false; changed = true; }
+      });
+    });
+  });
+
+  return changed;
+}
+
+// 名簿を読みにいく。版数が変わっていなければ何もしない
+async function masterPull(force) {
+  if (!syncOn()) return;
+  try {
+    const res = await syncGet({ action: 'staffList' });
+    if (!res || res.status !== 'ok') return;
+    if (!force && res.staffRev === masterRev) return;
+    masterRev = res.staffRev;
+    if (applyMaster(res.staff || [])) {
+      saveDB();      // 共有にも送って、全員の画面を揃える
+      renderAll();
+    }
+  } catch (e) { /* つながらないときは次の機会に */ }
+}
+
+/* =========================================================
    共有（同期）
    店舗設定・スタッフ・営業日・希望休・作成したシフトを全員で共有する。
    表示の設定（時間表示など）と、いま見ている現場は各自のままにする。
@@ -2953,6 +3042,7 @@ async function syncCheck() {
   try {
     const res = await syncGet({ action: 'rev' });
     if (res.status !== 'ok') return;
+    if (res.staffRev !== undefined && res.staffRev !== masterRev) await masterPull();
     if ((res.rev || 0) === syncRev) {
       setSyncInfo('ok', syncStamp(res));
       return;
@@ -3573,8 +3663,8 @@ renderAll();
 window.addEventListener('beforeprint', buildPrintArea);
 // 共有リンク（#sync=...）で開かれたときは、その共有先につなぐ
 if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
-// 共有が設定されていれば、開いたときに最新を読み込む
-if (syncOn()) syncPull();
+// 共有が設定されていれば、開いたときに最新を読み込み、続けて共通スタッフ名簿も取り込む
+if (syncOn()) syncPull().then(function () { return masterPull(true); });
 // あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
 // （共有していない端末では syncCheck が何もしない）
 startSyncWatch();
