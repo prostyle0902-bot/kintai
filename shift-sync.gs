@@ -655,7 +655,8 @@ function payrollListSheet_(ss) {
   return null;
 }
 
-// 出勤簿シートを名前で探す（「出勤簿　氏名」でも「氏名」でも拾えるようにする）
+/* 出勤簿シートを名前で探す。
+   シート名は氏名だけにするが、前に「出勤簿　氏名」で作ったぶんも拾えるようにしておく。 */
 function payrollStaffSheet_(ss, name) {
   var all = ss.getSheets();
   for (var i = 0; i < all.length; i++) {
@@ -718,7 +719,7 @@ function payrollAdd_(p) {
       if (!tpl) { failed.push(ss.getName() + '：' + sampleName + ' の出勤簿が見つかりません'); continue; }
 
       // --- 出勤簿シートを作る ---
-      var sheet = tpl.copyTo(ss).setName('出勤簿　' + name);
+      var sheet = tpl.copyTo(ss).setName(name);
       ss.setActiveSheet(sheet);
       ss.moveActiveSheet(tpl.getIndex() + 1);
       payrollFillSheet_(sheet, sampleName, name, rec);
@@ -837,4 +838,46 @@ function payrollRenumber_(list) {
     var nm = String(vals[r][1] || '').trim();
     if (/^\d+$/.test(no) && nm) { n++; if (Number(no) !== n) list.getRange(r + 1, 1).setValue(n); }
   }
+}
+
+/* ===== 一度だけ：シート名を直す =========================================
+ * 「出勤簿　氏名」で作ってしまったシートを「氏名」に直します。
+ * 他のシートと名前の付け方が揃い、タブが読みやすくなります。
+ *
+ * エディタの関数の選択欄で fixSheetNames を選んで「実行」を押すだけです。
+ * すでに同じ氏名のシートがある場合は、間違えないようそのままにします。
+ * ===================================================================== */
+function fixSheetNames() {
+  var lines = [];
+  var total = 0;
+
+  for (var i = 0; i < PAYROLL_FILES.length; i++) {
+    var f = PAYROLL_FILES[i];
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var sheets = ss.getSheets();
+      var names = {};
+      for (var n = 0; n < sheets.length; n++) names[sheets[n].getName()] = true;
+
+      var done = [];
+      for (var j = 0; j < sheets.length; j++) {
+        var cur = sheets[j].getName();
+        if (cur.indexOf('出勤簿　') !== 0 && cur.indexOf('出勤簿 ') !== 0) continue;
+        var to = cur.replace(/^出勤簿[　 ]/, '').trim();
+        if (!to || names[to]) continue;      // 同じ氏名のシートがあるときは触らない
+        sheets[j].setName(to);
+        names[to] = true;
+        done.push(cur + ' → ' + to);
+        total++;
+      }
+      if (done.length) lines.push(f.title + '：' + done.join('、'));
+    } catch (e) {
+      lines.push(f.title + '：開けませんでした（' + String(e) + '）');
+    }
+  }
+
+  var msg = total ? (total + ' 件のシート名を直しました。\n' + lines.join('\n'))
+                  : '直すシートはありませんでした。';
+  Logger.log(msg);
+  return msg;
 }
