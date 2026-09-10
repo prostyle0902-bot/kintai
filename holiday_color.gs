@@ -20,6 +20,9 @@
  *   2. HOL.DRY_RUN = true のまま colorHolidays() を実行し、ログで対象日を確認
  *   3. 問題なければ HOL.DRY_RUN = false にして再実行
  *      （初回は日本の祝日カレンダーへのアクセス許可を求められる）
+ *
+ * 6分の実行時間制限で途中で止まった場合は、もう一度実行すれば続きから再開する。
+ * 最初からやり直したいときは resetProgress() を実行する。
  */
 
 const HOL = {
@@ -33,6 +36,10 @@ const HOL = {
 
   // 個別に対象を指定したい場合はこちらに ID を入れる（FOLDER_IDS より優先）
   SPREADSHEET_IDS: [],
+
+  // 1回の実行でここまで来たら中断し、次の実行で続きから再開する。
+  // 実行時間の上限は個人アカウントで6分、Workspace で30分。
+  TIME_LIMIT_MS: 240000,
 
   // 日曜と同じ赤
   COLOR: '#cc0000',
@@ -73,35 +80,17 @@ const HOLIDAY_FALLBACK = [
 
 
 function colorHolidays() {
-  const log = [];
-  const holidays = loadHolidays(log);
-
-  const books = HOL.SPREADSHEET_IDS.length
-    ? HOL.SPREADSHEET_IDS.map(function (id) { return { id: id, name: id }; })
-    : listPayrollBooks(HOL.FOLDER_IDS, log);
-
-  books.forEach(function (file) {
-    let ss;
-    try {
-      ss = SpreadsheetApp.openById(file.id);
-    } catch (e) {
-      log.push('!! 開けません ' + file.name + ' : ' + e.message);
-      return;
-    }
-    log.push('');
-    log.push('========== ' + ss.getName() + ' ==========');
-    try {
-      colorOneSpreadsheet(ss, holidays, log);
-    } catch (e) {
-      log.push('!! 中断: ' + e.message);
-    }
+  let holidays = null;
+  runOverBooks({
+    dryRun: HOL.DRY_RUN,
+    folderIds: HOL.FOLDER_IDS,
+    spreadsheetIds: HOL.SPREADSHEET_IDS,
+    timeLimitMs: HOL.TIME_LIMIT_MS,
+    tag: 'colorHolidays',
+  }, function (ss, log) {
+    if (!holidays) holidays = loadHolidays(log);
+    colorOneSpreadsheet(ss, holidays, log);
   });
-
-  log.push('');
-  log.push(HOL.DRY_RUN
-    ? '*** DRY_RUN です。書き込みは行っていません。***'
-    : '*** 書き込みを実行しました。***');
-  Logger.log(log.join('\n'));
 }
 
 
@@ -112,10 +101,11 @@ function colorOneSpreadsheet(ss, holidays, log) {
   if (!bookPeriod) log.push('  ? 給与一覧タブから期間を読めません。タブ側の集計期間だけで判断します');
 
   ss.getSheets().forEach(function (sh) {
-    const at = readAttendanceRows(sh);
+    const grid = sheetGrid(sh);              // 1タブ1回だけ読む
+    const at = readAttendanceRows(sh, grid);
     if (!at) { skipped += 1; return; }
 
-    const p = tabPeriod(sh, at, bookPeriod, log);
+    const p = tabPeriod(sh, at, bookPeriod, log, grid);
     if (!p) return;
 
     const cols = HOL.LAST_COL - HOL.FIRST_COL + 1;

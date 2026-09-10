@@ -26,6 +26,9 @@
  *   1. attendance_lib.gs と一緒に Apps Script プロジェクトに追加
  *   2. FIX.DRY_RUN = true のまま実行し、ログで内容を確認
  *   3. 問題なければ FIX.DRY_RUN = false にして再実行
+ *
+ * 6分の実行時間制限で途中で止まった場合は、同じ関数をもう一度実行すれば
+ * 続きから再開する。最初からやり直したいときは resetProgress() を実行する。
  */
 
 const FIX = {
@@ -39,6 +42,10 @@ const FIX = {
 
   // 個別に対象を指定したい場合はこちらに ID を入れる（FOLDER_IDS より優先）
   SPREADSHEET_IDS: [],
+
+  // 1回の実行でここまで来たら中断し、次の実行で続きから再開する。
+  // 実行時間の上限は個人アカウントで6分、Workspace で30分。
+  TIME_LIMIT_MS: 240000,
 
   // 「海事・横河分」「合算支給額」を持ってよいタブ（2か所で働く人）
   COMBINED_NAMES: ['衣幡千明'],
@@ -54,17 +61,31 @@ const FIX = {
 // 給与一覧タブの列
 const SUM_COL = { NO: 1, NAME: 2, DAYS: 3, HOURS: 4, NIGHT: 5, PAY: 6, NOTE: 7 };
 
+function fixOpts(tag) {
+  return {
+    dryRun: FIX.DRY_RUN,
+    folderIds: FIX.FOLDER_IDS,
+    spreadsheetIds: FIX.SPREADSHEET_IDS,
+    timeLimitMs: FIX.TIME_LIMIT_MS,
+    tag: tag,
+  };
+}
+
 
 /* ------------------------------------------------------------------ *
  * 1. 給与一覧の C〜F を本人の出勤簿につなぎ直す
  * ------------------------------------------------------------------ */
 function repointSummary() {
-  eachTargetBook(function (ss, log) {
+  runOverBooks(fixOpts('repointSummary'), function (ss, log) {
     const summary = getSummarySheet(ss);
     if (!summary) { log.push('!! 給与一覧タブが見つかりません'); return; }
 
+    const grid = sheetGrid(summary);
     const index = attendanceIndex(ss);
-    const members = readSummaryMembers(summary);
+    const members = readSummaryMembers(summary, grid);
+
+    // C〜F の数式はまとめて1回で読む
+    const formulas = summary.getRange(1, SUM_COL.DAYS, grid.length, 4).getFormulas();
     let fixed = 0;
 
     members.forEach(function (m) {
@@ -78,14 +99,13 @@ function repointSummary() {
         '=' + q + 'H' + hit.at.totalRow,   // 深夜(h)
         '=' + q + 'G' + hit.at.netRow,     // 差引支給額
       ];
-      const range = summary.getRange(m.row, SUM_COL.DAYS, 1, 4);
-      const now = range.getFormulas()[0];
+      const now = formulas[m.row - 1];
       if (now.join(' ') === want.join(' ')) return;
 
       log.push('  · R' + m.row + ' ' + m.name + ': ' + (now[0] || '(値)') + ' → ' + want[0]
         + ' ほか（' + hit.at.netLabel + ' = G' + hit.at.netRow + '）');
       fixed += 1;
-      if (!FIX.DRY_RUN) range.setFormulas([want]);
+      if (!FIX.DRY_RUN) summary.getRange(m.row, SUM_COL.DAYS, 1, 4).setFormulas([want]);
     });
 
     log.push('- 給与一覧でつなぎ直した行: ' + fixed + ' / ' + members.length);
@@ -100,7 +120,7 @@ function removeCopiedDetailRows() {
   const allowed = {};
   FIX.COMBINED_NAMES.forEach(function (n) { allowed[normalizeName(n)] = true; });
 
-  eachTargetBook(function (ss, log) {
+  runOverBooks(fixOpts('removeCopiedDetailRows'), function (ss, log) {
     const index = attendanceIndex(ss);
     let hits = 0;
 
@@ -108,18 +128,16 @@ function removeCopiedDetailRows() {
       if (allowed[name]) return;                   // 2か所で働く人は対象外
       const sh = index[name].sheet;
       const at = index[name].at;
+      const grid = index[name].grid;
 
-      // 差引支給額より下を数行だけ見る
+      // 差引支給額より下を数行だけ見る（読み取りは attendanceIndex の1回で済んでいる）
       const from = at.netRow + 1;
-      const to = Math.min(at.netRow + FIX.COPIED_LABELS.length + 2, sh.getLastRow());
-      if (to < from) return;
+      const to = Math.min(at.netRow + FIX.COPIED_LABELS.length + 2, grid.length);
 
-      const labels = sh.getRange(from, 2, to - from + 1, 1).getValues();
-      for (let i = 0; i < labels.length; i++) {
-        const label = String(labels[i][0]).trim();
+      for (let row = from; row <= to; row++) {
+        const label = String(gv(grid, row, 2)).trim();
         if (FIX.COPIED_LABELS.indexOf(label) < 0) continue;
 
-        const row = from + i;
         const formula = sh.getRange(row, 7).getFormula();
         log.push('  · ' + sh.getName() + ' R' + row + ' 「' + label + '」を削除'
           + (formula ? '（' + formula + '）' : ''));
@@ -137,19 +155,19 @@ function removeCopiedDetailRows() {
  * 3. 給与明細ブロックの背景色を他タブに合わせる
  * ------------------------------------------------------------------ */
 function fixDetailColors() {
-  eachTargetBook(function (ss, log) {
+  runOverBooks(fixOpts('fixDetailColors'), function (ss, log) {
     const index = attendanceIndex(ss);
     const groups = {};
 
     // 明細の項目名の並びが同じタブごとにまとめ、それぞれの背景色を読む
     Object.keys(index).forEach(function (name) {
-      const sh = index[name].sheet, at = index[name].at;
+      const sh = index[name].sheet, at = index[name].at, grid = index[name].grid;
       if (!at.detailStart) return;
       const rows = at.netRow - at.detailStart + 1;
       const bg = sh.getRange(at.detailStart, 2, rows, 8).getBackgrounds();
       let colored = 0;
       bg.forEach(function (r) { r.forEach(function (c) { if (!isWhite(c)) colored += 1; }); });
-      const sig = detailSignature(sh, at);
+      const sig = detailSignature(grid, at);
       (groups[sig] = groups[sig] || []).push({
         sheet: sh, at: at, rows: rows, bg: bg, colored: colored, key: JSON.stringify(bg),
       });
@@ -204,47 +222,13 @@ function fixDetailColors() {
 }
 
 /** 明細の項目名を縦に連結したもの。同じ構成のタブを見分けるのに使う */
-function detailSignature(sh, at) {
-  const n = at.netRow - at.detailStart + 1;
-  return sh.getRange(at.detailStart, 2, n, 1).getValues().map(function (r) {
-    return String(r[0]).trim();
-  }).join('|');
+function detailSignature(grid, at) {
+  const out = [];
+  for (let r = at.detailStart; r <= at.netRow; r++) out.push(String(gv(grid, r, 2)).trim());
+  return out.join('|');
 }
 
 function isWhite(bg) {
   const c = String(bg).toLowerCase();
   return c === '' || c === '#ffffff' || c === '#fff' || c === 'white';
-}
-
-
-/* ------------------------------------------------------------------ */
-
-function eachTargetBook(fn) {
-  const log = [];
-  const books = FIX.SPREADSHEET_IDS.length
-    ? FIX.SPREADSHEET_IDS.map(function (id) { return { id: id, name: id }; })
-    : listPayrollBooks(FIX.FOLDER_IDS, log);
-
-  books.forEach(function (file) {
-    let ss;
-    try {
-      ss = SpreadsheetApp.openById(file.id);
-    } catch (e) {
-      log.push('!! 開けません ' + file.name + ' : ' + e.message);
-      return;
-    }
-    log.push('');
-    log.push('========== ' + ss.getName() + ' ==========');
-    try {
-      fn(ss, log);
-    } catch (e) {
-      log.push('!! 中断: ' + e.message);
-    }
-  });
-
-  log.push('');
-  log.push(FIX.DRY_RUN
-    ? '*** DRY_RUN です。書き込みは行っていません。***'
-    : '*** 書き込みを実行しました。***');
-  Logger.log(log.join('\n'));
 }

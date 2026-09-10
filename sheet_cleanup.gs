@@ -22,6 +22,9 @@
  *   1. attendance_lib.gs と一緒に Apps Script プロジェクトに追加
  *   2. CLEAN.DRY_RUN = true のまま実行し、ログで対象行を確認
  *   3. 問題なければ CLEAN.DRY_RUN = false にして再実行
+ *
+ * 6分の実行時間制限で途中で止まった場合は、同じ関数をもう一度実行すれば
+ * 続きから再開する。最初からやり直したいときは resetProgress() を実行する。
  */
 
 const CLEAN = {
@@ -36,6 +39,10 @@ const CLEAN = {
   // 個別に対象を指定したい場合はこちらに ID を入れる（FOLDER_IDS より優先）
   SPREADSHEET_IDS: [],
 
+  // 1回の実行でここまで来たら中断し、次の実行で続きから再開する。
+  // 実行時間の上限は個人アカウントで6分、Workspace で30分。
+  TIME_LIMIT_MS: 240000,
+
   // 消す列（日付〜備考）
   FIRST_COL: 2, // B
   LAST_COL: 9,  // I
@@ -49,30 +56,36 @@ const CLEAN = {
  * 先頭は残り、必要になったら1つ上の行から下方向にコピーすれば戻せる。
  */
 function cleanupExtraRows() {
-  eachBook(function (ss, log) {
+  runOverBooks(cleanOpts('cleanupExtraRows'), function (ss, log) {
     let tabs = 0, rows = 0;
     const bookPeriod = readBookPeriod(ss);
     ss.getSheets().forEach(function (sh) {
-      const at = readAttendanceRows(sh);
+      const grid = sheetGrid(sh);              // 1タブ1回だけ読む
+      const at = readAttendanceRows(sh, grid);
       if (!at) return;
-      const p = tabPeriod(sh, at, bookPeriod, log);
+      const p = tabPeriod(sh, at, bookPeriod, log, grid);
       if (!p) return;
 
       const first = at.dataStart + p.days;
       if (first > at.dataEnd) return;                 // ちょうど埋まっている月
 
       const n = at.dataEnd - first + 1;
-      const range = sh.getRange(first, CLEAN.FIRST_COL, n, CLEAN.LAST_COL - CLEAN.FIRST_COL + 1);
-      if (range.getValues().every(function (r) {
-        return r.every(function (v) { return v === '' || v === null; });
-      })) return;                                     // 既に空
+      let empty = true;                               // 中身の判定は grid で済ませる
+      for (let r = first; r <= at.dataEnd && empty; r++) {
+        for (let c = CLEAN.FIRST_COL; c <= CLEAN.LAST_COL; c++) {
+          if (gv(grid, r, c) !== '') { empty = false; break; }
+        }
+      }
+      if (empty) return;
 
       if (tabs === 0) {
         log.push('  期間 ' + fmtDate(p.start) + '〜' + fmtDate(p.end) + '（' + p.days + '日）'
           + ' → R' + first + '〜R' + at.dataEnd + ' の ' + n + '行が期間外');
       }
       tabs += 1; rows += n;
-      if (!CLEAN.DRY_RUN) range.clearContent();
+      if (!CLEAN.DRY_RUN) {
+        sh.getRange(first, CLEAN.FIRST_COL, n, CLEAN.LAST_COL - CLEAN.FIRST_COL + 1).clearContent();
+      }
     });
     log.push('- 期間外の行を消したタブ: ' + tabs + '（計 ' + rows + '行）');
   });
@@ -84,32 +97,35 @@ function cleanupExtraRows() {
  * 曜（C列）が集計期間と食い違うタブは、構成が想定と違うので手を付けずに飛ばす。
  */
 function fixDateColumn() {
-  eachBook(function (ss, log) {
+  runOverBooks(cleanOpts('fixDateColumn'), function (ss, log) {
     let tabs = 0, cells = 0;
     let sample = '';
     const bookPeriod = readBookPeriod(ss);
     ss.getSheets().forEach(function (sh) {
-      const at = readAttendanceRows(sh);
+      const grid = sheetGrid(sh);              // 1タブ1回だけ読む
+      const at = readAttendanceRows(sh, grid);
       if (!at) return;
-      const p = tabPeriod(sh, at, bookPeriod, log);
+      const p = tabPeriod(sh, at, bookPeriod, log, grid);
       if (!p) return;
 
-      const range = sh.getRange(at.dataStart, CLEAN.FIRST_COL, p.days, 1);
-      const cur = range.getValues();
+      const cur = [];
       let changed = 0;
       for (let i = 0; i < p.days; i++) {
+        const now = gv(grid, at.dataStart + i, CLEAN.FIRST_COL);
         const want = addDays(p.start, i);
-        if (dateKey(cur[i][0]) === dateKey(want)) continue;
+        cur.push([dateKey(now) === dateKey(want) ? now : want]);
+        if (dateKey(now) === dateKey(want)) continue;
         if (!sample) {
-          sample = 'R' + (at.dataStart + i) + ' ' + describe(cur[i][0]) + ' → ' + fmtDate(want);
+          sample = 'R' + (at.dataStart + i) + ' ' + describe(now) + ' → ' + fmtDate(want);
         }
-        cur[i][0] = want;
         changed += 1;
       }
       if (!changed) return;
 
       tabs += 1; cells += changed;
-      if (!CLEAN.DRY_RUN) range.setValues(cur);
+      if (!CLEAN.DRY_RUN) {
+        sh.getRange(at.dataStart, CLEAN.FIRST_COL, p.days, 1).setValues(cur);
+      }
     });
     if (sample) log.push('  例: ' + sample);
     log.push('- 日付を直したタブ: ' + tabs + '（計 ' + cells + 'セル）');
@@ -119,34 +135,14 @@ function fixDateColumn() {
 
 /* ------------------------------------------------------------------ */
 
-function eachBook(fn) {
-  const log = [];
-  const books = CLEAN.SPREADSHEET_IDS.length
-    ? CLEAN.SPREADSHEET_IDS.map(function (id) { return { id: id, name: id }; })
-    : listPayrollBooks(CLEAN.FOLDER_IDS, log);
-
-  books.forEach(function (file) {
-    let ss;
-    try {
-      ss = SpreadsheetApp.openById(file.id);
-    } catch (e) {
-      log.push('!! 開けません ' + file.name + ' : ' + e.message);
-      return;
-    }
-    log.push('');
-    log.push('========== ' + ss.getName() + ' ==========');
-    try {
-      fn(ss, log);
-    } catch (e) {
-      log.push('!! 中断: ' + e.message);
-    }
-  });
-
-  log.push('');
-  log.push(CLEAN.DRY_RUN
-    ? '*** DRY_RUN です。書き込みは行っていません。***'
-    : '*** 書き込みを実行しました。***');
-  Logger.log(log.join('\n'));
+function cleanOpts(tag) {
+  return {
+    dryRun: CLEAN.DRY_RUN,
+    folderIds: CLEAN.FOLDER_IDS,
+    spreadsheetIds: CLEAN.SPREADSHEET_IDS,
+    timeLimitMs: CLEAN.TIME_LIMIT_MS,
+    tag: tag,
+  };
 }
 
 function describe(v) {
