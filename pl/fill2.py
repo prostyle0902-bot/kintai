@@ -3,7 +3,7 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
+import build2, sales, inv6, inv7, inv8, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll8
 import jimu
@@ -673,6 +673,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in norow.hold_rows():
         hs.append(["新設行", m, tab, item, "", reason])
+    for m, tab, item, reason in inv8.hold_rows():
+        hs.append(["2608月請求書", m, tab, item, "", reason])
     for m, tab, item, reason in board.hold_rows():
         hs.append(["board売掛", m, tab, item, "", reason])
     for m, tab, item, reason in jimu.hold_rows():
