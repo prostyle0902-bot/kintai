@@ -56,14 +56,6 @@ function authorizeOnce() {
     lines.push('【要対応】給与一覧を開けません：' + String(e));
   }
 
-  // ドライブは、新しく増えた期間のファイルを自動で見つけるためだけに使う
-  try {
-    DriveApp.getRootFolder().getName();
-    lines.push('ドライブも見られます（新しい期間のファイルを自動で見つけられます）');
-  } catch (e) {
-    lines.push('ドライブは見られません（上の一覧に書いたファイルだけを使います）：' + String(e));
-  }
-
   var msg = lines.join('\n');
   Logger.log(msg);
   return msg;
@@ -73,15 +65,33 @@ var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてくだ
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
 
+/* 何があっても JSON を返す。
+   ここで throw すると Google がエラーのHTMLを返し、アプリ側には
+   「Unexpected token '<'」という分かりにくい文言しか届かないため。 */
+function safe_(fn, cb) {
+  try {
+    return fn();
+  } catch (err) {
+    var body = JSON.stringify({ status: 'error', message: 'スクリプトの中で問題が起きました：' + String(err) });
+    if (cb) {
+      return ContentService.createTextOutput(cb + '(' + body + ')')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    return ContentService.createTextOutput(body).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 function doPost(e) {
-  var p = {};
-  try { p = JSON.parse(e.postData.contents); } catch (err) { p = e.parameter || {}; }
-  return handle_(p, '');
+  return safe_(function () {
+    var p = {};
+    try { p = JSON.parse(e.postData.contents); } catch (err) { p = (e && e.parameter) || {}; }
+    return handle_(p, '');
+  }, '');
 }
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  return handle_(p, p.callback || '');
+  return safe_(function () { return handle_(p, p.callback || ''); }, p.callback || '');
 }
 
 function handle_(p, cb) {
@@ -89,6 +99,14 @@ function handle_(p, cb) {
     if (String(p.token || '') !== TOKEN) {
       return json_({ status: 'error', message: '合言葉が違います' }, cb);
     }
+    /* 生きているかの確認。ブラウザでこのURLを開くだけで確かめられる。
+       …/exec?action=ping&token=合言葉
+       JSONが出れば動いている。Googleの画面が出るなら、デプロイか許可の問題。 */
+    if (p.action === 'ping') {
+      return json_({ status: 'ok', message: '動いています', at: nowStamp_(),
+                     staffRev: staffRev_(), payrollFiles: PAYROLL_FILES.length }, cb);
+    }
+
     // 版数を見るだけなら、待たされないように鍵を取らない
     if (p.action === 'rev') return json_(revOnly_(getSheet_()), cb);
     // 名簿を読むだけなら、待たされないように鍵を取らない
@@ -569,9 +587,10 @@ function staffRetire_(p) {
    ========================================================= */
 
 /* 給与一覧のスプレッドシート。
-   ここに書いておけば、ドライブを見に行く権限が無くても使える。
-   期間のファイルを新しく作ったら、ここに1行足してください
-   （ドライブの権限がある場合は、名前で自動的にも見つかります）。 */
+   ドライブを探しに行くと、そのぶん広い許可が必要になって動かなくなるため、
+   場所をここに直接書いている。
+   期間のファイルを新しく作ったら、ここに1行足してください。
+   IDは、そのスプレッドシートのURLの /d/ と /edit の間の文字列です。 */
 var PAYROLL_FILES = [
   { title: '給与一覧_2026_5_16-2026_6_15', id: '1iRes5ZY-EMu7dAeJnkYdl5KBoNPb8OI0cwkzg37pb7o' },
   { title: '給与一覧_2026_6_16-2026_7_15', id: '1yIkbj5iHAQ6VKWp0LtTcvF_HugELHWhy_fwbON1yR6M' },
@@ -591,11 +610,6 @@ var PAYROLL_FILES = [
   { title: '給与一覧_2027_8_16-2027_9_15', id: '1TrgIpopQedhDhzCyx4I0-uqg38ravAP0lw1HnBd3Y6o' },
 ];
 
-// 給与一覧のスプレッドシートが入っているフォルダ（分かれば自動で探すのに使う）
-var PAYROLL_FOLDERS = [
-  '1JQPlAe-jOMhCxg2jIbajcIyG0w7zXa6F',
-  '1d40nJ_7fQ18xYbO_clSe14m18vFnzspd'
-];
 var PAYROLL_PREFIX = '給与一覧_';
 var PAYROLL_LIST_SHEET = '給与一覧表';   // まとめの表。名前が違うときは先頭の候補を探す
 
@@ -611,26 +625,12 @@ function payrollPeriod_(title) {
   };
 }
 
-// 見つけたファイルを、重ならないように足す
-function payrollPush_(f, out, seen) {
-  var t = f.getName();
-  if (t.indexOf(PAYROLL_PREFIX) !== 0) return;
-  var pr = payrollPeriod_(t);
-  if (!pr) return;
-  var id = f.getId();
-  if (seen[id]) return;
-  seen[id] = true;
-  out.push({ id: id, title: t, start: pr.start, end: pr.end, label: pr.label });
-}
-
 /* 給与一覧のファイルを新しい順に並べて返す。
-   まず名前で探し（フォルダを移動しても見つかる）、そのうえで
-   決まったフォルダの中も見る。うまくいかなかったことは errors に入れて返す。
+   うまくいかなかったことは errors に入れて返す。
    黙って0件を返すと、何が起きているのか分からなくなるため。 */
 function payrollFiles_() {
   var out = [], seen = {}, errors = [];
 
-  // まず、上に書いてある一覧から。ドライブの権限が無くてもここは動く
   for (var k = 0; k < PAYROLL_FILES.length; k++) {
     var f0 = PAYROLL_FILES[k];
     var pr0 = payrollPeriod_(f0.title);
@@ -639,29 +639,8 @@ function payrollFiles_() {
     out.push({ id: f0.id, title: f0.title, start: pr0.start, end: pr0.end, label: pr0.label });
   }
 
-  try {
-    var q = 'title contains "' + PAYROLL_PREFIX + '"'
-          + ' and mimeType = "application/vnd.google-apps.spreadsheet"'
-          + ' and trashed = false';
-    var it = DriveApp.searchFiles(q);
-    while (it.hasNext()) payrollPush_(it.next(), out, seen);
-  } catch (e) {
-    errors.push('ドライブを名前で検索できませんでした：' + String(e));
-  }
-
-  for (var i = 0; i < PAYROLL_FOLDERS.length; i++) {
-    try {
-      var folder = DriveApp.getFolderById(PAYROLL_FOLDERS[i]);
-      var it2 = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
-      while (it2.hasNext()) payrollPush_(it2.next(), out, seen);
-    } catch (e) {
-      errors.push('フォルダ ' + PAYROLL_FOLDERS[i] + ' を開けませんでした：' + String(e));
-    }
-  }
-
   out.sort(function (a, b) { return a.start < b.start ? 1 : a.start > b.start ? -1 : 0; });
-  // 上の一覧から取れているなら、ドライブを見られなくても困らないので黙っておく
-  if (out.length) errors = [];
+  if (!out.length) errors.push('PAYROLL_FILES に給与一覧のファイルが1つも書かれていません。');
   return { status: 'ok', files: out, errors: errors };
 }
 
