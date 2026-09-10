@@ -3020,7 +3020,18 @@ function syncCall(body) {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ token: SYNC_TOKEN }, body)),
-  }).then(function (r) { return r.json(); });
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); } catch (e) {
+        // 許可がまだのときなどは、JSONではなくHTMLのエラーページが返る
+        if (/^\s*</.test(t)) {
+          throw new Error('Apps Script から返事が返りませんでした。'
+            + 'エディタで authorizeOnce を1回実行して許可してください。');
+        }
+        throw new Error('返事の内容が読めませんでした');
+      }
+    });
+  });
 }
 
 function setSyncInfo(state, text) {

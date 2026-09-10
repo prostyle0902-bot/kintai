@@ -287,7 +287,23 @@ function apiPost(body) {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ token: apiToken(), by: CFG.userName || '' }, body)),
-  }).then(function (r) { return r.json(); });
+  }).then(readJson);
+}
+
+/* Apps Script は、許可がまだのときや設定が合っていないときに、
+   JSONではなくエラーのHTMLページを返す。そのまま JSON として読むと
+   「Unexpected token '<'」という分かりにくい文言になるので、言い換える。 */
+function readJson(r) {
+  return r.text().then(function (t) {
+    try { return JSON.parse(t); } catch (e) {
+      if (/^\s*</.test(t)) {
+        throw new Error('Apps Script から返事が返りませんでした。'
+          + 'スクリプトの許可がまだの可能性があります。'
+          + 'Apps Script のエディタで authorizeOnce を1回実行して許可してください。');
+      }
+      throw new Error('返事の内容が読めませんでした：' + t.slice(0, 80));
+    }
+  });
 }
 
 /* =========================================================

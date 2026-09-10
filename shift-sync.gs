@@ -30,6 +30,32 @@
  * 両方を同じ値に書き換えます。
  */
 
+/* ===== 最初に1回だけ：権限を許可する =====================================
+ * 給与一覧のスプレッドシートを探して開くため、このスクリプトは
+ * Google ドライブを見にいきます。そのぶん、これまでより広い許可が必要です。
+ *
+ * 貼り替えたあと、エディタの上にある関数の選択欄で
+ *   authorizeOnce
+ * を選んで「実行」を押し、出てくる画面で許可してください。
+ * （許可が済むまで、アプリからは「登録できませんでした」と出ます）
+ * ======================================================================= */
+function authorizeOnce() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var names = [];
+  for (var i = 0; i < PAYROLL_FOLDERS.length; i++) {
+    try {
+      names.push(DriveApp.getFolderById(PAYROLL_FOLDERS[i]).getName());
+    } catch (e) {
+      names.push('（見つかりません：' + PAYROLL_FOLDERS[i] + '）');
+    }
+  }
+  var msg = '許可できました。\n\n'
+    + '名簿の置き場所：' + ss.getName() + '\n'
+    + '給与一覧のフォルダ：' + names.join(' / ');
+  Logger.log(msg);
+  return msg;
+}
+
 var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてください
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
