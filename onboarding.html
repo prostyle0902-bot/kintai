@@ -112,6 +112,7 @@
   .badge.part { background: #FFF3E0; color: #783c14; }
   .badge.staff { background: #EEF2F7; color: #2a3f56; }
   .badge.retired { background: #f0efeb; color: #8a8a86; }
+  .badge.warn { background: #FFF3E0; color: #7a4d10; }
   .muted { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
 
   .done-pin { font-size: 44px; font-weight: 600; letter-spacing: .22em; text-align: center;
@@ -220,7 +221,7 @@ const SITES = [
     locs:[{name:'市川東病院', lat:35.7034, lng:139.9589, radius:300}], start:'07:00', end:'12:00' },
   { id:'s_kaiji',       grp:'業務課', name:'海事・横河',       dept:'海事・横河',
     locs:[{name:'海事・横河', lat:35.8885, lng:140.6527, radius:300}], start:'07:00', end:'18:00' },
-  { id:'s_chibashoyu',  grp:'業務課', name:'ちば醬油',         dept:'ちば醤油',
+  { id:'s_chibashoyu',  grp:'業務課', name:'ちば醬油',         dept:'ちば醤油', kyuyoGroup:'ちば醬油',
     locs:[{name:'ちば醤油',   lat:35.8569, lng:140.5562, radius:300}], start:'07:00', end:'18:00' },
   { id:'s_yuya',        grp:'業務課', name:'ゆう屋',           dept:'神宮・亀甲堂・ゆう屋',
     locs:[], start:'07:00', end:'18:00' },
@@ -239,6 +240,8 @@ const STAFF_DEPTS = ['業務課', '飲食事業部', 'バックオフィス'];
 
 function site(id) { return SITES.find(function (s) { return s.id === id; }) || null; }
 function siteName(id) { const s = site(id); return s ? s.name : id; }
+// 給与一覧表の現場グループ名。指定がなければ勤怠アプリの所属と同じ
+function kyuyoGroup(id) { const s = site(id); return s ? (s.kyuyoGroup || s.dept) : ''; }
 
 /* =========================================================
    共通スタッフ名簿とのやりとり
@@ -347,7 +350,8 @@ function blankForm() {
     timeMode: 'default',
     startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
-    shiftName: '', note: '',
+    payKind: 'hourly', payRate: 0, commuteKind: 'none', commute: 0,
+    shiftName: '', kyuyoName: '', note: '',
   };
 }
 let F = blankForm();
@@ -481,6 +485,28 @@ function renderNew() {
             : '選んだ現場に場所の登録がないため、どこからでも打刻できます。'))
     + '</div></div></div>';
 
+  // --- 給与 ---
+  h += '<div class="card"><div class="card-title">給与</div>'
+    + '<div class="card-desc">給与一覧のスプレッドシートに出勤簿を作るときに使います。'
+    + 'まだ決まっていなければ空欄のままでも登録できます（あとから名簿で入れられます）。</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>単価</label><div class="inline">'
+    + '<span class="chip' + (F.payKind === 'hourly' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'hourly\')">時給</span>'
+    + '<span class="chip' + (F.payKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'daily\')">日給</span>'
+    + '<input type="number" min="0" step="1" style="width:120px" value="' + (F.payRate || '')
+    + '" placeholder="例：1200" onchange="setF(\'payRate\',+this.value||0)" /> 円</div>'
+    + '<div class="hint">' + (F.payKind === 'daily' ? '1日いくらで払う方に使います。' : '千葉県の最低賃金を下回っていないか確認してください。') + '</div></div>'
+    + '<div class="field"><label>通勤手当</label><div class="chip-row" style="margin-bottom:8px">'
+    + '<span class="chip' + (F.commuteKind === 'none' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'none\')">なし</span>'
+    + '<span class="chip' + (F.commuteKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'daily\')">出勤1日ごと</span>'
+    + '<span class="chip' + (F.commuteKind === 'monthly' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'monthly\')">月ぎめ</span>'
+    + '</div>'
+    + (F.commuteKind === 'none' ? '<div class="hint">支給しません。</div>'
+        : '<div class="inline"><input type="number" min="0" step="1" style="width:120px" value="' + (F.commute || '')
+          + '" placeholder="例：120" onchange="setF(\'commute\',+this.value||0)" /> 円'
+          + (F.commuteKind === 'daily' ? ' × 出勤日数' : ' /月') + '</div>')
+    + '</div></div></div>';
+
   // --- 詳しい設定 ---
   h += '<div class="card"><div class="card-title">シフトの条件</div>'
     + '<div class="card-desc">あとからシフト作成アプリでも変えられます。分からなければそのままで結構です。</div>'
@@ -526,6 +552,11 @@ function renderNew() {
     + '<div class="field"><label>シフト表での表記</label>'
     + '<input type="text" value="' + esc(F.shiftName) + '" placeholder="空欄なら氏名と同じ" onchange="setF(\'shiftName\',this.value)" />'
     + '<div class="hint">シフト表では通称や旧姓を使う場合に入れてください（例：勤怠は「宮川 玲奈」／シフトは「レナ」）。</div></div>'
+    + '<div class="field"><label>給与一覧での表記</label>'
+    + '<input type="text" value="' + esc(F.kyuyoName) + '" placeholder="空欄なら氏名と同じ" onchange="setF(\'kyuyoName\',this.value)" />'
+    + '<div class="hint">給与一覧の出勤簿シートを、氏名とは別の名前で作っている場合に入れてください。'
+    + '<b>すべての現場に効きます。</b>現場ごとに出勤簿を分けたい場合は、'
+    + 'この欄ではなく別の人として登録してください。</div></div>'
     + '<div class="field" style="margin-bottom:0"><label>メモ</label>'
     + '<textarea placeholder="連絡先の担当者、雇用契約の備考など" onchange="setF(\'note\',this.value)">' + esc(F.note) + '</textarea></div>'
     + '</div>';
@@ -559,6 +590,10 @@ async function submitNew() {
   const rec = {
     kind: F.kind, name: F.name.trim(), kana: F.kana.trim(), dept: dept,
     storeIds: F.storeIds.join(','), shiftName: F.shiftName.trim(),
+    kyuyoName: F.kyuyoName.trim(),
+    payKind: F.payKind === 'daily' ? 'daily' : 'hourly',
+    payRate: F.payRate, commute: F.commuteKind === 'none' ? 0 : F.commute,
+    commuteKind: F.commuteKind,
     locs: JSON.stringify(locsFromSites()),
     joinedAt: F.joinedAt, retiredAt: '', status: 'active',
     kyuyo: !!F.kyuyo, days: F.days.join(','), holidayOk: !!F.holidayOk,
@@ -607,7 +642,17 @@ function doneHtml(rec) {
     h += '<li>シフト作成 … 現場を選んでいないため追加していません</li>';
   }
   h += '<li>出勤簿（給与）への転記 … ' + (rec.kyuyo ? '対象にしました' : '対象外です') + '</li>';
-  h += '</ul>'
+  h += '</ul>';
+  if (rec.kyuyo && sids.length) {
+    h += '<div class="alert warn" style="margin-top:1.25rem">'
+      + '<b>給与一覧のスプレッドシートには、まだ作っていません。</b><br />'
+      + 'この人の出勤簿シートと、給与一覧表の行を作るには下のボタンを押してください。'
+      + (rec.payRate ? '' : '<br /><b>単価が入っていません。</b>先に「編集」から時給または日給を入れてください。')
+      + '</div>'
+      + '<div class="row-actions" style="margin-top:.75rem">'
+      + '<button class="btn primary" onclick="openPayroll(\'' + rec.id + '\')">給与一覧にも作る</button></div>';
+  }
+  h += ''
     + '<div class="alert info" style="margin-top:1.25rem">すでに開いている勤怠アプリ・シフト作成アプリの画面は、'
     + '一度読み込み直す（再読み込み）と新しい名簿になります。</div>'
     + '<div class="row-actions">'
@@ -689,6 +734,7 @@ function renderList() {
       + (r.shiftName ? '<br /><span class="muted">シフト表：' + esc(r.shiftName) + '</span>' : '')
       + (r.kana ? '<br /><span class="muted">' + esc(r.kana) + '</span>' : '')
       + (isActive(r) ? '' : ' <span class="badge retired">退職</span>')
+      + (isActive(r) && r.kyuyo && !(+r.payRate) ? ' <span class="badge warn">単価未設定</span>' : '')
       + '</td>'
       + '<td><span class="badge ' + (r.kind === 'staff' ? 'staff' : 'part') + '">'
       + (r.kind === 'staff' ? '社員' : 'パート') + '</span></td>'
@@ -697,6 +743,7 @@ function renderList() {
       + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
       + '<td class="muted">' + esc(r.joinedAt || '') + '</td>'
       + '<td style="text-align:right;white-space:nowrap">'
+      + (isActive(r) && r.kyuyo ? '<button class="btn sm" onclick="openPayroll(\'' + r.id + '\')">給与一覧</button> ' : '')
       + '<button class="btn sm ghost" onclick="openEdit(\'' + r.id + '\')">編集</button> '
       + (isActive(r)
           ? '<button class="btn sm danger" onclick="openRetire(\'' + r.id + '\')">退職</button>'
@@ -720,7 +767,11 @@ function openEdit(id) {
   F.kyuyo = !!r.kyuyo; F.holidayOk = r.holidayOk !== false;
   F.days = String(r.days || '0,1,2,3,4,5,6').split(',').filter(function (x) { return x !== ''; }).map(Number);
   if (!F.days.length) F.days = [0,1,2,3,4,5,6];
-  F.shiftName = r.shiftName || ''; F.note = r.note || '';
+  F.shiftName = r.shiftName || ''; F.kyuyoName = r.kyuyoName || ''; F.note = r.note || '';
+  F.payKind = r.payKind === 'daily' ? 'daily' : 'hourly';
+  F.payRate = +r.payRate || 0;
+  F.commute = +r.commute || 0;
+  F.commuteKind = (r.commuteKind === 'daily' || r.commuteKind === 'monthly') ? r.commuteKind : 'none';
   F.targetDays = +r.targetDays || 0; F.maxDays = +r.maxDays || 0; F.maxPerWeek = +r.maxPerWeek || 0;
   if (r.startTime || r.endTime) {
     F.timeMode = 'custom';
@@ -997,6 +1048,137 @@ async function sendImport(recs) {
     alert('取り込めませんでした：' + e.message);
     setState('err', e.message);
     renderSetup();
+  }
+}
+
+/* =========================================================
+   給与一覧への登録
+   期間ごとのスプレッドシートに、その人の出勤簿シートと
+   給与一覧表の行を作る。給与に触るので、押したときだけ動かす。
+   ========================================================= */
+let payrollFiles = null;   // 給与一覧のファイル一覧（読み込むまで null）
+let payrollPick = {};
+
+async function openPayroll(id) {
+  const r = findRec(id);
+  if (!r) return;
+  const sids = storeIdsOf(r);
+  if (!sids.length) { alert('配属する現場が決まっていないため、給与一覧には作れません。'); return; }
+
+  openSheet('<div class="card-title">給与一覧に作る</div>'
+    + '<div class="card-desc">読み込んでいます…</div>');
+
+  if (!payrollFiles) {
+    try {
+      const res = await apiGet({ action: 'payrollFiles' });
+      if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
+      payrollFiles = res.files || [];
+    } catch (e) {
+      openSheet('<div class="card-title">給与一覧に作る</div>'
+        + '<div class="alert err">給与一覧のファイルを読めませんでした：' + esc(e.message) + '</div>'
+        + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
+      return;
+    }
+  }
+
+  // 入社日以降で、まだ終わっていない期間だけをはじめから選んでおく。
+  // 支払いの済んだ過去の月に、うっかり行を足さないため。
+  const from = r.joinedAt || '';
+  const t = new Date();
+  const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
+    + '-' + String(t.getDate()).padStart(2, '0');
+  payrollPick = {};
+  payrollFiles.forEach(function (f) {
+    if ((!from || f.end >= from) && f.end >= today) payrollPick[f.id] = true;
+  });
+  renderPayroll(r);
+}
+
+function renderPayroll(r) {
+  const sids = storeIdsOf(r);
+  const grp = kyuyoGroup(sids[0]);
+  const nm = r.kyuyoName || r.name;
+  const n = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; }).length;
+
+  let h = '<div class="card-title">給与一覧に作る</div>'
+    + '<div class="card-desc">選んだ期間のスプレッドシートに、'
+    + '<b>' + esc(nm) + '</b> さんの出勤簿シートを作り、給与一覧表の <b>' + esc(grp) + '</b> に行を足します。<br />'
+    + '同じ現場の人のシートをそのまま複製して、氏名と単価だけ差し替えるので、給与の計算式は崩れません。</div>';
+
+  h += '<div class="alert info">'
+    + '単価：' + (r.payRate ? (r.payKind === 'daily' ? '日給' : '時給') + ' ' + Number(r.payRate).toLocaleString() + '円'
+                            : '<b style="color:#a32d2d">未設定</b>')
+    + '　／　通勤手当：' + (r.commuteKind === 'monthly' ? Number(r.commute).toLocaleString() + '円（月ぎめ）'
+        : r.commuteKind === 'daily' ? Number(r.commute).toLocaleString() + '円 × 出勤日数' : 'なし')
+    + '</div>';
+
+  if (!r.payRate) {
+    h += '<div class="alert err">単価が入っていないため作れません。先に「編集」から時給または日給を入れてください。</div>'
+      + '<div class="row-actions"><button class="btn" onclick="closeSheet();openEdit(\'' + r.id + '\')">編集する</button>'
+      + '<button class="btn ghost" onclick="closeSheet()">閉じる</button></div>';
+    openSheet(h);
+    return;
+  }
+
+  h += '<div class="field"><label>作る期間（' + n + ' 件を選択中）</label>'
+    + '<div class="chip-row" style="max-height:230px;overflow-y:auto">'
+    + payrollFiles.map(function (f) {
+        return '<span class="chip' + (payrollPick[f.id] ? ' on' : '') + '"'
+          + ' onclick="payrollPick[\'' + f.id + '\']=!payrollPick[\'' + f.id + '\'];renderPayroll(findRec(\'' + r.id + '\'))">'
+          + esc(f.label) + '</span>';
+      }).join('')
+    + '</div><div class="hint">入社日以降で、まだ終わっていない期間をはじめから選んでいます。'
+    + '<b>支払いの済んだ過去の月は選んでいません</b>（必要なら押して選べます）。<br />'
+    + 'すでにその人のシートがある期間は、押しても何も起きません（上書きしません）。</div></div>';
+
+  h += '<div class="row-actions">'
+    + '<button class="btn primary" onclick="runPayroll(\'' + r.id + '\')">' + n + ' 件に作る</button>'
+    + '<button class="btn ghost" onclick="closeSheet()">やめる</button></div>';
+  openSheet(h);
+}
+
+async function runPayroll(id) {
+  const r = findRec(id);
+  const ids = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; });
+  if (!ids.length) { alert('期間を1つ以上選んでください。'); return; }
+  const sids = storeIdsOf(r);
+
+  openSheet('<div class="card-title">給与一覧に作る</div>'
+    + '<div class="alert info">作成中です。' + ids.length + ' 件ぶんあるので、少し時間がかかります…</div>');
+
+  try {
+    const res = await apiPost({
+      action: 'payrollAdd',
+      fileIds: ids,
+      rec: {
+        name: r.kyuyoName || r.name,
+        group: kyuyoGroup(sids[0]),
+        payKind: r.payKind, payRate: r.payRate,
+        commute: r.commute, commuteKind: r.commuteKind,
+      },
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '作れませんでした');
+
+    let h = '<div class="card-title">給与一覧に作りました</div>';
+    if ((res.done || []).length) {
+      h += '<div class="alert ok"><b>' + res.done.length + ' 件に作りました。</b><br />'
+        + res.done.map(esc).join('<br />') + '</div>';
+    }
+    if ((res.skipped || []).length) {
+      h += '<div class="alert info"><b>' + res.skipped.length + ' 件は飛ばしました。</b><br />'
+        + res.skipped.map(esc).join('<br />') + '</div>';
+    }
+    if ((res.failed || []).length) {
+      h += '<div class="alert err"><b>' + res.failed.length + ' 件は作れませんでした。</b><br />'
+        + res.failed.map(esc).join('<br />') + '</div>';
+    }
+    h += '<div class="muted">スプレッドシートを開いて、出勤簿シートと給与一覧表の行ができているか確認してください。</div>'
+      + '<div class="row-actions"><button class="btn" onclick="closeSheet()">閉じる</button></div>';
+    openSheet(h);
+  } catch (e) {
+    openSheet('<div class="card-title">給与一覧に作る</div>'
+      + '<div class="alert err">作れませんでした：' + esc(e.message) + '</div>'
+      + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
   }
 }
 

@@ -635,6 +635,11 @@ const GYOMU_SHEET = 'シフト';
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
 
+/* シフト表の名前 → 出勤簿（給与）での名前。共通スタッフ名簿から作る。
+   給与のシートは勤怠アプリの表記で作られているため、シフト表の表記のまま
+   送ると別人扱いになって届かない（網代愛／綱代愛 など）。 */
+const KYUYO_NAME = {};
+
 /* 出勤簿にも転記される対象者（連携先アプリの PART_TIME_STAFF と同じ） */
 const PART_TIME_STAFF = [
   '松岡実麻','網代愛','新河美和','栗林里江','篠塚柚紀','篠田麻里奈','林沙樹','濱田歩','須之内郁美',
@@ -2535,11 +2540,16 @@ function apiParams(st, params) {
 function kyuyoCall(action, ev) {
   if (PART_TIME_STAFF.indexOf(ev.staff) < 0) return Promise.resolve('skip');
   let payload = ev;
-  // 海事・横河の衣幡千明（2026-08-16以降）は給与上「衣幡千明_海事横河」へ転記する
+  // 出勤簿での名前がシフト表と違う人は、そちらの名前で送る
+  let name = KYUYO_NAME[ev.staff] || ev.staff;
+  // 海事・横河の衣幡千明（2026-08-16以降）は、給与上は別の出勤簿へ転記する
   if (ev.staff === '衣幡千明' && ev.store === '海事・横河' && ev.date >= '2026-08-16') {
+    name = '衣幡千明（海事・横河）';
+  }
+  if (name !== ev.staff) {
     payload = {};
     Object.keys(ev).forEach(function (k) { payload[k] = ev[k]; });
-    payload.staff = '衣幡千明_海事横河';
+    payload.staff = name;
   }
   return jsonpCall(KYUYO_API, { action: action, data: payload })
     .then(function () { return 'ok'; })
@@ -2904,6 +2914,9 @@ function applyMaster(list) {
 
     // 出勤簿（給与）への転記対象
     if (rec.kyuyo && PART_TIME_STAFF.indexOf(nm) < 0) PART_TIME_STAFF.push(nm);
+    // 出勤簿での名前。指定がなければ勤怠アプリの氏名を使う
+    const kn = String(rec.kyuyoName || rec.name || '').trim();
+    if (kn && kn !== nm) KYUYO_NAME[nm] = kn;
 
     const ids = String(rec.storeIds || '').split(',').filter(Boolean);
     if (!ids.length) return;   // シフトに入らない人（社員など）

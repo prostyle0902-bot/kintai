@@ -66,6 +66,8 @@ function handle_(p, cb) {
       if (p.action === 'staffSave') return json_(staffSave_(p), cb);
       if (p.action === 'staffImport') return json_(staffImport_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
+      if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
+      if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
       return json_({ status: 'error', message: '不明な操作です: ' + p.action }, cb);
     } finally {
       lock.releaseLock();
@@ -176,6 +178,11 @@ var STAFF_COLS = [
   'dept',        // PA勤怠・勤怠アプリの所属表示
   'storeIds',    // シフト作成の現場ID。掛け持ちはカンマ区切り。空ならシフトには入れない
   'shiftName',   // シフト作成での表記（空なら name と同じ）
+  'kyuyoName',   // 給与一覧での表記（空なら name と同じ）
+  'payKind',     // hourly（時給） / daily（日給）
+  'payRate',     // 単価（円）
+  'commute',     // 通勤手当（円）
+  'commuteKind', // daily（×出勤日数） / monthly（月固定） / none（なし）
   'locs',        // 打刻できる場所。JSONの配列。空文字なら場所を問わない
   'joinedAt',    // 入社日 YYYY-MM-DD
   'retiredAt',   // 退職日 YYYY-MM-DD
@@ -189,7 +196,7 @@ var STAFF_COLS = [
 ];
 
 // 数字として扱う列（空欄は0にする）
-var STAFF_NUM_COLS = ['targetDays', 'maxDays', 'maxPerWeek'];
+var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek'];
 // はい／いいえで扱う列
 var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk'];
 
@@ -425,4 +432,250 @@ function staffRetire_(p) {
   target.updatedBy = String(p.by || '');
   sh.getRange(target._row, 1, 1, STAFF_COLS.length).setValues([staffObjToRow_(target)]);
   return { status: 'ok', staffRev: bumpStaffRev_(), rec: target };
+}
+
+/* =========================================================
+   給与一覧への登録
+   新しく入った人の「出勤簿」シートを作り、「給与一覧表」にも行を足す。
+
+   計算式はこちらでは組み立てない。同じ現場の人のシートと行をまるごと複製して、
+   氏名・単価・通勤手当だけを差し替える。こうすれば給与の計算式が変わっても
+   このスクリプトを直さずに済み、式を取り違える心配もない。
+
+   すでに同じ名前のシートがある期間には何もしない（上書きしない）。
+   ========================================================= */
+
+// 給与一覧のスプレッドシートが入っているフォルダ（過去ぶん・今後ぶん）
+var PAYROLL_FOLDERS = [
+  '1JQPlAe-jOMhCxg2jIbajcIyG0w7zXa6F',
+  '1d40nJ_7fQ18xYbO_clSe14m18vFnzspd'
+];
+var PAYROLL_PREFIX = '給与一覧_';
+var PAYROLL_LIST_SHEET = '給与一覧表';   // まとめの表。名前が違うときは先頭の候補を探す
+
+// 給与一覧_2026_9_16-2026_10_15 → 期間の開始日 2026-09-16
+function payrollPeriod_(title) {
+  var m = /^給与一覧_(\d{4})_(\d{1,2})_(\d{1,2})-(\d{4})_(\d{1,2})_(\d{1,2})$/.exec(title);
+  if (!m) return null;
+  var pad = function (n) { return ('0' + n).slice(-2); };
+  return {
+    start: m[1] + '-' + pad(m[2]) + '-' + pad(m[3]),
+    end: m[4] + '-' + pad(m[5]) + '-' + pad(m[6]),
+    label: m[1] + '/' + Number(m[2]) + '/' + Number(m[3]) + '〜' + m[4] + '/' + Number(m[5]) + '/' + Number(m[6])
+  };
+}
+
+// 給与一覧のファイルを新しい順に並べて返す
+function payrollFiles_() {
+  var out = [];
+  for (var i = 0; i < PAYROLL_FOLDERS.length; i++) {
+    var folder;
+    try { folder = DriveApp.getFolderById(PAYROLL_FOLDERS[i]); } catch (e) { continue; }
+    var it = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+    while (it.hasNext()) {
+      var f = it.next();
+      var t = f.getName();
+      if (t.indexOf(PAYROLL_PREFIX) !== 0) continue;
+      var pr = payrollPeriod_(t);
+      if (!pr) continue;
+      out.push({ id: f.getId(), title: t, start: pr.start, end: pr.end, label: pr.label });
+    }
+  }
+  out.sort(function (a, b) { return a.start < b.start ? 1 : a.start > b.start ? -1 : 0; });
+  return { status: 'ok', files: out };
+}
+
+// まとめの表のシートを見つける
+function payrollListSheet_(ss) {
+  var sh = ss.getSheetByName(PAYROLL_LIST_SHEET);
+  if (sh) return sh;
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getName().indexOf('給与一覧') >= 0) return all[i];
+  }
+  return null;
+}
+
+// 出勤簿シートを名前で探す（「出勤簿　氏名」でも「氏名」でも拾えるようにする）
+function payrollStaffSheet_(ss, name) {
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    var n = all[i].getName();
+    if (n === name || n === '出勤簿　' + name || n === '出勤簿 ' + name) return all[i];
+  }
+  return null;
+}
+
+// まとめの表から、その現場の見出し行と、そこに並ぶ人の行を調べる
+function payrollGroup_(list, group) {
+  var vals = list.getRange(1, 1, list.getLastRow(), Math.min(8, list.getLastColumn())).getValues();
+  var head = -1, last = -1, sample = -1;
+  for (var r = 0; r < vals.length; r++) {
+    var joined = vals[r].join(' ');
+    if (head < 0) {
+      if (joined.indexOf('▶') >= 0 && joined.indexOf(group) >= 0) head = r + 1;
+      continue;
+    }
+    // 見出しのあとに続く、番号の入った行がその現場の人
+    if (joined.indexOf('▶') >= 0) break;              // 次の現場に入った
+    var no = String(vals[r][0] || '').trim();
+    if (/^\d+$/.test(no)) { last = r + 1; if (sample < 0) sample = r + 1; }
+  }
+  if (head < 0) return null;
+  return { head: head, last: last > 0 ? last : head, sample: sample };
+}
+
+function payrollAdd_(p) {
+  var rec = p.rec;
+  if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch (e) { rec = null; } }
+  if (!rec || !String(rec.name || '').trim()) return { status: 'error', message: '氏名が入っていません' };
+  var ids = p.fileIds;
+  if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch (e) { ids = null; } }
+  if (!ids || !ids.length) return { status: 'error', message: '登録する期間が選ばれていません' };
+
+  var name = String(rec.name).trim();
+  var group = String(rec.group || '').trim();
+  if (!group) return { status: 'error', message: '現場が指定されていません' };
+
+  var done = [], skipped = [], failed = [];
+
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var ss = SpreadsheetApp.openById(String(ids[i]));
+      if (payrollStaffSheet_(ss, name)) { skipped.push(ss.getName() + '（すでにあります）'); continue; }
+
+      var list = payrollListSheet_(ss);
+      if (!list) { failed.push(ss.getName() + '：給与一覧表が見つかりません'); continue; }
+
+      var g = payrollGroup_(list, group);
+      if (!g || g.sample < 0) {
+        failed.push(ss.getName() + '：' + group + ' に見本になる人がいないため作れません');
+        continue;
+      }
+
+      // 同じ現場の人のシートを雛形にする
+      var sampleName = String(list.getRange(g.last, 2).getValue() || '').trim();
+      var tpl = payrollStaffSheet_(ss, sampleName);
+      if (!tpl) { failed.push(ss.getName() + '：' + sampleName + ' の出勤簿が見つかりません'); continue; }
+
+      // --- 出勤簿シートを作る ---
+      var sheet = tpl.copyTo(ss).setName('出勤簿　' + name);
+      ss.setActiveSheet(sheet);
+      ss.moveActiveSheet(tpl.getIndex() + 1);
+      payrollFillSheet_(sheet, sampleName, name, rec);
+
+      // --- まとめの表に行を足す ---
+      list.insertRowsAfter(g.last, 1);
+      list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
+      list.getRange(g.last + 1, 2).setValue(name);
+      payrollRenumber_(list);
+
+      done.push(ss.getName());
+    } catch (e) {
+      failed.push(String(ids[i]) + '：' + String(e));
+    }
+  }
+
+  return { status: 'ok', done: done, skipped: skipped, failed: failed };
+}
+
+// 複製したシートの、氏名・単価・通勤手当を差し替えて、打刻の中身を消す
+function payrollFillSheet_(sheet, fromName, toName, rec) {
+  var rows = Math.min(sheet.getLastRow(), 60);
+  var cols = Math.min(sheet.getLastColumn(), 15);
+  var rng = sheet.getRange(1, 1, rows, cols);
+  var vals = rng.getValues();
+  var formulas = rng.getFormulas();
+
+  var payKind = (rec.payKind === 'daily') ? '日給' : '時給';
+  var rate = Number(rec.payRate) || 0;
+  var commute = Number(rec.commute) || 0;
+  var ck = rec.commuteKind;
+  var commuteTxt = (ck === 'none' || !commute) ? '通勤手当：なし'
+    : (ck === 'monthly') ? '通勤手当：' + commute + '円（月固定）'
+    : '通勤手当：' + commute + '円×出勤日数';
+
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      if (formulas[r][c]) continue;               // 計算式はそのまま残す
+      var v = vals[r][c];
+      if (typeof v === 'string' && v) {
+        if (v.indexOf(fromName) >= 0) {
+          sheet.getRange(r + 1, c + 1).setValue(v.split(fromName).join(toName));
+        } else if (/^(時給|日給)：/.test(v)) {
+          sheet.getRange(r + 1, c + 1).setValue(payKind + '：' + rate + '円');
+        } else if (v.indexOf('通勤手当：') === 0) {
+          sheet.getRange(r + 1, c + 1).setValue(commuteTxt + v.replace(/^通勤手当：[^　]*/, ''));
+        }
+      }
+    }
+  }
+
+  // 単価と手当の数値セル（見出しの右にある）を入れ替える
+  payrollSetNumberAfter_(sheet, vals, formulas, rows, cols, /^(時給|日給)：/, rate);
+  payrollSetNumberAfter_(sheet, vals, formulas, rows, cols, /^通勤手当：/, commute);
+
+  // 前の人の出勤・退勤・備考を消す（計算式の入ったセルには触らない）
+  payrollClearPunches_(sheet);
+}
+
+// 「時給：1094円」のような見出しと同じ行にある数値セルを書き換える
+function payrollSetNumberAfter_(sheet, vals, formulas, rows, cols, re, value) {
+  for (var r = 0; r < rows; r++) {
+    var found = -1;
+    for (var c = 0; c < cols; c++) {
+      if (typeof vals[r][c] === 'string' && re.test(vals[r][c])) { found = c; break; }
+    }
+    if (found < 0) continue;
+    for (var c2 = found + 1; c2 < cols; c2++) {
+      if (formulas[r][c2]) continue;
+      if (typeof vals[r][c2] === 'number') { sheet.getRange(r + 1, c2 + 1).setValue(value); return; }
+    }
+  }
+}
+
+// 日付の表の「出勤・退勤・備考」を空にする
+function payrollClearPunches_(sheet) {
+  var rows = sheet.getLastRow();
+  var cols = sheet.getLastColumn();
+  if (rows < 2 || cols < 2) return;
+  var vals = sheet.getRange(1, 1, rows, cols).getValues();
+
+  // 見出し行（日付・曜・出勤・退勤…）を探す
+  var hr = -1, cIn = -1, cOut = -1, cMemo = -1;
+  for (var r = 0; r < rows && hr < 0; r++) {
+    for (var c = 0; c < cols; c++) {
+      if (String(vals[r][c]).trim() === '出勤') {
+        hr = r; cIn = c;
+        for (var c2 = c; c2 < cols; c2++) {
+          var t = String(vals[r][c2]).trim();
+          if (t === '退勤') cOut = c2;
+          if (t === '備考') cMemo = c2;
+        }
+        break;
+      }
+    }
+  }
+  if (hr < 0) return;
+
+  var formulas = sheet.getRange(1, 1, rows, cols).getFormulas();
+  for (var r2 = hr + 1; r2 < rows; r2++) {
+    [cIn, cOut, cMemo].forEach(function (c3) {
+      if (c3 < 0) return;
+      if (formulas[r2][c3]) return;          // 計算式は残す
+      sheet.getRange(r2 + 1, c3 + 1).clearContent();
+    });
+  }
+}
+
+// まとめの表の No を振り直す
+function payrollRenumber_(list) {
+  var rows = list.getLastRow();
+  var vals = list.getRange(1, 1, rows, 2).getValues();
+  var n = 0;
+  for (var r = 0; r < rows; r++) {
+    var no = String(vals[r][0] || '').trim();
+    var nm = String(vals[r][1] || '').trim();
+    if (/^\d+$/.test(no) && nm) { n++; if (Number(no) !== n) list.getRange(r + 1, 1).setValue(n); }
+  }
 }
