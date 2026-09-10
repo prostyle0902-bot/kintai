@@ -65,6 +65,7 @@ function handle_(p, cb) {
       if (p.action === 'save') return json_(saveAll_(sh, p), cb);
       if (p.action === 'staffSave') return json_(staffSave_(p), cb);
       if (p.action === 'staffImport') return json_(staffImport_(p), cb);
+      if (p.action === 'staffFill') return json_(staffFill_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
       if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
@@ -167,7 +168,9 @@ function saveAll_(sh, p) {
 
 var STAFF_SHEET = 'staff';
 
-// 列の並び。あとから足すときは必ず末尾に足すこと（既存の行がずれるため）
+/* 扱う列の一覧。
+   読み書きはシートの見出し行を見て列を探すので、この並びどおりでなくてよい。
+   ここに足した列がシートに無ければ、右端に自動で足す。 */
 var STAFF_COLS = [
   'id',          // 社内の通し番号。あとから変えない
   'status',      // active（在籍） / retired（退職）
@@ -212,6 +215,30 @@ function getStaffSheet_() {
   return sh;
 }
 
+/* シートの見出し行を返す。まだ無い列は右端に足す。
+   こうしておけば、あとから列を増やしても、すでに入っている行はずれない。 */
+function staffHeader_(sh) {
+  var width = Math.max(sh.getLastColumn(), 1);
+  var head = sh.getRange(1, 1, 1, width).getValues()[0].map(function (v) { return String(v || ''); });
+  while (head.length && head[head.length - 1] === '') head.pop();
+  if (!head.length) {
+    sh.getRange(1, 1, 1, STAFF_COLS.length).setValues([STAFF_COLS]).setFontWeight('bold');
+    return STAFF_COLS.slice();
+  }
+  var add = STAFF_COLS.filter(function (c) { return head.indexOf(c) < 0; });
+  if (add.length) {
+    sh.getRange(1, head.length + 1, 1, add.length).setValues([add]).setFontWeight('bold');
+    head = head.concat(add);
+  }
+  return head;
+}
+
+function staffIndex_(head) {
+  var ix = {};
+  for (var i = 0; i < head.length; i++) if (head[i]) ix[head[i]] = i;
+  return ix;
+}
+
 // 名簿が変わった回数。各アプリはこの数字を見て、変わったときだけ読み直す
 function staffRev_() {
   return Number(PropertiesService.getScriptProperties().getProperty('staffRev') || 0);
@@ -223,10 +250,12 @@ function bumpStaffRev_() {
 }
 
 // シートの1行を、アプリが扱いやすい形に直す
-function staffRowToObj_(row) {
+function staffRowToObj_(row, head) {
+  var cols = head || STAFF_COLS;
   var o = {};
-  for (var i = 0; i < STAFF_COLS.length; i++) {
-    var key = STAFF_COLS[i];
+  for (var i = 0; i < cols.length; i++) {
+    var key = cols[i];
+    if (!key) continue;
     var v = row[i];
     if (STAFF_NUM_COLS.indexOf(key) >= 0) {
       o[key] = (v === '' || v === null) ? 0 : Number(v) || 0;
@@ -239,10 +268,12 @@ function staffRowToObj_(row) {
   return o;
 }
 
-function staffObjToRow_(o) {
+function staffObjToRow_(o, head) {
+  var cols = head || STAFF_COLS;
   var row = [];
-  for (var i = 0; i < STAFF_COLS.length; i++) {
-    var key = STAFF_COLS[i];
+  for (var i = 0; i < cols.length; i++) {
+    var key = cols[i];
+    if (!key) { row.push(''); continue; }
     var v = o[key];
     if (STAFF_NUM_COLS.indexOf(key) >= 0) {
       row.push((v === '' || v === null || v === undefined) ? '' : Number(v) || 0);
@@ -255,13 +286,14 @@ function staffObjToRow_(o) {
   return row;
 }
 
-function readStaff_(sh) {
+function readStaff_(sh, head) {
+  head = head || staffHeader_(sh);
   var last = sh.getLastRow();
   if (last < 2) return [];
-  var vals = sh.getRange(2, 1, last - 1, STAFF_COLS.length).getValues();
+  var vals = sh.getRange(2, 1, last - 1, head.length).getValues();
   var out = [];
   for (var i = 0; i < vals.length; i++) {
-    var o = staffRowToObj_(vals[i]);
+    var o = staffRowToObj_(vals[i], head);
     if (!o.id && !o.name) continue;   // 空行は飛ばす
     o._row = i + 2;                   // 何行目にいるか（書き戻しに使う）
     out.push(o);
@@ -271,7 +303,7 @@ function readStaff_(sh) {
 
 function staffList_() {
   var sh = getStaffSheet_();
-  var list = readStaff_(sh);
+  var list = readStaff_(sh, staffHeader_(sh));
   for (var i = 0; i < list.length; i++) delete list[i]._row;
   return { status: 'ok', staffRev: staffRev_(), staff: list };
 }
@@ -314,7 +346,8 @@ function staffSave_(p) {
   }
 
   var sh = getStaffSheet_();
-  var list = readStaff_(sh);
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
   var target = null;
   if (rec.id) {
     for (var i = 0; i < list.length; i++) if (list[i].id === rec.id) { target = list[i]; break; }
@@ -361,9 +394,9 @@ function staffSave_(p) {
   out.updatedBy = String(p.by || '');
 
   if (target) {
-    sh.getRange(target._row, 1, 1, STAFF_COLS.length).setValues([staffObjToRow_(out)]);
+    sh.getRange(target._row, 1, 1, head.length).setValues([staffObjToRow_(out, head)]);
   } else {
-    sh.appendRow(staffObjToRow_(out));
+    sh.getRange(sh.getLastRow() + 1, 1, 1, head.length).setValues([staffObjToRow_(out, head)]);
   }
   return { status: 'ok', staffRev: bumpStaffRev_(), rec: out, created: !target };
 }
@@ -375,7 +408,8 @@ function staffImport_(p) {
   if (!recs || !recs.length) return { status: 'error', message: '取り込む内容がありません' };
 
   var sh = getStaffSheet_();
-  var list = readStaff_(sh);
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
   var byName = {}, byPin = {};
   for (var i = 0; i < list.length; i++) {
     byName[list[i].name] = list[i];
@@ -389,15 +423,16 @@ function staffImport_(p) {
     if (!name) continue;
     if (byName[name]) { skipped.push(name); continue; }
 
+    var made = rows.map(function (r) { return staffRowToObj_(r, head); });
     var pin = String(rec.pin || '').trim();
-    if (!/^\d{4}$/.test(pin) || byPin[pin]) pin = nextPin_(list.concat(rows.map(staffRowToObj_)), []);
+    if (!/^\d{4}$/.test(pin) || byPin[pin]) pin = nextPin_(list.concat(made), []);
 
     var out = {};
     for (var c = 0; c < STAFF_COLS.length; c++) {
       var key = STAFF_COLS[c];
       out[key] = (rec[key] !== undefined) ? rec[key] : '';
     }
-    out.id = nextStaffId_(list.concat(rows.map(staffRowToObj_)));
+    out.id = nextStaffId_(list.concat(made));
     out.pin = pin;
     out.name = name;
     out.status = (out.status === 'retired') ? 'retired' : 'active';
@@ -407,21 +442,70 @@ function staffImport_(p) {
 
     byName[name] = out;
     byPin[pin] = out;
-    rows.push(staffObjToRow_(out));
+    rows.push(staffObjToRow_(out, head));
     added.push(name);
   }
 
   if (rows.length) {
-    sh.getRange(sh.getLastRow() + 1, 1, rows.length, STAFF_COLS.length).setValues(rows);
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, head.length).setValues(rows);
     bumpStaffRev_();
   }
   return { status: 'ok', staffRev: staffRev_(), added: added, skipped: skipped };
 }
 
+/* すでに名簿にいる人へ、空いている欄だけを埋める。
+   取り込みのあとに項目を増やしたときに使う（単価など）。
+   すでに何か入っている欄は、こちらの値があっても触らない。 */
+function staffFill_(p) {
+  var recs = p.recs;
+  if (typeof recs === 'string') { try { recs = JSON.parse(recs); } catch (e) { recs = null; } }
+  if (!recs || !recs.length) return { status: 'error', message: '入れる内容がありません' };
+
+  // 触ってよい欄。氏名・PIN・状態など、間違えると困るものは対象にしない
+  var FILLABLE = ['kana', 'kyuyoName', 'payKind', 'payRate', 'commute', 'commuteKind',
+                  'shiftName', 'joinedAt', 'storeIds', 'dept'];
+
+  var sh = getStaffSheet_();
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
+  var byName = {};
+  for (var i = 0; i < list.length; i++) byName[list[i].name] = list[i];
+
+  var filled = [], untouched = [], missing = [];
+  for (var j = 0; j < recs.length; j++) {
+    var rec = recs[j] || {};
+    var name = String(rec.name || '').trim();
+    if (!name) continue;
+    var t = byName[name];
+    if (!t) { missing.push(name); continue; }
+
+    var changed = [];
+    for (var k = 0; k < FILLABLE.length; k++) {
+      var key = FILLABLE[k];
+      if (rec[key] === undefined || rec[key] === '' || rec[key] === null) continue;
+      var cur = t[key];
+      var empty = (cur === '' || cur === null || cur === undefined || cur === 0);
+      if (!empty) continue;              // すでに入っている欄は触らない
+      t[key] = rec[key];
+      changed.push(key);
+    }
+    if (!changed.length) { untouched.push(name); continue; }
+    t.updatedAt = nowStamp_();
+    t.updatedBy = String(p.by || '');
+    sh.getRange(t._row, 1, 1, head.length).setValues([staffObjToRow_(t, head)]);
+    filled.push(name);
+  }
+
+  if (filled.length) bumpStaffRev_();
+  return { status: 'ok', staffRev: staffRev_(),
+           filled: filled, untouched: untouched, missing: missing };
+}
+
 // 退職にする。行は消さずに status を retired にして履歴を残す
 function staffRetire_(p) {
   var sh = getStaffSheet_();
-  var list = readStaff_(sh);
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
   var target = null;
   for (var i = 0; i < list.length; i++) if (list[i].id === String(p.id || '')) { target = list[i]; break; }
   if (!target) return { status: 'error', message: 'その人は名簿にいません' };
@@ -430,7 +514,7 @@ function staffRetire_(p) {
   target.retiredAt = String(p.retiredAt || '') || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   target.updatedAt = nowStamp_();
   target.updatedBy = String(p.by || '');
-  sh.getRange(target._row, 1, 1, STAFF_COLS.length).setValues([staffObjToRow_(target)]);
+  sh.getRange(target._row, 1, 1, head.length).setValues([staffObjToRow_(target, head)]);
   return { status: 'ok', staffRev: bumpStaffRev_(), rec: target };
 }
 

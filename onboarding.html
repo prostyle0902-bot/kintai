@@ -839,52 +839,52 @@ function closeSheet() { document.getElementById('overlay').classList.remove('ope
 
 /* いまPA勤怠・勤怠アプリに登録されている人（PIN・所属・打刻場所はそのまま引き継ぐ） */
 const SEED_MAIN = [
-  { kind:"part", name:"小林メグ", pin:"2824", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", locs:[{"name": "焼きたて屋", "lat": 35.9831, "lng": 140.6368, "radius": 300}] },
-  { kind:"part", name:"荒宏信", pin:"1409", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", locs:[{"name": "焼きたて屋", "lat": 35.9831, "lng": 140.6368, "radius": 300}] },
-  { kind:"part", name:"松岡実麻", pin:"5506", dept:"タコハイ", kyuyo:true, storeIds:"s_takohai", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"石井義則", pin:"5012", dept:"バッシング", kyuyo:true, storeIds:"s_beer,s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"中村利人", pin:"4657", dept:"バッシング", kyuyo:true, storeIds:"s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"山﨑悠人", pin:"3286", dept:"バッシング", kyuyo:true, storeIds:"s_beer,s_bussing", shiftName:"山崎悠人", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"本田光江", pin:"2679", dept:"バッシング", kyuyo:true, storeIds:"s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"橋本桂子", pin:"9935", dept:"横丁清掃", kyuyo:true, storeIds:"s_seiso", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"小金澤登美", pin:"2424", dept:"横丁清掃", kyuyo:true, storeIds:"s_seiso", shiftName:"小金澤登美江", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"綱代愛", pin:"7912", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", shiftName:"網代愛", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"新河美和", pin:"1520", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"飯塚利恵", pin:"1488", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"栗林里江", pin:"2535", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"篠塚柚紀", pin:"4582", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"篠田麻里奈", pin:"4811", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"林沙樹", pin:"9279", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"須之内郁美", pin:"1434", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"part", name:"八木秀子", pin:"4257", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}] },
-  { kind:"part", name:"籾山結泉", pin:"9928", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}] },
-  { kind:"part", name:"下河邊なお子", pin:"7873", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}] },
-  { kind:"part", name:"小堀真桜", pin:"4611", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}] },
-  { kind:"part", name:"河野千恵子", pin:"8359", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"橋本房枝", pin:"5557", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"山本里奈", pin:"1106", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"長谷川碧里", pin:"3615", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"松本めぐみ", pin:"7924", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"田村あつ子", pin:"6574", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"衣幡千明", pin:"5552", dept:"トータルステイ", kyuyo:true, storeIds:"s_kaiji,s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}] },
-  { kind:"part", name:"石川泰博", pin:"3547", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}] },
-  { kind:"part", name:"山田明子", pin:"4527", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}] },
-  { kind:"part", name:"伊藤美津子", pin:"6514", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}] },
-  { kind:"part", name:"桜庭京子", pin:"2674", dept:"海事・横河", kyuyo:true, storeIds:"s_kaiji", locs:[{"name": "海事・横河", "lat": 35.8885, "lng": 140.6527, "radius": 300}] },
-  { kind:"part", name:"小倉孔子", pin:"2519", dept:"ちば醤油", kyuyo:true, storeIds:"s_chibashoyu", locs:[{"name": "ちば醤油", "lat": 35.8569, "lng": 140.5562, "radius": 300}] },
+  { kind:"part", name:"小林メグ", pin:"2824", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", locs:[{"name": "焼きたて屋", "lat": 35.9831, "lng": 140.6368, "radius": 300}], payKind:"hourly", payRate:1094, commute:74, commuteKind:"daily" },
+  { kind:"part", name:"荒宏信", pin:"1409", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", locs:[{"name": "焼きたて屋", "lat": 35.9831, "lng": 140.6368, "radius": 300}], payKind:"hourly", payRate:1114 },
+  { kind:"part", name:"松岡実麻", pin:"5506", dept:"タコハイ", kyuyo:true, storeIds:"s_takohai", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074 },
+  { kind:"part", name:"石井義則", pin:"5012", dept:"バッシング", kyuyo:true, storeIds:"s_beer,s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1100, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"中村利人", pin:"4657", dept:"バッシング", kyuyo:true, storeIds:"s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"山﨑悠人", pin:"3286", dept:"バッシング", kyuyo:true, storeIds:"s_beer,s_bussing", shiftName:"山崎悠人", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1100 },
+  { kind:"part", name:"本田光江", pin:"2679", dept:"バッシング", kyuyo:true, storeIds:"s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074 },
+  { kind:"part", name:"橋本桂子", pin:"9935", dept:"横丁清掃", kyuyo:true, storeIds:"s_seiso", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074, commute:11, commuteKind:"daily" },
+  { kind:"part", name:"小金澤登美", pin:"2424", dept:"横丁清掃", kyuyo:true, storeIds:"s_seiso", shiftName:"小金澤登美江", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074, commute:16, commuteKind:"daily" },
+  { kind:"part", name:"綱代愛", pin:"7912", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", shiftName:"網代愛", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"新河美和", pin:"1520", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"飯塚利恵", pin:"1488", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"栗林里江", pin:"2535", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"篠塚柚紀", pin:"4582", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"篠田麻里奈", pin:"4811", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"林沙樹", pin:"9279", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"須之内郁美", pin:"1434", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"八木秀子", pin:"4257", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140 },
+  { kind:"part", name:"籾山結泉", pin:"9928", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140, commute:200, commuteKind:"daily" },
+  { kind:"part", name:"下河邊なお子", pin:"7873", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"小堀真桜", pin:"4611", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"河野千恵子", pin:"8359", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:140, commuteKind:"daily" },
+  { kind:"part", name:"橋本房枝", pin:"5557", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"山本里奈", pin:"1106", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1250, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"長谷川碧里", pin:"3615", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1250, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"松本めぐみ", pin:"7924", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:110, commuteKind:"daily" },
+  { kind:"part", name:"田村あつ子", pin:"6574", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], status:"retired" },
+  { kind:"part", name:"衣幡千明", pin:"5552", dept:"トータルステイ", kyuyo:true, storeIds:"s_kaiji,s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:20, commuteKind:"daily" },
+  { kind:"part", name:"石川泰博", pin:"3547", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}], payKind:"hourly", payRate:1170, commute:10000, commuteKind:"monthly" },
+  { kind:"part", name:"山田明子", pin:"4527", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}], payKind:"hourly", payRate:1170, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"伊藤美津子", pin:"6514", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}], payKind:"hourly", payRate:1200, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"桜庭京子", pin:"2674", dept:"海事・横河", kyuyo:true, storeIds:"s_kaiji", locs:[{"name": "海事・横河", "lat": 35.8885, "lng": 140.6527, "radius": 300}], status:"retired" },
+  { kind:"part", name:"小倉孔子", pin:"2519", dept:"ちば醤油", kyuyo:true, storeIds:"s_chibashoyu", locs:[{"name": "ちば醤油", "lat": 35.8569, "lng": 140.5562, "radius": 300}], payKind:"hourly", payRate:1400, commute:60, commuteKind:"daily" },
   { kind:"part", name:"齊藤良江", pin:"7224", dept:"神宮・亀甲堂・ゆう屋", kyuyo:false, storeIds:"s_jingu,s_yuya" },
-  { kind:"part", name:"宮嵜博之", pin:"2584", dept:"香取神宮", kyuyo:true, storeIds:"s_katorijingu", locs:[{"name": "香取神宮", "lat": 35.8862, "lng": 140.5287, "radius": 300}] },
-  { kind:"part", name:"千葉規雄", pin:"6881", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"武田則政", pin:"6635", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"高瀬弥生子", pin:"5333", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"菅原和夫", pin:"1711", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"樽本裕美", pin:"9785", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"望月辰雄", pin:"3045", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"岸本敏男", pin:"7201", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"高野由美", pin:"2291", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"村田耕一", pin:"5803", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei" },
-  { kind:"part", name:"池田久史", pin:"6925", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}] },
-  { kind:"part", name:"三浦達弥", pin:"4150", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}] },
+  { kind:"part", name:"宮嵜博之", pin:"2584", dept:"香取神宮", kyuyo:true, storeIds:"s_katorijingu", locs:[{"name": "香取神宮", "lat": 35.8862, "lng": 140.5287, "radius": 300}], payKind:"hourly", payRate:1500, commute:20, commuteKind:"daily" },
+  { kind:"part", name:"千葉規雄", pin:"6881", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1200, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"武田則政", pin:"6635", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1190, commute:180, commuteKind:"daily" },
+  { kind:"part", name:"高瀬弥生子", pin:"5333", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", status:"retired" },
+  { kind:"part", name:"菅原和夫", pin:"1711", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1180, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"樽本裕美", pin:"9785", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1180, commute:30, commuteKind:"daily" },
+  { kind:"part", name:"望月辰雄", pin:"3045", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170 },
+  { kind:"part", name:"岸本敏男", pin:"7201", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170, commute:50, commuteKind:"daily" },
+  { kind:"part", name:"高野由美", pin:"2291", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170, commute:200, commuteKind:"daily" },
+  { kind:"part", name:"村田耕一", pin:"5803", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170, commute:130, commuteKind:"daily" },
+  { kind:"part", name:"池田久史", pin:"6925", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}], payKind:"hourly", payRate:1170, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"三浦達弥", pin:"4150", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}], payKind:"daily", payRate:10000, commute:480, commuteKind:"daily" },
   { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
   { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
   { kind:"staff", name:"伏田 幸枝", pin:"2571", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
@@ -896,16 +896,18 @@ const SEED_MAIN = [
   { kind:"staff", name:"及川 晶雄", pin:"8527", dept:"飲食事業部", kyuyo:false, storeIds:"s_yakitate", shiftName:"及川晶雄", locs:[{"name": "鹿嶋事業所", "lat": 35.9831, "lng": 140.6368, "radius": 300}] },
   { kind:"staff", name:"宮川 玲奈", pin:"3074", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana", shiftName:"レナ", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
   { kind:"staff", name:"ハルシャニ", pin:"6941", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana,s_takohai", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
-  { kind:"staff", name:"ナディシャ", pin:"2385", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana,s_takohai", shiftName:"ナディーシャ", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },];
+  { kind:"staff", name:"ナディシャ", pin:"2385", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana,s_takohai", shiftName:"ナディーシャ", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
+];
 
 /* シフト作成にだけ名前があり、勤怠アプリには登録がない人。
    取り込むとPINを自動で作り、勤怠アプリでも打刻できるようになります。 */
 const SEED_SHIFT_ONLY = [
-  { kind:"part", name:"宮内眞知子", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_jingu" },
+  { kind:"part", name:"宮内眞知子", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_jingu", payKind:"hourly", payRate:1200 },
   { kind:"part", name:"河野竜二", pin:"", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan" },
-  { kind:"part", name:"濱田歩", pin:"", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan" },
-  { kind:"part", name:"茂木多美子", pin:"", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate" },
-  { kind:"part", name:"鎌形房枝", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_yuya" },];
+  { kind:"part", name:"濱田歩", pin:"", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"茂木多美子", pin:"", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", payKind:"hourly", payRate:1074, commute:40, commuteKind:"daily" },
+  { kind:"part", name:"鎌形房枝", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_yuya", payKind:"hourly", payRate:1200 },
+];
 
 // 取り込むときの1件ぶんの形に直す
 function seedToRec(x) {
@@ -973,6 +975,37 @@ function renderSetup() {
   }
   h += '</div>';
 
+  // --- 2.5 取り込み済みの人に、あとから増えた項目を入れる ---
+  const known2 = {};
+  STAFF.forEach(function (r) { known2[r.name] = r; });
+  const needFill = SEED_MAIN.filter(function (x) {
+    const r = known2[x.name];
+    return r && x.payRate && !(+r.payRate);
+  });
+  const needRetire = SEED_MAIN.filter(function (x) {
+    const r = known2[x.name];
+    return r && x.status === 'retired' && r.status !== 'retired';
+  });
+
+  if (needFill.length || needRetire.length) {
+    h += '<div class="card"><div class="card-title">取り込み済みの人を、いまの内容に合わせる</div>'
+      + '<div class="card-desc">取り込んだあとに項目が増えたため、まだ入っていないところがあります。'
+      + '<b>すでに入っている欄は書き換えません。</b></div>';
+    if (needFill.length) {
+      h += '<div class="alert info">単価が入っていない人：<b>' + needFill.length + ' 名</b>'
+        + '（給与一覧から読み取った時給・日給・通勤手当を入れます）</div>'
+        + '<div class="row-actions" style="margin-top:0;margin-bottom:1rem">'
+        + '<button class="btn primary" id="btn-fill" onclick="doFill()">' + needFill.length + ' 名に単価を入れる</button></div>';
+    }
+    if (needRetire.length) {
+      h += '<div class="alert warn">退職しているのに在籍のままの人：<b>' + needRetire.length + ' 名</b><br />'
+        + esc(needRetire.map(function (x) { return x.name; }).join('、'))
+        + '<br />給与一覧に出勤簿がないため退職と判断しました。'
+        + '名簿タブの「退職」から退職日を入れてください。</div>';
+    }
+    h += '</div>';
+  }
+
   // --- 3. シフトにだけいる人 ---
   h += '<div class="card"><div class="card-title">3. シフトにだけ名前がある人</div>'
     + '<div class="card-desc">シフト作成には名前があるのに、勤怠アプリには登録がない方です。'
@@ -1031,6 +1064,36 @@ async function doImportOnly() {
     .map(seedToRec);
   if (!recs.length) { alert('取り込む人を選んでください。'); return; }
   await sendImport(recs);
+}
+
+// 取り込み済みの人に、空いている欄だけを入れる
+async function doFill() {
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = r; });
+  const recs = SEED_MAIN
+    .filter(function (x) { const r = known[x.name]; return r && x.payRate && !(+r.payRate); })
+    .map(function (x) {
+      return { name: x.name, payKind: x.payKind, payRate: x.payRate,
+               commute: x.commute || 0, commuteKind: x.commuteKind || 'none',
+               kyuyoName: x.kyuyoName || '' };
+    });
+  if (!recs.length) { alert('入れるものがありません。'); return; }
+  if (!confirm(recs.length + ' 名に単価を入れます。\n\nすでに入っている欄は書き換えません。よろしいですか？')) return;
+
+  setState('busy', '保存中…');
+  const btn = document.getElementById('btn-fill');
+  if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+  try {
+    const res = await apiPost({ action: 'staffFill', recs: recs });
+    if (res.status !== 'ok') throw new Error(res.message || '入れられませんでした');
+    await reload();
+    alert((res.filled || []).length + ' 名に入れました。'
+      + ((res.untouched || []).length ? '\n' + res.untouched.length + ' 名はすでに入っていたので触っていません。' : ''));
+  } catch (e) {
+    alert('入れられませんでした：' + e.message);
+    setState('err', e.message);
+    renderSetup();
+  }
 }
 
 async function sendImport(recs) {
