@@ -1067,3 +1067,126 @@ function colLetter_(n) {
   while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; }
   return s;
 }
+
+/* ===== 12月分の給与一覧を作り直す ======================================
+ * 2026/12/16〜2027/1/15 のファイルだけが古い世代のまま止まっているため、
+ * 正しい世代の月（2027/1/16〜2/15）を雛形にして作り直します。
+ *
+ * ・既存のファイルには一切触れません。新しいファイルを作ります
+ * ・2回に分けて実行します（1回が長くなりすぎないように）
+ *     1回目： rebuildDecember      … 雛形を丸ごと写す
+ *     2回目： fixDecemberDates     … 日付・曜日・見出しを12月に直す
+ * ・出来上がったら中身を確かめて、古いファイルはゴミ箱へ移してください
+ * ===================================================================== */
+
+var REBUILD_FROM = '1awRXj9U0C18D_gT0tM5u14AENE-zak4d6pafseX5gAM'; // 2027/1/16〜2/15（雛形）
+var REBUILD_TITLE = '給与一覧_2026_12_16-2027_1_15';
+var REBUILD_START = [2026, 12, 16];   // 期間の初日
+var REBUILD_END   = [2027, 1, 15];    // 期間の最終日
+// 雛形の見出しに入っている期間の書き方（これを12月の書き方に置きかえる）
+var REBUILD_FROM_LABELS = ['2027/1/16〜2027/2/15', '2027年1月16日〜2027年2月15日'];
+var REBUILD_TO_LABELS   = ['2026/12/16〜2027/1/15', '2026年12月16日〜2027年1月15日'];
+
+var DOW_JP = ['日', '月', '火', '水', '木', '金', '土'];
+
+function rebuildDecember() {
+  var src = SpreadsheetApp.openById(REBUILD_FROM);
+  var sheets = src.getSheets();
+
+  var dest = SpreadsheetApp.create(REBUILD_TITLE);
+  var keep = dest.getSheets()[0];   // 最初からある空のシート
+
+  var made = 0;
+  for (var i = 0; i < sheets.length; i++) {
+    var copied = sheets[i].copyTo(dest);
+    copied.setName(sheets[i].getName());
+    dest.setActiveSheet(copied);
+    dest.moveActiveSheet(i + 1);
+    made++;
+  }
+  dest.deleteSheet(keep);
+
+  PropertiesService.getScriptProperties().setProperty('rebuildId', dest.getId());
+
+  var msg = '写しました：' + made + ' シート\n'
+    + '新しいファイル：' + dest.getName() + '\n'
+    + 'ID：' + dest.getId() + '\n'
+    + 'URL：' + dest.getUrl() + '\n\n'
+    + '続けて fixDecemberDates を実行してください（日付をまだ直していません）。';
+  Logger.log(msg);
+  return msg;
+}
+
+function fixDecemberDates() {
+  var id = PropertiesService.getScriptProperties().getProperty('rebuildId');
+  if (!id) return '先に rebuildDecember を実行してください。';
+  var ss = SpreadsheetApp.openById(id);
+
+  // 期間の日付と曜日を組み立てる
+  var start = new Date(REBUILD_START[0], REBUILD_START[1] - 1, REBUILD_START[2]);
+  var end = new Date(REBUILD_END[0], REBUILD_END[1] - 1, REBUILD_END[2]);
+  var days = [];
+  for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    var c = new Date(d);
+    days.push([c, DOW_JP[c.getDay()]]);
+  }
+
+  var sheets = ss.getSheets();
+  var fixed = 0, notes = [];
+
+  for (var i = 0; i < sheets.length; i++) {
+    var sh = sheets[i];
+    var rows = Math.min(sh.getLastRow(), 60);
+    var cols = Math.min(sh.getLastColumn(), 15);
+    if (rows < 2 || cols < 2) continue;
+
+    var rng = sh.getRange(1, 1, rows, cols);
+    var vals = rng.getValues();
+    var fs = rng.getFormulas();
+
+    // 見出しの文字にある期間の書き方を置きかえる
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        if (fs[r][c]) continue;
+        var v = vals[r][c];
+        if (typeof v !== 'string' || !v) continue;
+        var nv = v;
+        for (var k = 0; k < REBUILD_FROM_LABELS.length; k++) {
+          nv = nv.split(REBUILD_FROM_LABELS[k]).join(REBUILD_TO_LABELS[k]);
+        }
+        if (nv !== v) sh.getRange(r + 1, c + 1).setValue(nv);
+      }
+    }
+
+    // 日付の欄を探して、期間の日付と曜日を入れ直す
+    var hr = -1, dc = -1;
+    for (var r2 = 0; r2 < rows && hr < 0; r2++) {
+      for (var c2 = 0; c2 < cols; c2++) {
+        if (String(vals[r2][c2]).trim() === '日付') { hr = r2 + 1; dc = c2 + 1; break; }
+      }
+    }
+    if (hr < 0) continue;   // 出勤簿ではないシート
+
+    // 日付が並んでいる行数を数える
+    var n = 0;
+    for (var r3 = hr; r3 < rows; r3++) {
+      var v3 = vals[r3][dc - 1];
+      if (Object.prototype.toString.call(v3) === '[object Date]') n++;
+      else break;
+    }
+    if (n !== days.length) {
+      notes.push(sh.getName() + '：日付の行が ' + n + ' 行（' + days.length + ' 行のはず）なので触りませんでした');
+      continue;
+    }
+    sh.getRange(hr + 1, dc, days.length, 2).setValues(days);
+    fixed++;
+  }
+
+  var msg = '日付と曜日を直しました：' + fixed + ' シート\n'
+    + 'ファイル：' + ss.getName() + '\n'
+    + 'URL：' + ss.getUrl()
+    + (notes.length ? '\n\n触らなかったもの：\n' + notes.join('\n') : '')
+    + '\n\n中身を確かめて問題なければ、古い方のファイルをゴミ箱へ移してください。';
+  Logger.log(msg);
+  return msg;
+}
