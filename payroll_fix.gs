@@ -10,8 +10,10 @@
  *   4. 「神宮・亀甲堂・ゆう屋」を「ゆう屋」「神宮・亀甲堂」に分割し、鎌形房枝・宮内眞知子を追加
  *   5. 店舗別合計・総合計を再計算
  *
+ * 必要ファイル：attendance_lib.gs（給与一覧タブの検出に getSummarySheet を使う）
+ *
  * 使い方
- *   1. Apps Script プロジェクトにこのファイルを追加
+ *   1. attendance_lib.gs と一緒に Apps Script プロジェクトに追加
  *   2. CONFIG.DRY_RUN = true のまま run() を実行し、実行ログで変更内容を確認
  *   3. 問題なければ CONFIG.DRY_RUN = false にして再実行
  *
@@ -458,14 +460,6 @@ function rebuildTotals(summary, layout, log) {
 /* ------------------------------------------------------------------ *
  * 構造の読み取り
  * ------------------------------------------------------------------ */
-
-function getSummarySheet(ss) {
-  const byName = ss.getSheetByName('給与一覧');
-  if (byName) return byName;
-  return ss.getSheets().filter(function (sh) {
-    return String(sh.getRange(1, 1).getValue()).indexOf('給与一覧表') >= 0;
-  })[0] || null;
-}
 
 function findAttendanceSheet(ss, needle) {
   return ss.getSheets().filter(function (sh) {

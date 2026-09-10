@@ -32,11 +32,12 @@ function readAttendanceRows(sh) {
   const totalRow = labels.indexOf('合計') + 1;
   if (!headerRow || !totalRow || totalRow <= headerRow) return null;
 
-  let periodRow = 0, basicRow = 0, netRow = 0, netLabel = '';
+  let periodRow = 0, detailStart = 0, basicRow = 0, netRow = 0, netLabel = '';
   for (let i = 0; i < headerRow; i++) {
     if (labels[i].indexOf('集計期間') === 0) periodRow = i + 1;
   }
   for (let i = totalRow; i < labels.length; i++) {
+    if (!detailStart && labels[i] === '給与明細') detailStart = i + 1;
     if (!basicRow && labels[i].indexOf('基本賃金') === 0) basicRow = i + 1;
     if (!netRow && labels[i].indexOf('差引支給額') === 0) { netRow = i + 1; netLabel = labels[i]; }
   }
@@ -45,6 +46,7 @@ function readAttendanceRows(sh) {
   return {
     isDailyWage: rateLabel.indexOf('日給') >= 0,
     periodRow: periodRow,
+    detailStart: detailStart,
     headerRow: headerRow,
     dataStart: headerRow + 1,
     dataEnd: totalRow - 1,
@@ -83,10 +85,7 @@ function readPeriod(sh, at) {
  * 「給与一覧表（パート・アルバイト）　2026/12/16〜2027/1/15」の形。
  */
 function readBookPeriod(ss) {
-  const sh = ss.getSheetByName('給与一覧') || ss.getSheets().filter(function (s) {
-    return String(s.getRange(1, 1).getValue()).indexOf('給与一覧表') >= 0
-        || String(s.getRange(1, 2).getValue()).indexOf('給与一覧表') >= 0;
-  })[0];
+  const sh = getSummarySheet(ss);
   if (!sh) return null;
 
   const text = String(sh.getRange(1, 1).getValue()) + ' ' + String(sh.getRange(1, 2).getValue());
@@ -149,6 +148,55 @@ function sameColor(a, b) {
 
 function fmtDate(d) {
   return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy/M/d');
+}
+
+/** 氏名の表記ゆれ（全角・半角スペース）を吸収する */
+function normalizeName(s) {
+  return String(s).replace(/[\s\u3000]+/g, '');
+}
+
+/**
+ * 出勤簿タブを氏名で引けるようにする。
+ * タブ名ではなく1行目の見出しから氏名を取る。給与一覧の「衣幡千明（海事・横河）」に
+ * 対してタブ名は「衣幡千明_海事横河」というように、両者は一致しないため。
+ */
+function attendanceIndex(ss) {
+  const map = {};
+  ss.getSheets().forEach(function (sh) {
+    const at = readAttendanceRows(sh);
+    if (!at) return;
+    const title = String(sh.getRange(1, 1).getValue()) + String(sh.getRange(1, 2).getValue());
+    const m = title.match(/出勤簿[\s\u3000]*(.+?)（パート・アルバイト）/);
+    if (!m) return;
+    map[normalizeName(m[1])] = { sheet: sh, at: at };
+  });
+  return map;
+}
+
+/** 給与一覧タブのメンバー行（A列が番号、B列が氏名の行）を返す */
+function readSummaryMembers(sh) {
+  const last = sh.getLastRow();
+  const a = sh.getRange(1, 1, last, 1).getValues();
+  const b = sh.getRange(1, 2, last, 1).getValues();
+  const out = [];
+  for (let i = 0; i < last; i++) {
+    const av = String(a[i][0]).trim();
+    const bv = String(b[i][0]).trim();
+    if (av.indexOf('店舗別合計') >= 0) break;   // ここから下は集計ブロック
+    if (av === '' || bv === '') continue;
+    if (av.indexOf('▶') === 0) continue;        // グループ見出し
+    if (isNaN(Number(av))) continue;
+    out.push({ row: i + 1, no: Number(av), name: bv });
+  }
+  return out;
+}
+
+/** 給与一覧タブ */
+function getSummarySheet(ss) {
+  return ss.getSheetByName('給与一覧') || ss.getSheets().filter(function (s) {
+    return String(s.getRange(1, 1).getValue()).indexOf('給与一覧表') >= 0
+        || String(s.getRange(1, 2).getValue()).indexOf('給与一覧表') >= 0;
+  })[0] || null;
 }
 
 /** フォルダ内の給与一覧スプレッドシートを列挙する */
