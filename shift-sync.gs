@@ -956,3 +956,114 @@ function payrollRate_(p) {
   }
   return { status: 'ok', done: done, skipped: skipped, failed: failed };
 }
+
+/* ===== 給与一覧のファイルを調べる（読み取りだけ）=========================
+ * 中身は一切変えません。構造を実行ログに出すだけです。
+ *
+ * 使い方：エディタの関数の選択欄で inspectPayroll を選んで「実行」。
+ *   ・比べる2つのファイルは、下の INSPECT_IDS で指定します
+ *   ・実行ログに出た内容を、そのまま貼って教えてください
+ * ===================================================================== */
+var INSPECT_IDS = [
+  '1awRXj9U0C18D_gT0tM5u14AENE-zak4d6pafseX5gAM',   // 2027/1/16〜2/15（正常）
+  '1MwAXLQfBF-tBQ0jMHyJqLaNlUSbImikp23IdvD9CDBs'    // 2026/12/16〜2027/1/15（止まっている）
+];
+
+function inspectPayroll() {
+  var out = [];
+  for (var i = 0; i < INSPECT_IDS.length; i++) {
+    out.push(inspectOne_(INSPECT_IDS[i]));
+  }
+  var msg = out.join('\n\n' + Array(60).join('-') + '\n\n');
+  Logger.log(msg);
+  return msg;
+}
+
+function inspectOne_(id) {
+  var L = [];
+  var ss;
+  try { ss = SpreadsheetApp.openById(id); }
+  catch (e) { return '【' + id + '】開けません：' + String(e); }
+
+  var sheets = ss.getSheets();
+  L.push('【' + ss.getName() + '】シート ' + sheets.length + ' 枚');
+
+  // 台帳（SS_ID管理）に、このファイル自身がどう登録されているか
+  var mgr = ss.getSheetByName('SS_ID管理');
+  L.push('SS_ID管理シート：' + (mgr ? 'あり（' + Math.max(0, mgr.getLastRow() - 1) + '件）' : 'なし'));
+
+  // まとめの表
+  var list = payrollListSheet_(ss);
+  if (!list) {
+    L.push('給与一覧表：見つかりません');
+  } else {
+    var lv = list.getRange(1, 1, Math.min(list.getLastRow(), 200), Math.min(list.getLastColumn(), 8)).getValues();
+    var groups = 0, people = 0;
+    for (var r = 0; r < lv.length; r++) {
+      var joined = lv[r].join(' ');
+      if (joined.indexOf('▶') >= 0) groups++;
+      if (/^\d+$/.test(String(lv[r][0] || '').trim()) && String(lv[r][1] || '').trim()) people++;
+    }
+    L.push('給与一覧表：' + list.getName() + '／現場グループ ' + groups + ' 個／人 ' + people + ' 名');
+  }
+
+  // 出勤簿シートを1枚だけ、値と計算式の両方で見る
+  var sample = null;
+  for (var s = 0; s < sheets.length; s++) {
+    var v = sheets[s].getRange(1, 1, Math.min(sheets[s].getLastRow(), 6), 1).getValues();
+    var t = sheets[s].getRange(1, 1, Math.min(sheets[s].getLastRow(), 6),
+                               Math.min(sheets[s].getLastColumn(), 12)).getValues().join(' ');
+    if (t.indexOf('出勤簿') >= 0) { sample = sheets[s]; break; }
+  }
+  if (!sample) { L.push('出勤簿シートが見つかりません'); return L.join('\n'); }
+
+  L.push('見本のシート：' + sample.getName());
+  var rows = Math.min(sample.getLastRow(), 12);
+  var cols = Math.min(sample.getLastColumn(), 12);
+  var rng = sample.getRange(1, 1, rows, cols);
+  var vals = rng.getValues(), fs = rng.getFormulas();
+
+  for (var r2 = 0; r2 < rows; r2++) {
+    var parts = [];
+    for (var c2 = 0; c2 < cols; c2++) {
+      var f = fs[r2][c2], v2 = vals[r2][c2];
+      if (f) parts.push('[' + colLetter_(c2 + 1) + (r2 + 1) + '=式] ' + f);
+      else if (v2 !== '' && v2 !== null) {
+        parts.push('[' + colLetter_(c2 + 1) + (r2 + 1) + '] ' + describeVal_(v2));
+      }
+    }
+    if (parts.length) L.push('  ' + parts.join('  '));
+  }
+
+  // 日付の欄が「文字」か「日付」か「計算式」か
+  var hr = -1, dc = -1;
+  var scan = sample.getRange(1, 1, Math.min(sample.getLastRow(), 20), cols).getValues();
+  for (var r3 = 0; r3 < scan.length && hr < 0; r3++) {
+    for (var c3 = 0; c3 < cols; c3++) {
+      if (String(scan[r3][c3]).trim() === '日付') { hr = r3 + 1; dc = c3 + 1; break; }
+    }
+  }
+  if (hr > 0) {
+    var d = sample.getRange(hr + 1, dc, 3, 1);
+    L.push('日付の欄（' + colLetter_(dc) + (hr + 1) + 'から）：');
+    var dv = d.getValues(), df = d.getFormulas();
+    for (var k = 0; k < 3; k++) {
+      L.push('    ' + (df[k][0] ? '式 ' + df[k][0] : describeVal_(dv[k][0])));
+    }
+  }
+  return L.join('\n');
+}
+
+function describeVal_(v) {
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return '日付値 ' + Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy/MM/dd');
+  }
+  if (typeof v === 'number') return '数値 ' + v;
+  return '「' + String(v).slice(0, 40) + '」';
+}
+
+function colLetter_(n) {
+  var s = '';
+  while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; }
+  return s;
+}
