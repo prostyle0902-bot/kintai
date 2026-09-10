@@ -318,9 +318,14 @@ function readJson(r) {
   return r.text().then(function (t) {
     try { return JSON.parse(t); } catch (e) {
       if (/^\s*</.test(t)) {
-        throw new Error('Apps Script から返事が返りませんでした。'
-          + 'スクリプトの許可がまだの可能性があります。'
-          + 'Apps Script のエディタで authorizeOnce を1回実行して許可してください。');
+        // Googleの画面が返ってきている。多いのは次の2つ
+        const gone = /ファイルを開くことができません|Sorry, unable to open the file/.test(t);
+        throw new Error(gone
+          ? 'このURLのデプロイが見つかりません。Apps Script で「デプロイ → デプロイを管理」を開き、'
+            + 'いまのウェブアプリのURLをコピーして、「はじめの取り込み・設定」タブに貼り直してください。'
+          : 'Apps Script から返事が返りませんでした。デプロイのURLが変わったか、'
+            + '許可がまだの可能性があります。「はじめの取り込み・設定」タブの'
+            + '「つなぎ先を確かめる」で確認してください。');
       }
       throw new Error('返事の内容が読めませんでした：' + t.slice(0, 80));
     }
@@ -990,6 +995,16 @@ function renderSetup() {
     + '<input type="text" value="' + esc(CFG.userName) + '" placeholder="例：花見" onchange="CFG.userName=this.value.trim();saveCfg()" /></div>'
     + '</div>'
     + '<div class="muted">いまのつなぎ先：' + (apiOn() ? esc(apiUrl()) : '未設定') + '</div>'
+    + (apiOn()
+        ? '<div class="row-actions" style="margin-top:.75rem">'
+          + '<a class="btn" target="_blank" rel="noopener" href="'
+          + esc(apiUrl() + '?action=ping&token=' + encodeURIComponent(apiToken()))
+          + '">つなぎ先を確かめる</a></div>'
+          + '<div class="muted" style="margin-top:.5rem">'
+          + '別のタブが開きます。<b>{"status":"ok","message":"動いています"…}</b> と出れば正常です。<br />'
+          + '<b>「現在、ファイルを開くことができません」</b>と出たら、このURLのデプロイがもうありません。'
+          + 'Apps Script の「デプロイ → デプロイを管理」で、いまのURLをコピーして上に貼り直してください。</div>'
+        : '')
     + '</div>';
 
   if (!apiOn()) { el.innerHTML = h; return; }
