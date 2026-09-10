@@ -140,6 +140,7 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
     # 2608月 → 8月列（21期の最終月。届いたぶんから順に入れていく）
+    fixed_costs.check_bank8()
     inv8.check(wb)
     for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
         if plrow not in build2.RIDX[tab]:
@@ -673,6 +674,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in norow.hold_rows():
         hs.append(["新設行", m, tab, item, "", reason])
+    for m, tab, item, reason in fixed_costs.hold_rows():
+        hs.append(["定額（8月）", m, tab, item, "", reason])
     for m, tab, item, reason in inv8.hold_rows():
         hs.append(["2608月請求書", m, tab, item, "", reason])
     for m, tab, item, reason in board.hold_rows():
