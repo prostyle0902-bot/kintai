@@ -282,12 +282,33 @@ function apiOn()    { return !!apiUrl(); }
 function apiGet(params) {
   return jsonpCall(apiUrl(), Object.assign({ token: apiToken() }, params));
 }
+/* 書き込み。
+   ふつうは POST で送るが、Apps Script は環境によって POST に
+   Googleの画面（HTML）を返してくることがある。そのときは、
+   読み込みで確実に通っている JSONP（GET）で送り直す。
+   Apps Script 側は送られ方を問わず同じように処理する。 */
 function apiPost(body) {
+  const payload = Object.assign({ token: apiToken(), by: CFG.userName || '' }, body);
   return fetch(apiUrl(), {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ token: apiToken(), by: CFG.userName || '' }, body)),
-  }).then(readJson);
+    body: JSON.stringify(payload),
+  }).then(readJson).catch(function (e) {
+    // POSTがだめだったので、読み込みと同じやり方で送り直す
+    const len = jsonpLength(payload);
+    if (len > 7000) throw new Error(e.message + '（内容が大きすぎて送り直せませんでした）');
+    return jsonpCall(apiUrl(), payload);
+  });
+}
+
+// JSONPで送るときの、おおよそのURLの長さ
+function jsonpLength(params) {
+  let n = 0;
+  Object.keys(params).forEach(function (k) {
+    const v = params[k];
+    n += k.length + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : String(v)).length + 2;
+  });
+  return n;
 }
 
 /* Apps Script は、許可がまだのときや設定が合っていないときに、
