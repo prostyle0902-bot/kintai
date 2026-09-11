@@ -265,30 +265,63 @@
       } catch (e) { /* 控えが壊れていたら上の一覧のまま */ }
     })();
 
-    // 名簿を読みにいく。GETなのでJSONPで確実に読める
-    (function () {
+    /* 名簿を読みにいく。
+       まず fetch で読む。失敗がすぐ分かるので、間をおかずに3回まで試せる。
+       それでもだめなら、最後に JSONP を試す（fetch が通らない環境向け）。
+       読めたら端末に控えるので、次からは通信できなくてもその内容で動く。 */
+    const MASTER_SRC = MASTER_API + '?action=staffPunch&token=' + encodeURIComponent(MASTER_TOKEN);
+
+    function useMaster(res) {
+      if (!res || res.status !== 'ok' || !res.staff) return false;
+      applyMaster(res.staff);
+      try { localStorage.setItem(MASTER_LS, JSON.stringify(res.staff)); } catch (e) {}
+      return true;
+    }
+
+    async function loadMaster() {
       if (!MASTER_API || MASTER_API.indexOf('script.google.com') < 0) return;
+
+      for (let i = 1; i <= 3; i++) {
+        try {
+          const r = await fetch(MASTER_SRC + '&t=' + Date.now(), { method: 'GET', mode: 'cors' });
+          if (useMaster(await r.json())) return;
+        } catch (e) { /* つぎの回で試す */ }
+        await new Promise(function (ok) { setTimeout(ok, 800 * i); });
+      }
+
+      // fetch が通らない環境向け。読み込みに時間がかかることがある
+      loadMasterJsonp();
+    }
+
+    function loadMasterJsonp() {
       const cb = '_msc' + Date.now();
-      const timer = setTimeout(cleanup, 20000);
+      const timer = setTimeout(giveUp, 15000);
       function cleanup() {
         clearTimeout(timer);
         delete window[cb];
         const el = document.getElementById(cb);
         if (el) el.remove();
       }
-      window[cb] = function (res) {
-        cleanup();
-        if (!res || res.status !== 'ok' || !res.staff) return;
-        applyMaster(res.staff);
-        try { localStorage.setItem(MASTER_LS, JSON.stringify(res.staff)); } catch (e) {}
-      };
+      function giveUp() { cleanup(); showMasterWarn(); }
+      window[cb] = function (res) { cleanup(); if (!useMaster(res)) showMasterWarn(); };
       const sc = document.createElement('script');
       sc.id = cb;
-      sc.src = MASTER_API + '?action=staffList&token=' + encodeURIComponent(MASTER_TOKEN)
-             + '&callback=' + cb + '&t=' + Date.now();
-      sc.onerror = cleanup;
+      sc.src = MASTER_SRC + '&callback=' + cb + '&t=' + Date.now();
+      sc.onerror = giveUp;
       document.head.appendChild(sc);
-    })();
+    }
+
+    /* 名簿がまったく読めず、控えも無いときだけ知らせる。
+       新しく入った人が「PINが違います」で困らないように。 */
+    function showMasterWarn() {
+      let cached = false;
+      try { cached = !!localStorage.getItem(MASTER_LS); } catch (e) {}
+      if (cached) return;
+      const el = document.getElementById('pin-error');
+      if (el) el.textContent = '名簿を読み込めませんでした（通信を確認してください）';
+    }
+
+    loadMaster();
 
     let pinBuffer = '';
     let currentEmp = null;

@@ -290,8 +290,32 @@ function apiUrl()   { return (CFG.apiUrl || MASTER_API || '').trim(); }
 function apiToken() { return (CFG.token || MASTER_TOKEN || '').trim(); }
 function apiOn()    { return !!apiUrl(); }
 
+/* 読み込み。
+   まず fetch（GET）で読む。だめだった理由がその場で分かるので、
+   間をおかずに3回まで試せる。それでもだめなら、最後に JSONP を試す
+   （会社のネットなどで fetch が通らないとき向け）。 */
 function apiGet(params) {
-  return jsonpCall(apiUrl(), Object.assign({ token: apiToken() }, params));
+  const payload = Object.assign({ token: apiToken() }, params);
+  const q = [];
+  Object.keys(payload).forEach(function (k) {
+    const v = payload[k];
+    q.push(k + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : String(v)));
+  });
+  const url = apiUrl() + '?' + q.join('&');
+
+  let last = null;
+  function attempt(i) {
+    return fetch(url + '&t=' + Date.now(), { method: 'GET', mode: 'cors' })
+      .then(readJson)
+      .catch(function (e) {
+        last = e;
+        if (i >= 3) return jsonpCall(apiUrl(), payload).catch(function () { throw last; });
+        return new Promise(function (ok) { setTimeout(ok, 800 * i); }).then(function () {
+          return attempt(i + 1);
+        });
+      });
+  }
+  return attempt(1);
 }
 /* 書き込み。
    ふつうは POST で送るが、Apps Script は環境によって POST に
@@ -1190,7 +1214,19 @@ async function checkLink() {
   el.innerHTML = '<div class="alert info">確かめています…</div>';
 
   const rows = [];
-  // 読み込み：JSONP（<script>で読む。ログイン中のアカウントとして送られる）
+  const ping = apiUrl() + '?action=ping&token=' + encodeURIComponent(apiToken()) + '&t=' + Date.now();
+
+  // 読み込み その1：GET（ふだん名簿を読むのに使っているやり方）
+  try {
+    const r = await readJson(await fetch(ping, { method: 'GET', mode: 'cors' }));
+    rows.push(r && r.status === 'ok'
+      ? ['ok', '読み込み（GET）', '通りました' + (r.at ? '　' + esc(r.at) : '')]
+      : ['err', '読み込み（GET）', esc((r && r.message) || '返事が変です')]);
+  } catch (e) {
+    rows.push(['err', '読み込み（GET）', esc(e.message)]);
+  }
+
+  // 読み込み その2：JSONP（GETが通らないときの控え。ログイン中のアカウントとして送られる）
   try {
     const r = await jsonpCall(apiUrl(), { token: apiToken(), action: 'ping' }, 8000);
     rows.push(r && r.status === 'ok'
@@ -1217,8 +1253,8 @@ async function checkLink() {
     rows.push(['err', '書き込み（POST）', esc(e.message)]);
   }
 
-  const okRead = rows[0][0] === 'ok';
-  const okWrite = rows[1][0] === 'ok';
+  const okRead = rows[0][0] === 'ok' || rows[1][0] === 'ok';
+  const okWrite = rows[2][0] === 'ok';
 
   let h = '<div class="table-wrap"><table><tbody>'
     + rows.map(function (x) {
