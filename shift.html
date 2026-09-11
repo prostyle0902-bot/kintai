@@ -1076,6 +1076,8 @@ function setReq(staffId, key, val) {
   saveDB();
 }
 function getShift() { return DB.shifts[shiftKey()] || null; }
+// その期間の「1日ごとの必要人数」を1本の文字列にする。作ったときの設定と見比べるのに使う
+function slotSignature(cal) { return cal.map(function (c) { return c.need; }).join(','); }
 function setShift(v) { DB.shifts[shiftKey()] = v; saveDB(); }
 
 /* =========================================================
@@ -1552,7 +1554,8 @@ function doGenerate(reroll) {
   const res = generate(reroll ? Math.floor(Math.random() * 1e9) : 20240101);
   const data = {};
   Object.keys(res.assign).forEach(k => { if (res.assign[k].length) data[k] = res.assign[k]; });
-  setShift({ days: data, pat: res.pat, generatedAt: new Date().toISOString() });
+  setShift({ days: data, pat: res.pat, generatedAt: new Date().toISOString(),
+        slotSig: slotSignature(buildCalendar()) });   // どの設定で作ったかを覚えておく
   renderShift();
 }
 
@@ -1646,6 +1649,18 @@ function renderShift() {
   } else if (!sh) {
     alerts.push('<div class="alert info">まだシフトを作成していません。希望休を入力してから「この期間のシフトを自動作成」を押してください。</div>');
   } else {
+    // 設定を変えたのにシフトを作り直していないと、人数が合わずに警告だらけになる
+    if (sh.slotSig && sh.slotSig !== slotSignature(cal)) {
+      const wasN = sh.slotSig.split(',').map(Number);
+      const nowN = cal.map(function (c) { return c.need; });
+      const sum = function (a) { return a.reduce(function (x, y) { return x + y; }, 0); };
+      const one = function (a) { return a.every(function (n) { return n === a[0]; }) ? a[0] + '人' : null; };
+      alerts.push('<div class="alert warn"><b>このシフトは、いまと違う設定のときに作ったものです。</b><br />'
+        + '作ったときは ' + (one(wasN) ? '1日 ' + one(wasN) : 'のべ ' + sum(wasN) + '人')
+        + '、いまの設定は ' + (one(nowN) ? '1日 ' + one(nowN) : 'のべ ' + sum(nowN) + '人') + 'です。'
+        + '下に出ている「必要人数より多い日／足りない日」はそのためです。'
+        + '<button class="btn sm" style="margin-left:8px" onclick="doGenerate()">いまの設定で作り直す</button></div>');
+    }
     const w = liveWarnings(cal, staff, sh);
     alerts.push(w.length
       ? '<div class="alert warn"><b>確認してください</b><ul>' + w.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul></div>'
@@ -1797,7 +1812,14 @@ function liveWarnings(cal, staff, sh) {
     if (n > c.need) over.push(mdLabel(c) + ' ' + n + '/' + c.need + '人');
   });
   if (short.length) w.push('人員が足りない日：' + short.join('、'));
-  if (over.length) w.push('必要人数より多い日：' + over.join('、'));
+  if (over.length) {
+    w.push('必要人数より多い日：' + over.join('、'));
+    // 半分以上の日で多いなら、設定を変えたあと作り直していない可能性が高い
+    if (!sh.slotSig && over.length >= cal.filter(function (c) { return !c.closed; }).length / 2) {
+      w.push('多い日が続いています。設定を変えたあとにシフトを作り直していないかもしれません。'
+        + '「この期間のシフトを自動作成」を押すと、いまの設定で作り直します。');
+    }
+  }
 
   staff.forEach(u => {
     const req = getReq(u.id);
@@ -2387,7 +2409,8 @@ function generateAll() {
       const res = generate(20240101);
       const data = {};
       Object.keys(res.assign).forEach(function (k) { if (res.assign[k].length) data[k] = res.assign[k]; });
-      setShift({ days: data, pat: res.pat, generatedAt: new Date().toISOString() });
+      setShift({ days: data, pat: res.pat, generatedAt: new Date().toISOString(),
+        slotSig: slotSignature(buildCalendar()) });   // どの設定で作ったかを覚えておく
       done.push(st.name + (res.warnings.length ? '（要確認）' : ''));
     });
   });
