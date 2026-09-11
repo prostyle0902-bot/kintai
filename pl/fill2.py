@@ -564,7 +564,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
           f"{sum(v for _t, r, m, v, _s, _n in tanaoroshi.rows() if r == '期首棚卸し' and m == '9月'):,}",
           "（9月＝21期の期首の合計）／8月の実地",
           "・".join(sorted({t for t, _r, m, *_ in tanaoroshi.rows() if m == "8月"})),
-          "／★韓国酒場ハナだけ8月が空（棚卸表がSAに未共有）")
+          ("／★8月が空のタブ " + "・".join(sorted(tanaoroshi.NO_AUG))
+           + "（棚卸表がSAに未共有）") if tanaoroshi.NO_AUG else "／8月は全タブ入った")
 
     # ===== 売上 =====
     F_SALES = PatternFill("solid", fgColor="FDE9D9")
