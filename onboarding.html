@@ -114,6 +114,7 @@
   .badge.retired { background: #f0efeb; color: #8a8a86; }
   .badge.warn { background: #FFF3E0; color: #7a4d10; }
   .muted { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+  .link { color: var(--accent); word-break: break-all; }
 
   .done-pin { font-size: 44px; font-weight: 600; letter-spacing: .22em; text-align: center;
     color: var(--accent); font-variant-numeric: tabular-nums; margin: .5rem 0 .25rem; }
@@ -234,6 +235,13 @@ const SITES = [
   { id:'s_honsha',      grp:'業務課', name:'本社',             dept:'本社',
     locs:[{name:'本社',       lat:35.8580, lng:140.5625, radius:300}], start:'07:00', end:'18:00' },
 ];
+
+/* 打刻アプリのURL。本人に渡す案内に載せる */
+const APP_URLS = {
+  part:  'https://prostyle0902-bot.github.io/kintai/kintai_part.html',
+  staff: 'https://prostyle0902-bot.github.io/kintai/index.html',
+};
+function appUrl(kind) { return kind === 'staff' ? APP_URLS.staff : APP_URLS.part; }
 
 /* シフトに入らない社員の所属（勤怠アプリの表示だけに使う） */
 const STAFF_DEPTS = ['業務課', '飲食事業部', 'バックオフィス'];
@@ -678,6 +686,11 @@ function doneHtml(rec) {
     + '<div class="done-pin">' + esc(rec.pin) + '</div>'
     + '<div class="muted" style="text-align:center;margin-bottom:1.5rem">'
     + (rec._created ? 'この番号を本人にお伝えください' : 'PINは変わっていません') + '</div>'
+    + '<div class="card-title">打刻するところ</div>'
+    + '<div class="muted" style="margin-bottom:1.25rem">'
+    + '<a class="link" href="' + esc(appUrl(rec.kind)) + '" target="_blank" rel="noopener">'
+    + esc(appUrl(rec.kind)) + '</a><br />'
+    + 'このURLとPINを本人にお伝えください。下のボタンで、そのまま送れる文面をコピーできます。</div>'
     + '<div class="card-title">反映されたところ</div><ul class="done-list">'
     + '<li>' + (rec.kind === 'staff' ? '勤怠（index.html）' : 'PA勤怠（kintai_part.html）')
     + ' … 「' + esc(rec.dept) + '」で打刻できます</li>';
@@ -708,19 +721,29 @@ function doneHtml(rec) {
   return h;
 }
 
+/* 本人に送る案内。LINEやメールにそのまま貼れる形にする。
+   空の項目（勤務先が未定など）だけを落とし、区切りの空行は残す。 */
 function guideText(rec) {
   const sids = storeIdsOf(rec);
-  return [
+  const lines = [
     rec.name + ' さん',
     '',
     '勤怠アプリのご案内です。',
+    '',
+    '▼ 打刻はこちらから',
+    appUrl(rec.kind),
+    '',
     '　PIN（4桁）：' + rec.pin,
     '　所属：' + rec.dept,
-    sids.length ? '　勤務先：' + sids.map(siteName).join('・') : '',
+    sids.length ? '　勤務先：' + sids.map(siteName).join('・') : null,
     '',
     '出勤したら「出勤」、帰るときに「退勤」を押してください。',
     'PINは他の方に教えないようお願いします。',
-  ].filter(function (x) { return x !== ''; }).join('\n');
+    '',
+    '※ スマホでリンクを開いて、ホーム画面に追加しておくと、',
+    '　 次回からアプリのように使えます。',
+  ];
+  return lines.filter(function (x) { return x !== null; }).join('\n');
 }
 function copyGuide() {
   const t = guideText(lastDone);
