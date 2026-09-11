@@ -35,6 +35,26 @@
   .logo-title { font-size: 19px; font-weight: 600; color: var(--text-primary); letter-spacing: .06em; }
   .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
 
+  /* ログイン画面 */
+  #gate { position: fixed; inset: 0; background: var(--bg); z-index: 50;
+          display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #gate .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+                padding: 28px 24px; width: 100%; max-width: 360px;
+                display: flex; flex-direction: column; gap: 14px; }
+  #gate .lock-logo { display: flex; align-items: center; justify-content: center; gap: 8px;
+                     color: var(--accent); margin-bottom: 2px; }
+  #gate .lock-logo svg { display: block; }
+  #gate h2 { font-size: 15px; margin: 0; text-align: center; font-weight: 600; }
+  #gate label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+  #gate input { width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 16px;
+                border: 1px solid var(--border-md); border-radius: var(--radius-md);
+                background: var(--surface); color: var(--text-primary); }
+  #gate .btn { width: 100%; padding: 12px; font-size: 15px; }
+  #gate .err { font-size: 13px; color: var(--text-danger); min-height: 1.2em; text-align: center; }
+  #gate .keep { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-secondary); }
+  #gate .keep input { width: auto; }
+  .who { font-size: 12px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 8px; }
+
     /* Prostyle ロゴ（ブランド色 #1778BC） */
     .logo-row { display: flex; align-items: center; gap: 11px; }
     .logo-lockup { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); }
@@ -143,6 +163,24 @@
 </style>
 </head>
 <body>
+<div id="gate">
+  <form class="card" id="gate-form" autocomplete="on">
+    <div class="lock-logo"><svg style="height:24px;width:auto" viewBox="217.9 106.5 404.2 249.7" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path transform="matrix(1,0,0,-1,604.5645,185.522)" d="M0 0C-7.741 28.07-62.489 37.399-122.248 20.83-182.007 4.266-224.1-31.936-216.327-60.033-208.522-88.114-153.773-97.463-94.004-80.857-34.277-64.293 7.784-28.092 0 0M-203.122 70.849C-175.742 76.212-149.101 78.743-124.379 78.743-48.895 78.743 8.807 55.034 16.485 15.715 26.736-36.534-54.96-96.509-166.019-118.293-185.561-122.111-204.715-124.495-223.077-125.55V-170.553C-397.164-146.179-386.49-51.954-386.49-51.954-384.159-2.61-306.355 50.583-203.122 70.849" fill="currentColor"/></svg><svg style="height:15px;width:auto" viewBox="84.4 377.2 670.7 99.5" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path transform="matrix(1,0,0,-1,182.0894,413.61909)" d="M0 0C-1.72-4.988-5.01-9.26-9.852-12.761-14.714-16.284-19.628-18.035-24.617-18.035H-60.614L-70.39-44.95H-97.317L-70.866 28.645H-43.95L-57.281-8.965H-34.827C-31.769-8.965-29.69-7.467-28.646-4.504L-18.858 22.57C-18.669 23.034-18.574 23.53-18.574 24.005-18.574 26.02-19.628 27.031-21.728 27.031H-80.189C-79.24 29.573-77.552 31.714-75.157 33.465-72.753 35.216-70.348 36.103-67.944 36.103H-4.895C-1.055 36.103 1.981 35.016 4.239 32.864 6.496 30.67 7.635 27.865 7.635 24.406 7.635 22.381 7.255 20.303 6.476 18.193Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,225.7319,422.58399)" d="M0 0C-2.489 0-4.937-.865-7.341-2.584-9.724-4.324-11.349-6.423-12.245-8.933H11.801C8.458-13.152 6.771-17.223 6.771-21.167 6.771-24.236 7.784-26.726 9.798-28.645 11.801-30.565 14.501-31.535 17.855-31.535 22.18-31.535 26.42-29.995 30.596-26.926 34.762-23.847 37.672-20.103 39.308-15.704 39.972-13.879 40.321-12.087 40.321-10.367 40.321-7.299 39.308-4.81 37.293-2.88 35.269-.949 32.579 0 29.235 0ZM-22.16-35.985H-49.086L-35.987 0H-9.06Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,325.9687,449.64649)" d="M0 0 6.466 17.992H-20.46L-27.073 0ZM28.646 4.598C27.285 .854 24.838-2.321 21.221-4.979 17.625-7.604 13.954-8.923 10.209-8.923H-43.769C-46.648-8.923-48.958-8.111-50.688-6.476-52.417-4.853-53.283-2.7-53.283 0-53.283 1.434-52.977 2.974-52.417 4.598L-49.096 13.531C-47.756 17.275-45.288 20.471-41.691 23.107-38.084 25.734-34.425 27.062-30.67 27.062H23.309C26.199 27.062 28.477 26.239 30.165 24.605 31.831 22.992 32.674 20.84 32.674 18.13 32.674 16.695 32.389 15.155 31.81 13.531Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,454.5459,422.58399)" d="M0 0C-.865-2.541-2.489-4.683-4.915-6.434-7.31-8.195-9.756-9.07-12.234-9.07H-39.161L-22.043-35.985H-89.553C-91.663-35.985-92.718-34.974-92.718-32.959-92.718-31.535-92.021-30.196-90.629-28.941-89.237-27.686-87.771-27.062-86.242-27.062H-63.777L-80.905 0Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,528.4268,422.58399)" d="M0 0C-.886-2.541-2.51-4.683-4.894-6.434-7.299-8.195-9.756-9.07-12.245-9.07H-21.178L-27.802-27.062H-23.34C-21.22-27.062-20.166-28.034-20.166-29.942-20.166-31.377-20.852-32.759-22.18-34.045-23.52-35.342-24.964-35.985-26.482-35.985H-58.039L-48.241-9.07H-66.234C-65.265-6.571-63.587-4.451-61.182-2.721-58.788-.98-56.373-.127-53.916-.127-51.469-.127-49.085 .738-46.723 2.479-44.371 4.209-42.725 6.317-41.755 8.839L-33.423 31.483C-32.073 35.248-29.594 38.454-25.987 41.102-22.401 43.727-18.783 45.067-15.135 45.067H-1.592L-17.993 0Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,600.7158,476.5732)" d="M0 0H-31.536C-33.666 0-34.711 1.012-34.711 3.017-34.711 4.473-34.004 5.832-32.602 7.13-31.22 8.416-29.764 9.08-28.213 9.08H-23.763L-17.276 27.063C-18.226 24.521-19.902 22.391-22.233 20.63-24.597 18.868-26.969 18.004-29.374 18.004H-60.888C-63.788 18.004-66.077 18.815-67.816 20.451-69.536 22.074-70.401 24.227-70.401 26.927-70.401 28.36-70.116 29.9-69.536 31.524L-61.341 53.989H-34.394L-44.191 27.063H-17.129L-7.341 53.989H19.584Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,649.6738,458.5693)" d="M0 0H-31.503L-6.919 67.521C-5.537 71.244-3.091 74.439 .506 77.087 4.113 79.712 7.741 81.053 11.4 81.053H24.911L-1.287 9.06H3.322C5.337 9.06 6.35 8.1 6.35 6.19 6.35 4.641 5.664 3.227 4.345 1.94 2.984 .644 1.54 0 0 0" fill="currentColor"/><path transform="matrix(1,0,0,-1,751.0508,445.0488)" d="M0 0H-45.057C-44.086 2.542-42.41 4.693-40.005 6.444-37.601 8.194-35.216 9.07-32.822 9.07H-23.763L-22.17 13.395H-49.096L-55.72-4.461H-10.652C-8.543-4.461-7.479-5.474-7.479-7.478-7.479-9.018-8.164-10.409-9.557-11.644-10.969-12.898-12.425-13.521-13.954-13.521H-72.415C-75.273-13.521-77.594-12.709-79.323-11.073-81.043-9.45-81.907-7.298-81.907-4.598-81.907-3.164-81.611-1.624-81.043 0L-77.731 8.934C-76.381 12.678-73.934 15.873-70.327 18.51-66.72 21.137-63.071 22.465-59.316 22.465H-5.337C-2.437 22.465-.169 21.642 1.519 20.008 3.185 18.395 4.039 16.285 4.039 13.679 4.039 12.149 3.744 10.558 3.174 8.934Z" fill="currentColor"/></svg></div>
+    <h2>入社登録アプリ</h2>
+    <div>
+      <label for="gate-id">ID</label>
+      <input type="text" id="gate-id" name="username" autocomplete="username"
+             autocapitalize="off" autocorrect="off" spellcheck="false" />
+    </div>
+    <div>
+      <label for="gate-pw">パスワード</label>
+      <input type="password" id="gate-pw" name="password" autocomplete="current-password" />
+    </div>
+    <label class="keep"><input type="checkbox" id="gate-keep" checked />この端末では次回から省く</label>
+    <button type="submit" class="btn primary">入る</button>
+    <div class="err" id="gate-err"></div>
+  </form>
+</div>
 <div class="app">
 
   <div class="head">
@@ -155,6 +193,7 @@
       <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-11b</span></div>
     </div>
     <div class="inline">
+      <span class="who" id="who"></span>
       <span class="chip-state" id="state-chip">読込中…</span>
       <button class="btn sm ghost" onclick="reload(true)">最新を読み込む</button>
     </div>
@@ -1564,7 +1603,93 @@ function showTab(id) {
 
 function renderAll() { renderNew(); renderList(); renderSetup(); }
 
-reload();
+
+/* =========================================================
+   ログイン（この画面を開ける人を限る）
+
+   パスワードそのものは置かず、照合用に変換した値だけを持つ。
+   ソースを見てもパスワードは読めない。
+   ただし、このカギはブラウザの中にあるので、本気で外そうとする人は
+   外せる。身内の誤操作・のぞき見を防ぐためのもの。
+   ========================================================= */
+const GATE_SALT = 'prostyle-onboarding-2026';
+const GATE_LS   = 'prostyle_onboarding_login';
+const GATE_DAYS = 14;   // 「次回から省く」を選んだとき、覚えておく日数
+
+const ACCOUNTS = [
+  { id: 'sakae', name: '飯田栄（社長）', hash: 'fc055247aface0e39613adda05fa85b8e4167c583f41a364ab22653b2999d906' },
+  { id: 'akiko', name: '花見朗子', hash: 'ff96ae88e522c3af7d769298c3ed4a2d557e87857c651c4e05f75f9a8fea2cd7' },
+  { id: 'junko', name: '飯田純子', hash: '700457fa44444538e3b6789422e23013d47175353cef4f88fa22cf16636691fc' },
+];
+
+async function gateHash(id, pw) {
+  const data = new TextEncoder().encode(id + ':' + pw + ':' + GATE_SALT);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+function gateSession() {
+  try {
+    const o = JSON.parse(localStorage.getItem(GATE_LS) || 'null');
+    if (o && o.name && o.until > Date.now()) return o;
+  } catch (e) { /* 壊れていたら入り直してもらう */ }
+  return null;
+}
+
+function gateLogout() {
+  try { localStorage.removeItem(GATE_LS); } catch (e) {}
+  location.reload();
+}
+
+function startApp(who) {
+  CFG.userName = who.name;
+  saveCfg();
+  const g = document.getElementById('gate');
+  if (g) g.remove();
+  const chip = document.getElementById('who');
+  if (chip) {
+    chip.innerHTML = esc(who.name) + ' <button class="btn sm ghost" onclick="gateLogout()">ログアウト</button>';
+  }
+  reload();
+}
+
+(function () {
+  const saved = gateSession();
+  if (saved) { startApp(saved); return; }
+
+  const form = document.getElementById('gate-form');
+  const err  = document.getElementById('gate-err');
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const id = document.getElementById('gate-id').value.trim().toLowerCase();
+    const pw = document.getElementById('gate-pw').value;
+    err.textContent = '';
+    if (!id || !pw) { err.textContent = 'IDとパスワードを入れてください'; return; }
+    if (!window.crypto || !crypto.subtle) {
+      err.textContent = 'この画面は https で開いてください'; return;
+    }
+    let h;
+    try { h = await gateHash(id, pw); }
+    catch (e) { err.textContent = '確かめられませんでした'; return; }
+
+    const hit = ACCOUNTS.find(function (a) { return a.id === id && a.hash === h; });
+    if (!hit) {
+      err.textContent = 'IDかパスワードが違います';
+      document.getElementById('gate-pw').value = '';
+      return;
+    }
+    const keep = document.getElementById('gate-keep').checked;
+    const days = keep ? GATE_DAYS : 0.5;
+    try {
+      localStorage.setItem(GATE_LS, JSON.stringify({
+        id: hit.id, name: hit.name, until: Date.now() + days * 86400000,
+      }));
+    } catch (e) { /* 覚えられなくても、この回は使える */ }
+    startApp(hit);
+  });
+  document.getElementById('gate-id').focus();
+})();
 </script>
 </body>
 </html>
