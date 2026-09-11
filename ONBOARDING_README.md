@@ -6,7 +6,7 @@
 
 | 直していた場所 | 何を足していたか |
 | --- | --- |
-| `kintai_part.html`（PA勤怠） | PIN・氏名・所属・打刻できる場所 |
+| `kintai-pa`（PA勤怠） | PIN・氏名・所属・打刻できる場所 |
 | `shift.html`（シフト作成） | 配属する現場のスタッフ一覧 |
 | `shift.html` の `PART_TIME_STAFF` | 出勤簿（給与）へ転記する人 |
 | 給与一覧のスプレッドシート | 出勤簿シートと、給与一覧表の行 |
@@ -28,7 +28,7 @@
               ▼                ▼                ▼
       ┌────────────────┐ ┌─────────────┐ ┌──────────────┐
       │ PA勤怠          │ │ 勤怠         │ │ シフト作成    │
-      │kintai_part.html│ │ index.html  │ │ shift.html   │
+      │  kintai-pa   │ │ index.html  │ │ shift.html   │
       │ パートの打刻    │ │ 社員の打刻   │ │ 現場へ配属    │
       └────────────────┘ └─────────────┘ └──────────────┘
                                               │
@@ -48,7 +48,7 @@
 | アプリ | URL |
 | --- | --- |
 | **入社登録** | https://prostyle0902-bot.github.io/kintai/onboarding.html |
-| PA勤怠（パート・アルバイト） | https://prostyle0902-bot.github.io/kintai/kintai_part.html |
+| PA勤怠（パート・アルバイト） | https://prostyle0902-bot.github.io/kintai-pa/ |
 | 勤怠（社員） | https://prostyle0902-bot.github.io/kintai/index.html |
 | シフト作成 | https://prostyle0902-bot.github.io/kintai/shift.html |
 
@@ -139,7 +139,7 @@ PA勤怠・勤怠・シフト作成を一度読み込み直せば、名簿を読
 勤怠アプリのご案内です。
 
 ▼ 打刻はこちらから
-https://prostyle0902-bot.github.io/kintai/kintai_part.html
+https://prostyle0902-bot.github.io/kintai-pa/
 
 　PIN（4桁）：7788
 　所属：焼きたて屋

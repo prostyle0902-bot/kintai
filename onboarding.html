@@ -191,7 +191,7 @@
 /* =========================================================
    Prostyle 入社登録
    新しく入る人をここで1回登録すると、共通スタッフ名簿に入り、
-   PA勤怠（kintai_part.html）・勤怠（index.html）・シフト作成（shift.html）が
+   PA勤怠（kintai-pa）・勤怠（index.html）・シフト作成（shift.html）が
    その名簿を読んで自動で反映します。
    ========================================================= */
 
@@ -251,7 +251,7 @@ const SITES = [
 
 /* 打刻アプリのURL。本人に渡す案内に載せる */
 const APP_URLS = {
-  part:  'https://prostyle0902-bot.github.io/kintai/kintai_part.html',
+  part:  'https://prostyle0902-bot.github.io/kintai-pa/',
   staff: 'https://prostyle0902-bot.github.io/kintai/index.html',
 };
 function appUrl(kind) { return kind === 'staff' ? APP_URLS.staff : APP_URLS.part; }
@@ -528,7 +528,7 @@ function renderNew() {
     + '<span class="chip' + (F.kind === 'staff' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'staff\')">社員</span>'
     + '</div>'
     + '<div class="hint">' + (F.kind === 'part'
-        ? 'PA勤怠（kintai_part.html）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
+        ? 'PA勤怠（kintai-pa）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
     + '<div class="field"><label>入社日</label>'
     + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setF(\'joinedAt\',this.value)" /></div>'
     + '</div>'
@@ -761,7 +761,7 @@ function doneHtml(rec) {
     + esc(appUrl(rec.kind)) + '</a><br />'
     + 'このURLとPINを本人にお伝えください。下のボタンで、そのまま送れる文面をコピーできます。</div>'
     + '<div class="card-title">反映されたところ</div><ul class="done-list">'
-    + '<li>' + (rec.kind === 'staff' ? '勤怠（index.html）' : 'PA勤怠（kintai_part.html）')
+    + '<li>' + (rec.kind === 'staff' ? '勤怠（index.html）' : 'PA勤怠（kintai-pa）')
     + ' … 「' + esc(rec.dept) + '」で打刻できます</li>';
   if (sids.length) {
     h += '<li>シフト作成 … ' + esc(sids.map(siteName).join('・')) + ' のスタッフに「' + esc(shiftLabel) + '」で追加</li>';
@@ -1192,7 +1192,7 @@ function renderSetup() {
   h += '<div class="card"><div class="card-title">5. 反映先のアプリ</div>'
     + '<div class="card-desc">登録した内容は、各アプリを開いたときに自動で読み込まれます。</div>'
     + '<ul class="done-list">'
-    + '<li>PA勤怠（kintai_part.html）… パート・アルバイトの打刻</li>'
+    + '<li>PA勤怠（kintai-pa）… パート・アルバイトの打刻</li>'
     + '<li>勤怠（index.html）… 社員の打刻</li>'
     + '<li>シフト作成（shift.html）… 配属した現場のスタッフに追加</li>'
     + '</ul></div>';
