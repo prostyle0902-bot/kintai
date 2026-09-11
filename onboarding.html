@@ -304,11 +304,25 @@ function apiPost(body) {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload),
-  }).then(readJson).catch(function (e) {
-    // POSTがだめだったので、読み込みと同じやり方で送り直す
-    const len = jsonpLength(payload);
-    if (len > 7000) throw new Error(e.message + '（内容が大きすぎて送り直せませんでした）');
-    return jsonpCall(apiUrl(), payload);
+  }).then(readJson).catch(function (e1) {
+    // POSTがだめだったので、GETで送り直す。
+    // JSONPではなく fetch を使う。返ってきた中身を読めるので、
+    // だめだったときに何が返ってきたのかを伝えられる。
+    const q = [];
+    Object.keys(payload).forEach(function (k) {
+      const v = payload[k];
+      q.push(k + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : String(v)));
+    });
+    const url = apiUrl() + '?' + q.join('&') + '&t=' + Date.now();
+    if (url.length > 7500) throw new Error(e1.message + '（内容が大きすぎて送り直せませんでした）');
+
+    return fetch(url, { method: 'GET', mode: 'cors' }).then(readJson).catch(function (e2) {
+      // GETもだめなら、最後にJSONPを試す（CORSが効かない環境向け）
+      return jsonpCall(apiUrl(), payload).catch(function (e3) {
+        throw new Error('送れませんでした。POST：' + e1.message
+          + ' ／ GET：' + e2.message + ' ／ JSONP：' + e3.message);
+      });
+    });
   });
 }
 
@@ -671,7 +685,25 @@ async function submitNew() {
     lastDone._created = res.created !== false;
     await reload();
   } catch (e) {
-    alert('登録できませんでした：' + e.message);
+    /* 返事が届かなかっただけで、実は保存できていることがある。
+       そのまま押し直すと二重に登録してしまうので、名簿を読み直して確かめる。 */
+    btn.textContent = '確かめています…';
+    let saved = null;
+    try {
+      await reload();
+      saved = STAFF.find(function (r) { return r.name === rec.name && isActive(r); }) || null;
+    } catch (e2) { /* 読み直せないときは、そのまま知らせる */ }
+
+    if (saved) {
+      lastDone = saved;
+      lastDone._created = true;
+      renderNew();
+      alert('通信は途中で切れましたが、' + saved.name + ' さんは登録できていました。\n\n'
+        + 'そのままお使いいただけます。');
+      return;
+    }
+    alert('登録できませんでした：' + e.message + '\n\n'
+      + '名簿を確かめたところ、保存もされていません。もう一度お試しください。');
     btn.disabled = false; btn.textContent = 'この内容で登録する';
   }
 }
