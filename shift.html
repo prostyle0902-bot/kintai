@@ -132,6 +132,8 @@
     border: 0.5px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface);
     font-family: inherit; color: var(--text-primary); }
   .pat-row input[type=text] { text-align: center; font-weight: 600; }
+  .need-sum { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-md);
+    background: #FFF6E0; color: #92650a; font-size: 12.5px; line-height: 1.8; }
   .dow-need { display: flex; gap: 3px; }
   .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
   .dow-need label span { font-size: 10px; color: var(--text-secondary); }
@@ -502,12 +504,12 @@
           <label>店舗・現場名</label>
           <input type="text" id="st-name" oninput="updateStore('name', this.value)" />
         </div>
-        <div class="field">
-          <label>平日の必要人数</label>
+        <div class="field" id="st-weekday-field">
+          <label id="st-weekday-label">平日の必要人数</label>
           <input type="number" id="st-weekday" min="0" max="20" oninput="updateStore('weekdayStaff', +this.value)" />
         </div>
-        <div class="field">
-          <label>土日の必要人数</label>
+        <div class="field" id="st-weekend-field">
+          <label id="st-weekend-label">土日の必要人数</label>
           <input type="number" id="st-weekend" min="0" max="20" oninput="updateStore('weekendStaff', +this.value)" />
         </div>
         <div class="field">
@@ -2101,6 +2103,17 @@ function renderStore() {
   renderPatterns(st);
   document.getElementById('st-weekday').value = st.weekdayStaff;
   document.getElementById('st-weekend').value = st.weekendStaff;
+  // パターンを使う現場は、この2つの欄では人数が決まらない。触っても効かないことを見せる
+  const patOn = usesPatterns(st);
+  ['weekday', 'weekend'].forEach(function (k) {
+    const f = document.getElementById('st-' + k + '-field');
+    const inp = document.getElementById('st-' + k);
+    const lab = document.getElementById('st-' + k + '-label');
+    inp.disabled = patOn;
+    f.style.opacity = patOn ? '.45' : '';
+    lab.textContent = (k === 'weekday' ? '平日の必要人数' : '土日の必要人数')
+      + (patOn ? '（パターンで決まるため使いません）' : '');
+  });
   document.getElementById('st-maxcons').value = st.maxConsecutive;
   document.getElementById('st-period').value = String(st.periodStartDay);
   document.getElementById('st-period-note').textContent =
@@ -2170,11 +2183,18 @@ function renderPatterns(st) {
       }
       h += '</div>';
     });
-    h += '<div class="muted" style="margin-top:8px">1日に必要な枠：'
-      + DOW.map(function (d, k) {
-          const n = daySlots(st, k === 0 || k === 6, k).length;
-          return d + ' ' + n;
-        }).join('・') + '</div>';
+    // この現場が1日に何人必要になるか。設定と食い違っていないか、ここで確かめられる
+    const perDow = DOW.map(function (d, k) { return daySlots(st, k === 0 || k === 6, k).length; });
+    const same = perDow.every(function (n) { return n === perDow[0]; });
+    const breakdown = st.patterns.map(function (p) {
+      const n = p.byDow.slice();
+      const one = n.every(function (x) { return x === n[0]; });
+      return p.code + (one ? n[0] : '(' + DOW.map(function (d, k) { return d + n[k]; }).join('・') + ')');
+    }).join('・');
+    h += '<div class="need-sum">この設定だと <b>1日 '
+      + (same ? perDow[0] + '人' : DOW.map(function (d, k) { return d + ' ' + perDow[k] + '人'; }).join('・'))
+      + '</b> 必要です（内訳 ' + esc(breakdown) + '）。<br />'
+      + '思っている人数と違うときは、上の「曜日ごとの本数」か、余分なパターンがないかを見てください。</div>';
   } else {
     h += '<div class="muted">この現場は勤務パターンを使いません（下の必要人数で組みます）。</div>';
   }
@@ -2197,7 +2217,9 @@ function addPattern() {
   const st = store();
   const used = st.patterns.map(function (p) { return p.code; });
   const cand = ['○','A','B','C','D','E','●'].find(function (c) { return used.indexOf(c) < 0; }) || '新';
-  st.patterns.push({ code: cand, start: st.startTime, end: st.endTime, weekday: 1, weekend: 1, owners: [] });
+  st.patterns.push({ code: cand, start: st.startTime, end: st.endTime,
+    weekday: 1, weekend: 1, byDow: [1, 1, 1, 1, 1, 1, 1], owners: [] });
+  normalizeStore(st);          // 足りない項目を補ってから描き直す
   saveDB(); renderAll();
 }
 function addOwner(i, name) {
