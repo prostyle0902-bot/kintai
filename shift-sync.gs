@@ -111,6 +111,8 @@ function handle_(p, cb) {
     if (p.action === 'rev') return json_(revOnly_(getSheet_()), cb);
     // 名簿を読むだけなら、待たされないように鍵を取らない
     if (p.action === 'staffList') return json_(staffList_(), cb);
+    // 打刻アプリ向けの軽い名簿。必要な欄だけなので3分の1ほどの大きさになる
+    if (p.action === 'staffPunch') return json_(staffPunch_(), cb);
 
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(20000)) {
@@ -364,6 +366,25 @@ function staffList_() {
   var list = readStaff_(sh, staffHeader_(sh));
   for (var i = 0; i < list.length; i++) delete list[i]._row;
   return { status: 'ok', staffRev: staffRev_(), staff: list };
+}
+
+/* 打刻アプリ（PA勤怠・勤怠）向けの名簿。
+   ログインと打刻に要る欄だけを返す。全部返すと大きくなり、
+   電波の弱いところで読み込みに失敗しやすいため。 */
+function staffPunch_() {
+  var sh = getStaffSheet_();
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i];
+    if (!r.name) continue;
+    out.push({
+      kind: r.kind, status: r.status, pin: r.pin,
+      name: r.name, dept: r.dept, locs: r.locs
+    });
+  }
+  return { status: 'ok', staffRev: staffRev_(), staff: out };
 }
 
 function nowStamp_() {
