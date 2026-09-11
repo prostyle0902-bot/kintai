@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prostyle 入社登録</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="入社登録" />
+<meta name="theme-color" content="#783c14" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTMiIGZpbGw9IiM3ODNjMTQiLz48Y2lyY2xlIGN4PSIyNiIgY3k9IjI0IiByPSI5IiBmaWxsPSIjZmZmZmZmIi8+PHBhdGggZD0iTTEyIDQ4YzAtOCA2LTEzIDE0LTEzczE0IDUgMTQgMTN6IiBmaWxsPSIjZmZmZmZmIi8+PHBhdGggZD0iTTQ4IDI4djE4TTM5IDM3aDE4IiBzdHJva2U9IiMwRjZFNTYiIHN0cm9rZS13aWR0aD0iNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6b68;
+    --text-danger: #a32d2d;
+    --ok: #0F6E56;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --accent: #783c14;
+  }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--bg); color: var(--text-primary);
+    min-height: 100vh; font-size: 14px; -webkit-text-size-adjust: 100%;
+  }
+  .app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .logo-title { font-size: 19px; font-weight: 600; color: var(--accent); letter-spacing: .06em; }
+  .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+
+  .chip-state { font-size: 12px; padding: 4px 12px; border-radius: 20px; background: #efece6; color: var(--text-secondary); }
+  .chip-state.ok  { background: #E1F5EE; color: var(--ok); }
+  .chip-state.err { background: #FAECE7; color: var(--text-danger); }
+  .chip-state.busy{ background: #FFF3E0; color: var(--accent); }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 0.5px solid var(--border-md); margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .tab { padding: 10px 18px; border: none; background: none; font-size: 14px; font-family: inherit;
+    color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: .35rem; }
+  .card-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 1rem; }
+
+  .field { margin-bottom: 1rem; }
+  .field > label { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .field .hint { font-size: 11.5px; color: var(--text-secondary); margin-top: 5px; line-height: 1.6; }
+  .req { color: var(--text-danger); font-size: 11px; margin-left: 4px; }
+
+  input[type=text], input[type=date], input[type=number], input[type=time], select, textarea {
+    width: 100%; padding: 9px 11px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    background: var(--surface); font-size: 14px; font-family: inherit; color: var(--text-primary);
+  }
+  textarea { min-height: 64px; resize: vertical; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 1rem; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 1rem; }
+  .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn { padding: 9px 16px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    background: var(--surface); color: var(--text-primary); font-size: 13px; font-family: inherit;
+    cursor: pointer; transition: all .12s; white-space: nowrap; }
+  .btn:hover { background: #f0efeb; }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: #8d4a1c; }
+  .btn.ghost { border-color: var(--border); color: var(--text-secondary); background: transparent; }
+  .btn.danger { color: var(--text-danger); border-color: rgba(163,45,45,.35); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; }
+  .btn.big { padding: 13px 26px; font-size: 15px; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 20px;
+    border: 0.5px solid var(--border-md); background: var(--surface); font-size: 12.5px;
+    cursor: pointer; user-select: none; transition: all .12s; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip.sun.on { background: var(--text-danger); border-color: var(--text-danger); }
+  .chip.sat.on { background: #185FA5; border-color: #185FA5; }
+
+  .site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  .site-btn { padding: 9px 10px; border-radius: var(--radius-md); border: 0.5px solid var(--border-md);
+    background: var(--surface); font-size: 12.5px; font-family: inherit; text-align: left; cursor: pointer; transition: all .12s; }
+  .site-btn small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 2px; }
+  .site-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .site-btn.on small { color: rgba(255,255,255,.75); }
+  .site-grp { font-size: 11.5px; color: var(--text-secondary); margin: .85rem 0 .4rem; letter-spacing: .04em; }
+  .site-grp:first-child { margin-top: 0; }
+
+  .alert { padding: .8rem 1rem; border-radius: var(--radius-md); font-size: 12.5px; line-height: 1.75; margin-bottom: 1rem; }
+  .alert.ok   { background: #E1F5EE; color: #0b4f3e; }
+  .alert.warn { background: #FFF3E0; color: #6b4415; }
+  .alert.err  { background: #FAECE7; color: #7d2323; }
+  .alert.info { background: #EEF2F7; color: #2a3f56; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 8px 10px; border-bottom: 0.5px solid var(--border); text-align: left; vertical-align: middle; }
+  th { font-weight: 600; color: var(--text-secondary); font-size: 11.5px; white-space: nowrap; }
+  tbody tr:hover { background: #faf9f6; }
+  td.pin { font-variant-numeric: tabular-nums; letter-spacing: .12em; }
+  .table-wrap { overflow-x: auto; }
+  .badge { display: inline-block; font-size: 10.5px; padding: 2px 9px; border-radius: 20px; background: #efece6; color: var(--text-secondary); }
+  .badge.part { background: #FFF3E0; color: #783c14; }
+  .badge.staff { background: #EEF2F7; color: #2a3f56; }
+  .badge.retired { background: #f0efeb; color: #8a8a86; }
+  .badge.warn { background: #FFF3E0; color: #7a4d10; }
+  .muted { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+  .link { color: var(--accent); word-break: break-all; }
+
+  .done-pin { font-size: 44px; font-weight: 600; letter-spacing: .22em; text-align: center;
+    color: var(--accent); font-variant-numeric: tabular-nums; margin: .5rem 0 .25rem; }
+  .done-list { list-style: none; font-size: 13px; line-height: 2.1; }
+  .done-list li::before { content: '✓'; color: var(--ok); font-weight: 700; margin-right: 9px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
+    align-items: center; justify-content: center; padding: 1rem; z-index: 50; }
+  .overlay.open { display: flex; }
+  .sheet { background: var(--surface); border-radius: var(--radius-lg); padding: 1.5rem;
+    width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; }
+
+  @media (max-width: 560px) {
+    .app { padding: 1rem .75rem 3rem; }
+    .tab { padding: 9px 12px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="head">
+    <div>
+      <div class="logo-title">Prostyle 入社登録</div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します</div>
+    </div>
+    <div class="inline">
+      <span class="chip-state" id="state-chip">読込中…</span>
+      <button class="btn sm ghost" onclick="reload(true)">最新を読み込む</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="p-new"    onclick="showTab('p-new')">入社登録</button>
+    <button class="tab"        data-panel="p-list"   onclick="showTab('p-list')">名簿</button>
+    <button class="tab"        data-panel="p-setup"  onclick="showTab('p-setup')">はじめの取り込み・設定</button>
+  </div>
+
+  <!-- ========== 入社登録 ========== -->
+  <div class="panel active" id="p-new">
+    <div id="new-body"></div>
+  </div>
+
+  <!-- ========== 名簿 ========== -->
+  <div class="panel" id="p-list">
+    <div id="list-body"></div>
+  </div>
+
+  <!-- ========== 取り込み・設定 ========== -->
+  <div class="panel" id="p-setup">
+    <div id="setup-body"></div>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this) closeSheet()">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<script>
+/* =========================================================
+   Prostyle 入社登録
+   新しく入る人をここで1回登録すると、共通スタッフ名簿に入り、
+   PA勤怠（kintai_part.html）・勤怠（index.html）・シフト作成（shift.html）が
+   その名簿を読んで自動で反映します。
+   ========================================================= */
+
+/* ---------- 共通スタッフ名簿の置き場所 ----------
+   シフト作成の共有と同じ Apps Script・同じスプレッドシートを使います。
+   （shift.html の SYNC_API / SYNC_TOKEN と同じ値にしてください） */
+const MASTER_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
+const MASTER_TOKEN = 'prostyle-shift-2026';
+
+const LS_KEY = 'prostyle_onboarding_v1';
+const DOW = ['日','月','火','水','木','金','土'];
+
+/* ---------- 現場マスタ ----------
+   現場を選ぶだけで、勤怠アプリの所属表示・打刻できる場所・既定の勤務時間が決まります。
+   storeId / shiftName は shift.html の ROSTER と、dept は各勤怠アプリの表記と
+   まったく同じにしてあります。ここがずれると別の現場・別人として登録されます。 */
+const SITES = [
+  // --- 飲食事業部 ---
+  { id:'s_sawara13',    grp:'飲食事業部', name:'さわら十三里屋',     dept:'十三里屋',
+    locs:[{name:'十三里屋',   lat:35.8891,    lng:140.4978,    radius:300}], start:'10:00', end:'16:30', startW:'10:00', endW:'17:30' },
+  { id:'s_ryuchan',     grp:'飲食事業部', name:'りゅうちゃん',       dept:'りゅうちゃん',
+    locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'14:00', end:'01:00' },
+  { id:'s_takohai',     grp:'飲食事業部', name:'タコとハイボール',   dept:'タコハイ',
+    locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'14:00', end:'01:00' },
+  { id:'s_hana',        grp:'飲食事業部', name:'韓国酒場ハナ',       dept:'韓国酒場ハナ',
+    locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'14:00', end:'01:00' },
+  { id:'s_momo',        grp:'飲食事業部', name:'もも焼きJAPAN',      dept:'もも焼きJAPAN',
+    locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'14:00', end:'01:00' },
+  { id:'s_bussing',     grp:'飲食事業部', name:'バッシング',         dept:'バッシング',
+    locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'14:00', end:'01:00' },
+  { id:'s_seiso',       grp:'飲食事業部', name:'横丁清掃',           dept:'横丁清掃',
+    locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'07:00', end:'11:00' },
+  { id:'s_yakitate',    grp:'飲食事業部', name:'焼きたて屋鹿島',     dept:'焼きたて屋',
+    locs:[{name:'焼きたて屋', lat:35.9831,    lng:140.6368,    radius:300}], start:'10:00', end:'19:00' },
+  { id:'s_beer',        grp:'飲食事業部', name:'ビアガーデン',       dept:'ビアガーデン',
+    locs:[{name:'ビアガーデン',lat:35.990552, lng:140.638966,  radius:300}], start:'16:00', end:'23:00' },
+  // --- 業務課 ---
+  { id:'s_totalstay',   grp:'業務課', name:'トータルステイ',   dept:'トータルステイ',
+    locs:[{name:'トータルステイ', lat:35.9048, lng:140.6358, radius:300}], start:'07:00', end:'18:00' },
+  { id:'s_ichikawa',    grp:'業務課', name:'市川東病院',       dept:'市川東病院',
+    locs:[{name:'市川東病院', lat:35.7034, lng:139.9589, radius:300}], start:'07:00', end:'12:00' },
+  { id:'s_kaiji',       grp:'業務課', name:'海事・横河',       dept:'海事・横河',
+    locs:[{name:'海事・横河', lat:35.8885, lng:140.6527, radius:300}], start:'07:00', end:'18:00' },
+  { id:'s_chibashoyu',  grp:'業務課', name:'ちば醬油',         dept:'ちば醤油', kyuyoGroup:'ちば醬油',
+    locs:[{name:'ちば醤油',   lat:35.8569, lng:140.5562, radius:300}], start:'07:00', end:'18:00' },
+  { id:'s_yuya',        grp:'業務課', name:'ゆう屋',           dept:'神宮・亀甲堂・ゆう屋',
+    locs:[], start:'07:00', end:'18:00' },
+  { id:'s_jingu',       grp:'業務課', name:'神宮・亀甲堂',     dept:'神宮・亀甲堂・ゆう屋',
+    locs:[], start:'07:00', end:'18:00' },
+  { id:'s_katorijingu', grp:'業務課', name:'香取神宮',         dept:'香取神宮',
+    locs:[{name:'香取神宮',   lat:35.8862, lng:140.5287, radius:300}], start:'07:00', end:'18:00' },
+  { id:'s_nissei',      grp:'業務課', name:'ニッセーデリカ',   dept:'ニッセーデリカ',
+    locs:[], start:'10:00', end:'14:00' },
+  { id:'s_honsha',      grp:'業務課', name:'本社',             dept:'本社',
+    locs:[{name:'本社',       lat:35.8580, lng:140.5625, radius:300}], start:'07:00', end:'18:00' },
+];
+
+/* 打刻アプリのURL。本人に渡す案内に載せる */
+const APP_URLS = {
+  part:  'https://prostyle0902-bot.github.io/kintai/kintai_part.html',
+  staff: 'https://prostyle0902-bot.github.io/kintai/index.html',
+};
+function appUrl(kind) { return kind === 'staff' ? APP_URLS.staff : APP_URLS.part; }
+
+/* シフトに入らない社員の所属（勤怠アプリの表示だけに使う） */
+const STAFF_DEPTS = ['業務課', '飲食事業部', 'バックオフィス'];
+
+function site(id) { return SITES.find(function (s) { return s.id === id; }) || null; }
+function siteName(id) { const s = site(id); return s ? s.name : id; }
+// 給与一覧表の現場グループ名。指定がなければ勤怠アプリの所属と同じ
+function kyuyoGroup(id) { const s = site(id); return s ? (s.kyuyoGroup || s.dept) : ''; }
+
+/* =========================================================
+   共通スタッフ名簿とのやりとり
+   読むのは JSONP（GET）、書くのは POST。shift.html と同じやり方。
+   ========================================================= */
+let jsonpSeq = 0;
+
+function jsonpCall(url, params, waitMs) {
+  return new Promise(function (resolve, reject) {
+    const cb = '_obcb' + (++jsonpSeq);
+    const timer = setTimeout(function () {
+      cleanup();
+      reject(new Error('返事がありませんでした（Googleの画面が返っている可能性があります）'));
+    }, waitMs || 25000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cb];
+      const el = document.getElementById(cb);
+      if (el) el.remove();
+    }
+    window[cb] = function (data) { cleanup(); resolve(data); };
+    const parts = [];
+    Object.keys(params).forEach(function (k) {
+      const v = params[k];
+      parts.push(k + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : v));
+    });
+    parts.push('callback=' + cb);
+    parts.push('t=' + Date.now());
+    const sc = document.createElement('script');
+    sc.id = cb;
+    sc.src = url + '?' + parts.join('&');
+    sc.onerror = function () { cleanup(); reject(new Error('通信エラー')); };
+    document.head.appendChild(sc);
+  });
+}
+
+function apiUrl()   { return (CFG.apiUrl || MASTER_API || '').trim(); }
+function apiToken() { return (CFG.token || MASTER_TOKEN || '').trim(); }
+function apiOn()    { return !!apiUrl(); }
+
+function apiGet(params) {
+  return jsonpCall(apiUrl(), Object.assign({ token: apiToken() }, params));
+}
+/* 書き込み。
+   ふつうは POST で送るが、Apps Script は環境によって POST に
+   Googleの画面（HTML）を返してくることがある。そのときは、
+   読み込みで確実に通っている JSONP（GET）で送り直す。
+   Apps Script 側は送られ方を問わず同じように処理する。 */
+function apiPost(body) {
+  const payload = Object.assign({ token: apiToken(), by: CFG.userName || '' }, body);
+  return fetch(apiUrl(), {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  }).then(readJson).catch(function (e) {
+    // POSTがだめだったので、読み込みと同じやり方で送り直す
+    const len = jsonpLength(payload);
+    if (len > 7000) throw new Error(e.message + '（内容が大きすぎて送り直せませんでした）');
+    return jsonpCall(apiUrl(), payload);
+  });
+}
+
+// JSONPで送るときの、おおよそのURLの長さ
+function jsonpLength(params) {
+  let n = 0;
+  Object.keys(params).forEach(function (k) {
+    const v = params[k];
+    n += k.length + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : String(v)).length + 2;
+  });
+  return n;
+}
+
+/* Apps Script は、許可がまだのときや設定が合っていないときに、
+   JSONではなくエラーのHTMLページを返す。そのまま JSON として読むと
+   「Unexpected token '<'」という分かりにくい文言になるので、言い換える。 */
+function readJson(r) {
+  return r.text().then(function (t) {
+    try { return JSON.parse(t); } catch (e) {
+      if (/^\s*</.test(t)) {
+        // Googleの画面が返ってきている。多いのは次の2つ
+        const gone = /ファイルを開くことができません|Sorry, unable to open the file/.test(t);
+        throw new Error(gone
+          ? 'このURLのデプロイが見つかりません。Apps Script で「デプロイ → デプロイを管理」を開き、'
+            + 'いまのウェブアプリのURLをコピーして、「はじめの取り込み・設定」タブに貼り直してください。'
+          : 'Apps Script から返事が返りませんでした。デプロイのURLが変わったか、'
+            + '許可がまだの可能性があります。「はじめの取り込み・設定」タブの'
+            + '「つなぎ先を確かめる」で確認してください。');
+      }
+      throw new Error('返事の内容が読めませんでした：' + t.slice(0, 80));
+    }
+  });
+}
+
+/* =========================================================
+   この端末の設定と、読み込んだ名簿
+   ========================================================= */
+let CFG = loadCfg();
+let STAFF = [];          // 共通スタッフ名簿
+let lastDone = null;     // 直前に登録した人（完了画面に出す）
+
+function loadCfg() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return Object.assign({ apiUrl: '', token: '', userName: '' }, JSON.parse(raw));
+  } catch (e) { /* 壊れていたら初期値 */ }
+  return { apiUrl: '', token: '', userName: '' };
+}
+function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
+
+function setState(cls, text) {
+  const el = document.getElementById('state-chip');
+  el.className = 'chip-state ' + cls;
+  el.textContent = text;
+}
+
+async function reload(showAlert) {
+  if (!apiOn()) {
+    setState('err', '未設定');
+    if (showAlert) alert('「はじめの取り込み・設定」タブで、共有用のURLを入れてください。');
+    renderAll();
+    return;
+  }
+  setState('busy', '読込中…');
+  try {
+    const res = await apiGet({ action: 'staffList' });
+    if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
+    STAFF = res.staff || [];
+    setState('ok', '名簿 ' + STAFF.filter(isActive).length + '名');
+    if (showAlert) alert('最新の名簿を読み込みました。');
+  } catch (e) {
+    setState('err', '読込できず：' + e.message);
+    if (showAlert) alert('読み込めませんでした：' + e.message);
+  }
+  renderAll();
+}
+
+function isActive(r) { return r.status !== 'retired'; }
+function storeIdsOf(r) { return String(r.storeIds || '').split(',').filter(Boolean); }
+
+/* =========================================================
+   入社登録の入力内容
+   ========================================================= */
+function blankForm() {
+  const t = new Date();
+  const today = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+  return {
+    id: '', kind: 'part', name: '', kana: '', joinedAt: today,
+    storeIds: [], dept: '', pin: '', pinAuto: true,
+    kyuyo: true, noLoc: false,
+    days: [0,1,2,3,4,5,6], holidayOk: true,
+    timeMode: 'default',
+    startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
+    targetDays: 0, maxDays: 0, maxPerWeek: 0,
+    payKind: 'hourly', payRate: 0, commuteKind: 'none', commute: 0,
+    shiftName: '', kyuyoName: '', note: '',
+  };
+}
+let F = blankForm();
+
+// 現場を選び直したとき、所属表示と既定の勤務時間を入れ直す
+function syncFromSites() {
+  const first = F.storeIds.length ? site(F.storeIds[0]) : null;
+  if (first) {
+    if (!F.dept || SITES.some(function (s) { return s.dept === F.dept; })) F.dept = first.dept;
+    if (F.timeMode === 'default') {
+      F.startTime = first.start; F.endTime = first.end;
+      F.startTimeWeekend = first.startW || first.start;
+      F.endTimeWeekend = first.endW || first.end;
+    }
+  }
+}
+
+// 選んだ現場から、打刻できる場所をまとめる（同じ場所は1つに）
+function locsFromSites() {
+  if (F.noLoc) return [];
+  const out = [];
+  F.storeIds.forEach(function (id) {
+    const s = site(id);
+    if (!s) return;
+    (s.locs || []).forEach(function (l) {
+      if (!out.some(function (x) { return x.name === l.name; })) out.push(l);
+    });
+  });
+  return out;
+}
+
+function toggleSite(id) {
+  const i = F.storeIds.indexOf(id);
+  if (i >= 0) F.storeIds.splice(i, 1); else F.storeIds.push(id);
+  syncFromSites();
+  renderNew();
+}
+function toggleDay(d) {
+  const i = F.days.indexOf(d);
+  if (i >= 0) F.days.splice(i, 1); else F.days.push(d);
+  F.days.sort();
+  renderNew();
+}
+function setF(k, v) { F[k] = v; }
+function setFRender(k, v) { F[k] = v; renderNew(); }
+
+function renderNew() {
+  const el = document.getElementById('new-body');
+
+  if (lastDone) { el.innerHTML = doneHtml(lastDone); return; }
+
+  if (!apiOn()) {
+    el.innerHTML = '<div class="alert warn"><b>まだ使えません。</b><br />'
+      + '「はじめの取り込み・設定」タブで、共有用のURL（Apps Script のウェブアプリURL）を入れてください。'
+      + 'シフト作成アプリで使っているものと同じURLです。</div>';
+    return;
+  }
+
+  const locs = locsFromSites();
+  const first = F.storeIds.length ? site(F.storeIds[0]) : null;
+
+  let h = '';
+
+  h += '<div class="card"><div class="card-title">この人について</div>'
+    + '<div class="card-desc">氏名と配属する現場を決めれば、あとは自動で入ります。</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>区分<span class="req">必須</span></label>'
+    + '<div class="chip-row">'
+    + '<span class="chip' + (F.kind === 'part' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'part\')">パート・アルバイト</span>'
+    + '<span class="chip' + (F.kind === 'staff' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'staff\')">社員</span>'
+    + '</div>'
+    + '<div class="hint">' + (F.kind === 'part'
+        ? 'PA勤怠（kintai_part.html）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
+    + '<div class="field"><label>入社日</label>'
+    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setF(\'joinedAt\',this.value)" /></div>'
+    + '</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>氏名<span class="req">必須</span></label>'
+    + '<input type="text" id="f-name" value="' + esc(F.name) + '" placeholder="例：佐藤 花子" onchange="setF(\'name\',this.value)" />'
+    + '<div class="hint">勤怠アプリの画面にこのまま出ます。シフト表の名前と揃えたいときは、下の「詳しい設定」で別名を指定できます。</div></div>'
+    + '<div class="field"><label>フリガナ</label>'
+    + '<input type="text" value="' + esc(F.kana) + '" placeholder="例：サトウ ハナコ" onchange="setF(\'kana\',this.value)" /></div>'
+    + '</div></div>';
+
+  // --- 配属する現場 ---
+  h += '<div class="card"><div class="card-title">配属する現場</div>'
+    + '<div class="card-desc">選んだ現場のシフト作成に自動で入ります。掛け持ちの人は複数選んでください。'
+    + '社員でシフトに入らない場合は、何も選ばずに下の「所属の表示」だけ決めてください。</div>';
+  let grp = '';
+  SITES.forEach(function (s) {
+    if (s.grp !== grp) { grp = s.grp; h += '<div class="site-grp">' + esc(grp) + '</div><div class="site-grid">'; }
+    h += '<button type="button" class="site-btn' + (F.storeIds.indexOf(s.id) >= 0 ? ' on' : '') + '"'
+      + ' onclick="toggleSite(\'' + s.id + '\')">' + esc(s.name)
+      + '<small>' + esc(s.start + '〜' + s.end) + '</small></button>';
+    const next = SITES[SITES.indexOf(s) + 1];
+    if (!next || next.grp !== grp) h += '</div>';
+  });
+  h += '<div class="field" style="margin-top:1rem"><label>所属の表示（勤怠アプリのバッジ）</label>'
+    + '<input type="text" value="' + esc(F.dept) + '" placeholder="' + esc(first ? first.dept : '例：業務課')
+    + '" onchange="setF(\'dept\',this.value)" list="dept-list" />'
+    + '<datalist id="dept-list">'
+    + SITES.map(function (s) { return '<option value="' + esc(s.dept) + '">'; }).join('')
+    + STAFF_DEPTS.map(function (d) { return '<option value="' + esc(d) + '">'; }).join('')
+    + '</datalist></div></div>';
+
+  // --- PIN と打刻 ---
+  h += '<div class="card"><div class="card-title">打刻の設定</div>'
+    + '<div class="card-desc">PINは勤怠アプリのログインに使う4桁です。'
+    + '空欄にしておけば、誰とも重ならない番号を自動で作ります。</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>PIN（4桁）</label>'
+    + '<div class="inline"><input type="text" inputmode="numeric" maxlength="4" style="width:110px;letter-spacing:.2em"'
+    + ' value="' + esc(F.pin) + '" placeholder="自動" onchange="setF(\'pin\',this.value.trim())" />'
+    + '<button type="button" class="btn sm ghost" onclick="setFRender(\'pin\',\'\')">自動にする</button></div>'
+    + '<div class="hint">1111・1234 のような番号は自動採番では使いません。</div></div>'
+    + '<div class="field"><label>出勤簿（給与）への転記</label>'
+    + '<div class="chip-row">'
+    + '<span class="chip' + (F.kyuyo ? ' on' : '') + '" onclick="setFRender(\'kyuyo\',true)">転記する</span>'
+    + '<span class="chip' + (!F.kyuyo ? ' on' : '') + '" onclick="setFRender(\'kyuyo\',false)">転記しない</span>'
+    + '</div><div class="hint">シフトを転記したとき、この人の分を出勤簿にも送るかどうかです。</div></div>'
+    + '</div>'
+    + '<div class="field"><label>打刻できる場所</label>'
+    + '<div class="chip-row">'
+    + '<span class="chip' + (!F.noLoc ? ' on' : '') + '" onclick="setFRender(\'noLoc\',false)">選んだ現場でだけ打刻</span>'
+    + '<span class="chip' + (F.noLoc ? ' on' : '') + '" onclick="setFRender(\'noLoc\',true)">場所を問わない</span>'
+    + '</div>'
+    + '<div class="hint">' + (F.noLoc
+        ? 'どこからでも打刻できます（直行直帰や、場所が決まっていない方向け）。'
+        : (locs.length
+            ? '現在の設定：' + esc(locs.map(function (l) { return l.name + '（半径' + l.radius + 'm）'; }).join('、'))
+            : '選んだ現場に場所の登録がないため、どこからでも打刻できます。'))
+    + '</div></div></div>';
+
+  // --- 給与 ---
+  h += '<div class="card"><div class="card-title">給与</div>'
+    + '<div class="card-desc">給与一覧のスプレッドシートに出勤簿を作るときに使います。'
+    + 'まだ決まっていなければ空欄のままでも登録できます（あとから名簿で入れられます）。</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>単価</label><div class="inline">'
+    + '<span class="chip' + (F.payKind === 'hourly' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'hourly\')">時給</span>'
+    + '<span class="chip' + (F.payKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'daily\')">日給</span>'
+    + '<input type="number" min="0" step="1" style="width:120px" value="' + (F.payRate || '')
+    + '" placeholder="例：1200" onchange="setF(\'payRate\',+this.value||0)" /> 円</div>'
+    + '<div class="hint">' + (F.payKind === 'daily' ? '1日いくらで払う方に使います。' : '千葉県の最低賃金を下回っていないか確認してください。') + '</div></div>'
+    + '<div class="field"><label>通勤手当</label><div class="chip-row" style="margin-bottom:8px">'
+    + '<span class="chip' + (F.commuteKind === 'none' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'none\')">なし</span>'
+    + '<span class="chip' + (F.commuteKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'daily\')">出勤1日ごと</span>'
+    + '<span class="chip' + (F.commuteKind === 'monthly' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'monthly\')">月ぎめ</span>'
+    + '</div>'
+    + (F.commuteKind === 'none' ? '<div class="hint">支給しません。</div>'
+        : '<div class="inline"><input type="number" min="0" step="1" style="width:120px" value="' + (F.commute || '')
+          + '" placeholder="例：120" onchange="setF(\'commute\',+this.value||0)" /> 円'
+          + (F.commuteKind === 'daily' ? ' × 出勤日数' : ' /月') + '</div>')
+    + '</div></div></div>';
+
+  // --- 詳しい設定 ---
+  h += '<div class="card"><div class="card-title">シフトの条件</div>'
+    + '<div class="card-desc">あとからシフト作成アプリでも変えられます。分からなければそのままで結構です。</div>'
+    + '<div class="field"><label>勤務できる曜日</label><div class="chip-row">'
+    + DOW.map(function (w, i) {
+        return '<span class="chip ' + (i === 0 ? 'sun' : i === 6 ? 'sat' : '')
+          + (F.days.indexOf(i) >= 0 ? ' on' : '') + '" onclick="toggleDay(' + i + ')">' + w + '</span>';
+      }).join('')
+    + '<span class="chip' + (F.holidayOk ? ' on' : '') + '" onclick="setFRender(\'holidayOk\',' + (!F.holidayOk) + ')">祝</span>'
+    + '</div><div class="hint">「祝」を外すと、祝日には割り当てません。</div></div>'
+    + '<div class="field"><label>勤務時間</label><div class="chip-row">'
+    + '<span class="chip' + (F.timeMode === 'default' ? ' on' : '') + '" onclick="setTimeMode(\'default\')">現場の既定にする</span>'
+    + '<span class="chip' + (F.timeMode === 'custom' ? ' on' : '') + '" onclick="setTimeMode(\'custom\')">この人だけ別にする</span>'
+    + '</div>';
+  if (F.timeMode === 'custom') {
+    h += '<div class="grid2" style="margin-top:.75rem">'
+      + '<div class="field"><label>平日</label><div class="inline">'
+      + '<input type="time" value="' + esc(F.startTime) + '" onchange="setF(\'startTime\',this.value)" style="width:auto" />〜'
+      + '<input type="time" value="' + esc(F.endTime) + '" onchange="setF(\'endTime\',this.value)" style="width:auto" /></div></div>'
+      + '<div class="field"><label>土日祝</label><div class="inline">'
+      + '<input type="time" value="' + esc(F.startTimeWeekend) + '" onchange="setF(\'startTimeWeekend\',this.value)" style="width:auto" />〜'
+      + '<input type="time" value="' + esc(F.endTimeWeekend) + '" onchange="setF(\'endTimeWeekend\',this.value)" style="width:auto" /></div></div>'
+      + '</div>';
+  } else if (first) {
+    h += '<div class="hint">' + esc(first.name) + ' の既定：平日 ' + esc(first.start + '〜' + first.end)
+      + '／土日祝 ' + esc((first.startW || first.start) + '〜' + (first.endW || first.end)) + '</div>';
+  } else {
+    h += '<div class="hint">現場を選ぶと、その現場の既定の時間を使います。</div>';
+  }
+  h += '</div>'
+    + '<div class="grid3">'
+    + '<div class="field"><label>出勤日数の目安</label>'
+    + '<input type="number" min="0" max="31" value="' + F.targetDays + '" onchange="setF(\'targetDays\',+this.value||0)" />'
+    + '<div class="hint">0 なら指定なし</div></div>'
+    + '<div class="field"><label>出勤日数の上限</label>'
+    + '<input type="number" min="0" max="31" value="' + F.maxDays + '" onchange="setF(\'maxDays\',+this.value||0)" /></div>'
+    + '<div class="field"><label>1週間の上限</label>'
+    + '<input type="number" min="0" max="7" value="' + F.maxPerWeek + '" onchange="setF(\'maxPerWeek\',+this.value||0)" /></div>'
+    + '</div></div>';
+
+  // --- 詳しい設定（折りたたみ） ---
+  h += '<div class="card"><div class="card-title">補足（必要なときだけ）</div>'
+    + '<div class="field"><label>シフト表での表記</label>'
+    + '<input type="text" value="' + esc(F.shiftName) + '" placeholder="空欄なら氏名と同じ" onchange="setF(\'shiftName\',this.value)" />'
+    + '<div class="hint">シフト表では通称や旧姓を使う場合に入れてください（例：勤怠は「宮川 玲奈」／シフトは「レナ」）。</div></div>'
+    + '<div class="field"><label>給与一覧での表記</label>'
+    + '<input type="text" value="' + esc(F.kyuyoName) + '" placeholder="空欄なら氏名と同じ" onchange="setF(\'kyuyoName\',this.value)" />'
+    + '<div class="hint">給与一覧の出勤簿シートを、氏名とは別の名前で作っている場合に入れてください。'
+    + '<b>すべての現場に効きます。</b>現場ごとに出勤簿を分けたい場合は、'
+    + 'この欄ではなく別の人として登録してください。</div></div>'
+    + '<div class="field" style="margin-bottom:0"><label>メモ</label>'
+    + '<textarea placeholder="連絡先の担当者、雇用契約の備考など" onchange="setF(\'note\',this.value)">' + esc(F.note) + '</textarea></div>'
+    + '</div>';
+
+  h += '<div class="row-actions">'
+    + '<button class="btn primary big" id="btn-submit" onclick="submitNew()">この内容で登録する</button>'
+    + '<button class="btn ghost" onclick="resetForm()">入力をやり直す</button>'
+    + '</div>'
+    + '<div class="muted" style="margin-top:.85rem">登録すると、共通スタッフ名簿に入ります。'
+    + '各アプリは開いたときにこの名簿を読むので、すでに開いている画面は読み込み直してください。</div>';
+
+  el.innerHTML = h;
+}
+
+function setTimeMode(m) {
+  F.timeMode = m;
+  if (m === 'default') { syncFromSites(); }
+  renderNew();
+}
+function resetForm() { F = blankForm(); lastDone = null; renderNew(); }
+
+async function submitNew() {
+  if (!F.name.trim()) { alert('氏名を入れてください。'); return; }
+  if (F.pin && !/^\d{4}$/.test(F.pin)) { alert('PINは4桁の数字で入れてください。'); return; }
+  if (!F.days.length) { alert('勤務できる曜日を1つ以上選んでください。'); return; }
+
+  const first = F.storeIds.length ? site(F.storeIds[0]) : null;
+  const dept = F.dept || (first ? first.dept : '');
+  if (!dept) { alert('所属の表示を入れてください（勤怠アプリのバッジに出ます）。'); return; }
+
+  const rec = {
+    kind: F.kind, name: F.name.trim(), kana: F.kana.trim(), dept: dept,
+    storeIds: F.storeIds.join(','), shiftName: F.shiftName.trim(),
+    kyuyoName: F.kyuyoName.trim(),
+    payKind: F.payKind === 'daily' ? 'daily' : 'hourly',
+    payRate: F.payRate, commute: F.commuteKind === 'none' ? 0 : F.commute,
+    commuteKind: F.commuteKind,
+    locs: JSON.stringify(locsFromSites()),
+    joinedAt: F.joinedAt, retiredAt: '', status: 'active',
+    kyuyo: !!F.kyuyo, days: F.days.join(','), holidayOk: !!F.holidayOk,
+    startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
+    targetDays: F.targetDays, maxDays: F.maxDays, maxPerWeek: F.maxPerWeek,
+    note: F.note.trim(),
+  };
+  if (F.timeMode === 'custom') {
+    rec.startTime = F.startTime; rec.endTime = F.endTime;
+    rec.startTimeWeekend = F.startTimeWeekend || F.startTime;
+    rec.endTimeWeekend = F.endTimeWeekend || F.endTime;
+  }
+  if (F.pin) rec.pin = F.pin;
+  if (F.id) rec.id = F.id;   // 編集のときは同じ人を書き換える
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true; btn.textContent = '登録中…';
+  try {
+    const res = await apiPost({ action: 'staffSave', rec: rec });
+    if (res.status !== 'ok') throw new Error(res.message || '登録できませんでした');
+    lastDone = res.rec;
+    lastDone._created = res.created !== false;
+    await reload();
+  } catch (e) {
+    alert('登録できませんでした：' + e.message);
+    btn.disabled = false; btn.textContent = 'この内容で登録する';
+  }
+}
+
+function doneHtml(rec) {
+  const sids = storeIdsOf(rec);
+  const shiftLabel = rec.shiftName || rec.name;
+  let h = '<div class="card">'
+    + '<div class="alert ok" style="margin-bottom:1.25rem"><b>' + esc(rec.name) + ' さんを'
+    + (rec._created ? '登録' : '更新') + 'しました。</b></div>'
+    + '<div class="muted" style="text-align:center">' + esc(rec.name) + ' さんのPIN</div>'
+    + '<div class="done-pin">' + esc(rec.pin) + '</div>'
+    + '<div class="muted" style="text-align:center;margin-bottom:1.5rem">'
+    + (rec._created ? 'この番号を本人にお伝えください' : 'PINは変わっていません') + '</div>'
+    + '<div class="card-title">打刻するところ</div>'
+    + '<div class="muted" style="margin-bottom:1.25rem">'
+    + '<a class="link" href="' + esc(appUrl(rec.kind)) + '" target="_blank" rel="noopener">'
+    + esc(appUrl(rec.kind)) + '</a><br />'
+    + 'このURLとPINを本人にお伝えください。下のボタンで、そのまま送れる文面をコピーできます。</div>'
+    + '<div class="card-title">反映されたところ</div><ul class="done-list">'
+    + '<li>' + (rec.kind === 'staff' ? '勤怠（index.html）' : 'PA勤怠（kintai_part.html）')
+    + ' … 「' + esc(rec.dept) + '」で打刻できます</li>';
+  if (sids.length) {
+    h += '<li>シフト作成 … ' + esc(sids.map(siteName).join('・')) + ' のスタッフに「' + esc(shiftLabel) + '」で追加</li>';
+  } else {
+    h += '<li>シフト作成 … 現場を選んでいないため追加していません</li>';
+  }
+  h += '<li>出勤簿（給与）への転記 … ' + (rec.kyuyo ? '対象にしました' : '対象外です') + '</li>';
+  h += '</ul>';
+  if (rec.kyuyo && sids.length) {
+    h += '<div class="alert warn" style="margin-top:1.25rem">'
+      + '<b>給与一覧のスプレッドシートには、まだ作っていません。</b><br />'
+      + 'この人の出勤簿シートと、給与一覧表の行を作るには下のボタンを押してください。'
+      + (rec.payRate ? '' : '<br /><b>単価が入っていません。</b>先に「編集」から時給または日給を入れてください。')
+      + '</div>'
+      + '<div class="row-actions" style="margin-top:.75rem">'
+      + '<button class="btn primary" onclick="openPayroll(\'' + rec.id + '\')">給与一覧にも作る</button></div>';
+  }
+  h += ''
+    + '<div class="alert info" style="margin-top:1.25rem">すでに開いている勤怠アプリ・シフト作成アプリの画面は、'
+    + '一度読み込み直す（再読み込み）と新しい名簿になります。</div>'
+    + '<div class="row-actions">'
+    + '<button class="btn primary" onclick="resetForm()">' + (rec._created ? '続けてもう1人登録する' : '新しく登録する') + '</button>'
+    + '<button class="btn" onclick="copyGuide()">本人に渡す案内をコピー</button>'
+    + '<button class="btn ghost" onclick="lastDone=null;showTab(\'p-list\')">名簿を見る</button>'
+    + '</div></div>';
+  return h;
+}
+
+/* 本人に送る案内。LINEやメールにそのまま貼れる形にする。
+   空の項目（勤務先が未定など）だけを落とし、区切りの空行は残す。 */
+function guideText(rec) {
+  const sids = storeIdsOf(rec);
+  const lines = [
+    rec.name + ' さん',
+    '',
+    '勤怠アプリのご案内です。',
+    '',
+    '▼ 打刻はこちらから',
+    appUrl(rec.kind),
+    '',
+    '　PIN（4桁）：' + rec.pin,
+    '　所属：' + rec.dept,
+    sids.length ? '　勤務先：' + sids.map(siteName).join('・') : null,
+    '',
+    '出勤したら「出勤」、帰るときに「退勤」を押してください。',
+    'PINは他の方に教えないようお願いします。',
+    '',
+    '───────────',
+    'ホーム画面に追加しておくと、次回から',
+    'アプリのように開けて便利です。',
+    '',
+    '【iPhone】',
+    '1. 上のリンクを Safari で開く',
+    '2. 画面下の 共有ボタン（□に↑）を押す',
+    '3.「ホーム画面に追加」を押す',
+    '',
+    '【Android】',
+    '1. 上のリンクを Chrome で開く',
+    '2. 右上の ⋮ を押す',
+    '3.「ホーム画面に追加」を押す',
+  ];
+  return lines.filter(function (x) { return x !== null; }).join('\n');
+}
+function copyGuide() {
+  const t = guideText(lastDone);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(
+      function () { alert('コピーしました。メールやLINEに貼り付けてお渡しください。'); },
+      function () { prompt('この内容をお渡しください', t); });
+  } else { prompt('この内容をお渡しください', t); }
+}
+
+/* =========================================================
+   名簿
+   ========================================================= */
+let listQuery = '';
+let listFilter = 'active';
+
+function renderList() {
+  const el = document.getElementById('list-body');
+  if (!apiOn()) { el.innerHTML = '<div class="alert warn">「はじめの取り込み・設定」タブでURLを入れてください。</div>'; return; }
+
+  const q = listQuery.trim();
+  const rows = STAFF.filter(function (r) {
+    if (listFilter === 'active' && !isActive(r)) return false;
+    if (listFilter === 'retired' && isActive(r)) return false;
+    if (!q) return true;
+    return [r.name, r.kana, r.dept, r.pin, r.shiftName].join(' ').indexOf(q) >= 0
+      || storeIdsOf(r).map(siteName).join(' ').indexOf(q) >= 0;
+  });
+
+  let h = '<div class="card"><div class="inline" style="justify-content:space-between">'
+    + '<div class="inline">'
+    + '<input type="text" value="' + esc(listQuery) + '" placeholder="氏名・現場・PINで探す" style="width:220px"'
+    + ' oninput="listQuery=this.value;renderList()" />'
+    + '<div class="chip-row">'
+    + ['active:在籍', 'retired:退職', 'all:すべて'].map(function (x) {
+        const k = x.split(':')[0], lb = x.split(':')[1];
+        return '<span class="chip' + (listFilter === k ? ' on' : '') + '" onclick="listFilter=\'' + k + '\';renderList()">' + lb + '</span>';
+      }).join('')
+    + '</div></div>'
+    + '<span class="muted">' + rows.length + ' 名</span>'
+    + '</div></div>';
+
+  if (!rows.length) {
+    h += '<div class="alert info">該当する人がいません。'
+      + (STAFF.length ? '' : 'まだ名簿が空です。「はじめの取り込み・設定」タブで、いまの名簿を取り込んでください。') + '</div>';
+    el.innerHTML = h; return;
+  }
+
+  h += '<div class="card" style="padding:.5rem"><div class="table-wrap"><table><thead><tr>'
+    + '<th>氏名</th><th>区分</th><th>PIN</th><th>所属</th><th>シフトの現場</th><th>入社日</th><th></th>'
+    + '</tr></thead><tbody>';
+  rows.forEach(function (r) {
+    const sids = storeIdsOf(r);
+    h += '<tr>'
+      + '<td><b>' + esc(r.name) + '</b>'
+      + (r.shiftName ? '<br /><span class="muted">シフト表：' + esc(r.shiftName) + '</span>' : '')
+      + (r.kana ? '<br /><span class="muted">' + esc(r.kana) + '</span>' : '')
+      + (isActive(r) ? '' : ' <span class="badge retired">退職</span>')
+      + (isActive(r) && r.kyuyo && !(+r.payRate) ? ' <span class="badge warn">単価未設定</span>' : '')
+      + '</td>'
+      + '<td><span class="badge ' + (r.kind === 'staff' ? 'staff' : 'part') + '">'
+      + (r.kind === 'staff' ? '社員' : 'パート') + '</span></td>'
+      + '<td class="pin">' + esc(r.pin) + '</td>'
+      + '<td>' + esc(r.dept) + '</td>'
+      + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
+      + '<td class="muted">' + esc(r.joinedAt || '') + '</td>'
+      + '<td style="text-align:right;white-space:nowrap">'
+      + (isActive(r) && r.kyuyo ? '<button class="btn sm" onclick="openPayroll(\'' + r.id + '\')">給与一覧</button> ' : '')
+      + '<button class="btn sm ghost" onclick="openEdit(\'' + r.id + '\')">編集</button> '
+      + (isActive(r)
+          ? '<button class="btn sm danger" onclick="openRetire(\'' + r.id + '\')">退職</button>'
+          : '<button class="btn sm" onclick="reinstate(\'' + r.id + '\')">復帰</button>')
+      + '</td></tr>';
+  });
+  h += '</tbody></table></div></div>';
+  el.innerHTML = h;
+}
+
+function findRec(id) { return STAFF.find(function (r) { return r.id === id; }) || null; }
+
+// 名簿の1人を、入社登録と同じ入力画面に読み込む
+function openEdit(id) {
+  const r = findRec(id);
+  if (!r) return;
+  F = blankForm();
+  F.id = r.id; F.kind = r.kind || 'part'; F.name = r.name; F.kana = r.kana || '';
+  F.joinedAt = r.joinedAt || F.joinedAt;
+  F.storeIds = storeIdsOf(r); F.dept = r.dept || ''; F.pin = r.pin || '';
+  F.kyuyo = !!r.kyuyo; F.holidayOk = r.holidayOk !== false;
+  F.days = String(r.days || '0,1,2,3,4,5,6').split(',').filter(function (x) { return x !== ''; }).map(Number);
+  if (!F.days.length) F.days = [0,1,2,3,4,5,6];
+  F.shiftName = r.shiftName || ''; F.kyuyoName = r.kyuyoName || ''; F.note = r.note || '';
+  F.payKind = r.payKind === 'daily' ? 'daily' : 'hourly';
+  F.payRate = +r.payRate || 0;
+  F.commute = +r.commute || 0;
+  F.commuteKind = (r.commuteKind === 'daily' || r.commuteKind === 'monthly') ? r.commuteKind : 'none';
+  F.targetDays = +r.targetDays || 0; F.maxDays = +r.maxDays || 0; F.maxPerWeek = +r.maxPerWeek || 0;
+  if (r.startTime || r.endTime) {
+    F.timeMode = 'custom';
+    F.startTime = r.startTime || ''; F.endTime = r.endTime || '';
+    F.startTimeWeekend = r.startTimeWeekend || ''; F.endTimeWeekend = r.endTimeWeekend || '';
+  } else { syncFromSites(); }
+  let locs = [];
+  try { locs = JSON.parse(r.locs || '[]'); } catch (e) { locs = []; }
+  F.noLoc = !locs.length && F.storeIds.some(function (id2) { const s = site(id2); return s && s.locs.length; });
+  lastDone = null;
+  showTab('p-new');
+}
+
+function openRetire(id) {
+  const r = findRec(id);
+  if (!r) return;
+  const t = new Date();
+  const today = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+  openSheet('<div class="card-title">' + esc(r.name) + ' さんを退職にする</div>'
+    + '<div class="card-desc">名簿から消さずに「退職」にします。'
+    + 'PA勤怠・勤怠アプリのPINは使えなくなり、シフト作成でも割り当てなくなります。'
+    + '過去の記録はそのまま残ります。</div>'
+    + '<div class="field"><label>退職日</label>'
+    + '<input type="date" id="retire-date" value="' + today + '" /></div>'
+    + '<div class="row-actions">'
+    + '<button class="btn danger" onclick="doRetire(\'' + r.id + '\')">退職にする</button>'
+    + '<button class="btn ghost" onclick="closeSheet()">やめる</button></div>');
+}
+
+async function doRetire(id) {
+  const d = document.getElementById('retire-date').value;
+  closeSheet();
+  setState('busy', '保存中…');
+  try {
+    const res = await apiPost({ action: 'staffRetire', id: id, retiredAt: d });
+    if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+    await reload();
+  } catch (e) { alert('保存できませんでした：' + e.message); setState('err', e.message); }
+}
+
+async function reinstate(id) {
+  const r = findRec(id);
+  if (!r) return;
+  if (!confirm(r.name + ' さんを在籍に戻します。よろしいですか？')) return;
+  setState('busy', '保存中…');
+  try {
+    const rec = Object.assign({}, r, { status: 'active', retiredAt: '' });
+    const res = await apiPost({ action: 'staffSave', rec: rec });
+    if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+    await reload();
+  } catch (e) { alert('保存できませんでした：' + e.message); setState('err', e.message); }
+}
+
+function openSheet(html) {
+  document.getElementById('sheet').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+}
+function closeSheet() { document.getElementById('overlay').classList.remove('open'); }
+
+/* =========================================================
+   はじめの取り込み
+   いま3つのアプリに直接書かれている名簿を、そのまま共通名簿へ移します。
+   1回だけ行う作業です。すでに名簿にいる人は飛ばすので、押し直しても増えません。
+   ========================================================= */
+
+/* いまPA勤怠・勤怠アプリに登録されている人（PIN・所属・打刻場所はそのまま引き継ぐ） */
+const SEED_MAIN = [
+  { kind:"part", name:"小林メグ", pin:"2824", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", locs:[{"name": "焼きたて屋", "lat": 35.9831, "lng": 140.6368, "radius": 300}], payKind:"hourly", payRate:1094, commute:74, commuteKind:"daily" },
+  { kind:"part", name:"荒宏信", pin:"1409", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", locs:[{"name": "焼きたて屋", "lat": 35.9831, "lng": 140.6368, "radius": 300}], payKind:"hourly", payRate:1114 },
+  { kind:"part", name:"松岡実麻", pin:"5506", dept:"タコハイ", kyuyo:true, storeIds:"s_takohai", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074 },
+  { kind:"part", name:"石井義則", pin:"5012", dept:"バッシング", kyuyo:true, storeIds:"s_beer,s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1100, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"中村利人", pin:"4657", dept:"バッシング", kyuyo:true, storeIds:"s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"山﨑悠人", pin:"3286", dept:"バッシング", kyuyo:true, storeIds:"s_beer,s_bussing", shiftName:"山崎悠人", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1100 },
+  { kind:"part", name:"本田光江", pin:"2679", dept:"バッシング", kyuyo:true, storeIds:"s_bussing", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074 },
+  { kind:"part", name:"橋本桂子", pin:"9935", dept:"横丁清掃", kyuyo:true, storeIds:"s_seiso", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074, commute:11, commuteKind:"daily" },
+  { kind:"part", name:"小金澤登美", pin:"2424", dept:"横丁清掃", kyuyo:true, storeIds:"s_seiso", shiftName:"小金澤登美江", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1074, commute:16, commuteKind:"daily" },
+  { kind:"part", name:"綱代愛", pin:"7912", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", shiftName:"網代愛", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"新河美和", pin:"1520", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"飯塚利恵", pin:"1488", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"栗林里江", pin:"2535", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"篠塚柚紀", pin:"4582", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"篠田麻里奈", pin:"4811", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"林沙樹", pin:"9279", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"須之内郁美", pin:"1434", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}], payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"八木秀子", pin:"4257", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140 },
+  { kind:"part", name:"籾山結泉", pin:"9928", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140, commute:200, commuteKind:"daily" },
+  { kind:"part", name:"下河邊なお子", pin:"7873", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"小堀真桜", pin:"4611", dept:"十三里屋", kyuyo:true, storeIds:"s_sawara13", locs:[{"name": "十三里屋", "lat": 35.8891, "lng": 140.4978, "radius": 300}], payKind:"hourly", payRate:1140, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"河野千恵子", pin:"8359", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:140, commuteKind:"daily" },
+  { kind:"part", name:"橋本房枝", pin:"5557", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"山本里奈", pin:"1106", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1250, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"長谷川碧里", pin:"3615", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1250, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"松本めぐみ", pin:"7924", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:110, commuteKind:"daily" },
+  { kind:"part", name:"田村あつ子", pin:"6574", dept:"トータルステイ", kyuyo:true, storeIds:"s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], status:"retired" },
+  { kind:"part", name:"衣幡千明", pin:"5552", dept:"トータルステイ", kyuyo:true, storeIds:"s_kaiji,s_totalstay", locs:[{"name": "トータルステイ", "lat": 35.9048, "lng": 140.6358, "radius": 300}], payKind:"hourly", payRate:1170, commute:20, commuteKind:"daily" },
+  { kind:"part", name:"石川泰博", pin:"3547", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}], payKind:"hourly", payRate:1170, commute:10000, commuteKind:"monthly" },
+  { kind:"part", name:"山田明子", pin:"4527", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}], payKind:"hourly", payRate:1170, commute:1000, commuteKind:"monthly" },
+  { kind:"part", name:"伊藤美津子", pin:"6514", dept:"市川東病院", kyuyo:true, storeIds:"s_ichikawa", locs:[{"name": "市川東病院", "lat": 35.7034, "lng": 139.9589, "radius": 300}], payKind:"hourly", payRate:1200, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"桜庭京子", pin:"2674", dept:"海事・横河", kyuyo:true, storeIds:"s_kaiji", locs:[{"name": "海事・横河", "lat": 35.8885, "lng": 140.6527, "radius": 300}], status:"retired" },
+  { kind:"part", name:"小倉孔子", pin:"2519", dept:"ちば醤油", kyuyo:true, storeIds:"s_chibashoyu", locs:[{"name": "ちば醤油", "lat": 35.8569, "lng": 140.5562, "radius": 300}], payKind:"hourly", payRate:1400, commute:60, commuteKind:"daily" },
+  { kind:"part", name:"齊藤良江", pin:"7224", dept:"神宮・亀甲堂・ゆう屋", kyuyo:false, storeIds:"s_jingu,s_yuya" },
+  { kind:"part", name:"宮嵜博之", pin:"2584", dept:"香取神宮", kyuyo:true, storeIds:"s_katorijingu", locs:[{"name": "香取神宮", "lat": 35.8862, "lng": 140.5287, "radius": 300}], payKind:"hourly", payRate:1500, commute:20, commuteKind:"daily" },
+  { kind:"part", name:"千葉規雄", pin:"6881", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1200, commute:120, commuteKind:"daily" },
+  { kind:"part", name:"武田則政", pin:"6635", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1190, commute:180, commuteKind:"daily" },
+  { kind:"part", name:"高瀬弥生子", pin:"5333", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", status:"retired" },
+  { kind:"part", name:"菅原和夫", pin:"1711", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1180, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"樽本裕美", pin:"9785", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1180, commute:30, commuteKind:"daily" },
+  { kind:"part", name:"望月辰雄", pin:"3045", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170 },
+  { kind:"part", name:"岸本敏男", pin:"7201", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170, commute:50, commuteKind:"daily" },
+  { kind:"part", name:"高野由美", pin:"2291", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170, commute:200, commuteKind:"daily" },
+  { kind:"part", name:"村田耕一", pin:"5803", dept:"ニッセーデリカ", kyuyo:true, storeIds:"s_nissei", payKind:"hourly", payRate:1170, commute:130, commuteKind:"daily" },
+  { kind:"part", name:"池田久史", pin:"6925", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}], payKind:"hourly", payRate:1170, commute:100, commuteKind:"daily" },
+  { kind:"part", name:"三浦達弥", pin:"4150", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}], payKind:"daily", payRate:10000, commute:480, commuteKind:"daily" },
+  { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
+  { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
+  { kind:"staff", name:"伏田 幸枝", pin:"2571", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
+  { kind:"staff", name:"小林 俊樹", pin:"9034", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
+  { kind:"staff", name:"石毛 貴英", pin:"4718", dept:"業務課", kyuyo:false, storeIds:"s_beer", shiftName:"石毛貴英", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}, {"name": "ビアガーデン", "lat": 35.990552, "lng": 140.638966, "radius": 300}] },
+  { kind:"staff", name:"石毛 拓海", pin:"7263", dept:"飲食事業部", kyuyo:false, storeIds:"" },
+  { kind:"staff", name:"花見 朗子", pin:"5409", dept:"バックオフィス", kyuyo:false, storeIds:"" },
+  { kind:"staff", name:"土屋 芳広", pin:"1836", dept:"飲食事業部", kyuyo:false, storeIds:"s_momo", shiftName:"土屋芳広", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
+  { kind:"staff", name:"及川 晶雄", pin:"8527", dept:"飲食事業部", kyuyo:false, storeIds:"s_yakitate", shiftName:"及川晶雄", locs:[{"name": "鹿嶋事業所", "lat": 35.9831, "lng": 140.6368, "radius": 300}] },
+  { kind:"staff", name:"宮川 玲奈", pin:"3074", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana", shiftName:"レナ", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
+  { kind:"staff", name:"ハルシャニ", pin:"6941", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana,s_takohai", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
+  { kind:"staff", name:"ナディシャ", pin:"2385", dept:"飲食事業部", kyuyo:false, storeIds:"s_hana,s_takohai", shiftName:"ナディーシャ", locs:[{"name": "神栖横丁", "lat": 35.8998, "lng": 140.6404, "radius": 300}] },
+];
+
+/* シフト作成にだけ名前があり、勤怠アプリには登録がない人。
+   取り込むとPINを自動で作り、勤怠アプリでも打刻できるようになります。 */
+const SEED_SHIFT_ONLY = [
+  { kind:"part", name:"宮内眞知子", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_jingu", payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"河野竜二", pin:"", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan" },
+  { kind:"part", name:"濱田歩", pin:"", dept:"りゅうちゃん", kyuyo:true, storeIds:"s_ryuchan", payKind:"hourly", payRate:1200 },
+  { kind:"part", name:"茂木多美子", pin:"", dept:"焼きたて屋", kyuyo:true, storeIds:"s_yakitate", payKind:"hourly", payRate:1074, commute:40, commuteKind:"daily" },
+  { kind:"part", name:"鎌形房枝", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_yuya", payKind:"hourly", payRate:1200 },
+];
+
+// 取り込むときの1件ぶんの形に直す
+function seedToRec(x) {
+  const first = (x.storeIds || '').split(',').filter(Boolean).map(site).filter(Boolean)[0] || null;
+  const locs = x.locs || (first ? first.locs : []);
+  return {
+    kind: x.kind, name: x.name, kana: '', pin: x.pin || '',
+    dept: x.dept || (first ? first.dept : ''),
+    storeIds: x.storeIds || '', shiftName: x.shiftName || '',
+    locs: JSON.stringify(locs || []),
+    joinedAt: '', retiredAt: '', status: 'active',
+    kyuyo: !!x.kyuyo, days: '0,1,2,3,4,5,6', holidayOk: true,
+    startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
+    targetDays: 0, maxDays: 0, maxPerWeek: 0,
+    note: '既存の名簿から取り込み',
+  };
+}
+
+let seedPick = {};   // シフトにだけいる人のうち、取り込む人
+
+function renderSetup() {
+  const el = document.getElementById('setup-body');
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = true; });
+  const restMain = SEED_MAIN.filter(function (x) { return !known[x.name]; });
+  const restOnly = SEED_SHIFT_ONLY.filter(function (x) { return !known[x.name]; });
+
+  let h = '';
+
+  // --- 1. つなぎ先 ---
+  h += '<div class="card"><div class="card-title">1. 共通スタッフ名簿のつなぎ先</div>'
+    + '<div class="card-desc">シフト作成アプリの共有で使っているのと同じ Apps Script のURL・合言葉を入れてください。'
+    + '同じスプレッドシートの「staff」シートに名簿が入ります。<br />'
+    + '空欄のままにすると、このページに書いてある既定のURLを使います。</div>'
+    + '<div class="field"><label>ウェブアプリのURL</label>'
+    + '<input type="text" value="' + esc(CFG.apiUrl) + '" placeholder="' + esc(MASTER_API || 'https://script.google.com/macros/s/.../exec')
+    + '" onchange="CFG.apiUrl=this.value.trim();saveCfg();reload(true)" /></div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>合言葉（TOKEN）</label>'
+    + '<input type="text" value="' + esc(CFG.token) + '" placeholder="' + esc(MASTER_TOKEN)
+    + '" onchange="CFG.token=this.value.trim();saveCfg();reload(true)" /></div>'
+    + '<div class="field"><label>あなたの名前（誰が登録したか残ります）</label>'
+    + '<input type="text" value="' + esc(CFG.userName) + '" placeholder="例：花見" onchange="CFG.userName=this.value.trim();saveCfg()" /></div>'
+    + '</div>'
+    + '<div class="muted">いまのつなぎ先：' + (apiOn() ? esc(apiUrl()) : '未設定') + '</div>'
+    + (apiOn()
+        ? '<div class="row-actions" style="margin-top:.75rem">'
+          + '<button class="btn" onclick="checkLink()">つなぎ先を確かめる</button></div>'
+          + '<div id="link-result" style="margin-top:.75rem"></div>'
+        : '')
+    + '</div>';
+
+  if (!apiOn()) { el.innerHTML = h; return; }
+
+  // --- 2. 取り込み ---
+  h += '<div class="card"><div class="card-title">2. いまの名簿を取り込む（最初に1回だけ）</div>'
+    + '<div class="card-desc">PA勤怠・勤怠アプリに直接書かれている ' + SEED_MAIN.length + ' 名を、'
+    + 'PIN・所属・打刻場所・シフトの現場ごと共通名簿へ移します。'
+    + 'すでに名簿にいる人は飛ばすので、間違って押し直しても増えません。</div>';
+
+  if (!restMain.length) {
+    h += '<div class="alert ok"><b>取り込み済みです。</b>'
+      + SEED_MAIN.length + ' 名はすべて共通名簿に入っています。</div>';
+  } else {
+    h += '<div class="alert info">まだ取り込んでいない人：<b>' + restMain.length + ' 名</b>'
+      + (restMain.length < SEED_MAIN.length ? '（' + (SEED_MAIN.length - restMain.length) + ' 名は取り込み済み）' : '')
+      + '</div>'
+      + '<div class="row-actions" style="margin-top:0">'
+      + '<button class="btn primary" id="btn-import" onclick="doImport()">' + restMain.length + ' 名を取り込む</button></div>';
+  }
+  h += '</div>';
+
+  // --- 2.5 取り込み済みの人に、あとから増えた項目を入れる ---
+  const known2 = {};
+  STAFF.forEach(function (r) { known2[r.name] = r; });
+  const needFill = SEED_MAIN.filter(function (x) {
+    const r = known2[x.name];
+    return r && x.payRate && !(+r.payRate);
+  });
+  const needRetire = SEED_MAIN.filter(function (x) {
+    const r = known2[x.name];
+    return r && x.status === 'retired' && r.status !== 'retired';
+  });
+
+  if (needFill.length || needRetire.length) {
+    h += '<div class="card"><div class="card-title">取り込み済みの人を、いまの内容に合わせる</div>'
+      + '<div class="card-desc">取り込んだあとに項目が増えたため、まだ入っていないところがあります。'
+      + '<b>すでに入っている欄は書き換えません。</b></div>';
+    if (needFill.length) {
+      h += '<div class="alert info">単価が入っていない人：<b>' + needFill.length + ' 名</b>'
+        + '（給与一覧から読み取った時給・日給・通勤手当を入れます）</div>'
+        + '<div class="row-actions" style="margin-top:0;margin-bottom:1rem">'
+        + '<button class="btn primary" id="btn-fill" onclick="doFill()">' + needFill.length + ' 名に単価を入れる</button></div>';
+    }
+    if (needRetire.length) {
+      h += '<div class="alert warn">退職しているのに在籍のままの人：<b>' + needRetire.length + ' 名</b><br />'
+        + esc(needRetire.map(function (x) { return x.name; }).join('、'))
+        + '<br />給与一覧に出勤簿がないため退職と判断しました。'
+        + '名簿タブの「退職」から退職日を入れてください。</div>';
+    }
+    h += '</div>';
+  }
+
+  // --- 3. シフトにだけいる人 ---
+  h += '<div class="card"><div class="card-title">3. シフトにだけ名前がある人</div>'
+    + '<div class="card-desc">シフト作成には名前があるのに、勤怠アプリには登録がない方です。'
+    + '取り込むとPINを自動で作り、勤怠アプリでも打刻できるようになります。'
+    + '打刻の必要がない方（社員・役員など）は、チェックを外したままで結構です。</div>';
+  if (!restOnly.length) {
+    h += '<div class="alert ok">対応が必要な人はいません。</div>';
+  } else {
+    h += '<div class="chip-row" style="margin-bottom:1rem">'
+      + restOnly.map(function (x) {
+          return '<span class="chip' + (seedPick[x.name] ? ' on' : '') + '" onclick="seedPick[\'' + esc(x.name)
+            + '\']=!seedPick[\'' + esc(x.name) + '\'];renderSetup()">' + esc(x.name)
+            + '（' + esc((x.storeIds || '').split(',').map(siteName).join('・')) + '）</span>';
+        }).join('')
+      + '</div>'
+      + '<div class="row-actions" style="margin-top:0">'
+      + '<button class="btn" onclick="doImportOnly()">選んだ人を取り込む</button></div>';
+  }
+  h += '</div>';
+
+  // --- 4. 表記のちがい ---
+  const diff = SEED_MAIN.filter(function (x) { return x.shiftName; });
+  h += '<div class="card"><div class="card-title">4. 勤怠とシフトで名前の表記がちがう人</div>'
+    + '<div class="card-desc">共通名簿では両方を持つので、これまで転記のときに別人になっていた分も揃います。'
+    + '取り込みのときに自動で設定されます。</div>'
+    + '<div class="table-wrap"><table><thead><tr><th>勤怠アプリ</th><th>シフト作成</th></tr></thead><tbody>'
+    + diff.map(function (x) { return '<tr><td>' + esc(x.name) + '</td><td>' + esc(x.shiftName) + '</td></tr>'; }).join('')
+    + '</tbody></table></div></div>';
+
+  // --- 5. 各アプリへのリンク ---
+  h += '<div class="card"><div class="card-title">5. 反映先のアプリ</div>'
+    + '<div class="card-desc">登録した内容は、各アプリを開いたときに自動で読み込まれます。</div>'
+    + '<ul class="done-list">'
+    + '<li>PA勤怠（kintai_part.html）… パート・アルバイトの打刻</li>'
+    + '<li>勤怠（index.html）… 社員の打刻</li>'
+    + '<li>シフト作成（shift.html）… 配属した現場のスタッフに追加</li>'
+    + '</ul></div>';
+
+  el.innerHTML = h;
+}
+
+async function doImport() {
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = true; });
+  const recs = SEED_MAIN.filter(function (x) { return !known[x.name]; }).map(seedToRec);
+  if (!recs.length) { alert('取り込む人がいません。'); return; }
+  if (!confirm(recs.length + ' 名を共通名簿に取り込みます。よろしいですか？')) return;
+  await sendImport(recs);
+}
+
+async function doImportOnly() {
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = true; });
+  const recs = SEED_SHIFT_ONLY
+    .filter(function (x) { return seedPick[x.name] && !known[x.name]; })
+    .map(seedToRec);
+  if (!recs.length) { alert('取り込む人を選んでください。'); return; }
+  await sendImport(recs);
+}
+
+// 取り込み済みの人に、空いている欄だけを入れる
+/* 読み込み（JSONP）と書き込み（POST）を、それぞれ試して結果を出す。
+   どちらが通ってどちらが通らないかで、原因が絞れる。 */
+async function checkLink() {
+  const el = document.getElementById('link-result');
+  el.innerHTML = '<div class="alert info">確かめています…</div>';
+
+  const rows = [];
+  // 読み込み：JSONP（<script>で読む。ログイン中のアカウントとして送られる）
+  try {
+    const r = await jsonpCall(apiUrl(), { token: apiToken(), action: 'ping' }, 8000);
+    rows.push(r && r.status === 'ok'
+      ? ['ok', '読み込み（JSONP）', '通りました' + (r.at ? '　' + esc(r.at) : '')]
+      : ['err', '読み込み（JSONP）', esc((r && r.message) || '返事が変です')]);
+  } catch (e) {
+    rows.push(['err', '読み込み（JSONP）', esc(e.message)]);
+  }
+
+  // 書き込み：POST（ログイン情報を送らないので、匿名でも通る設定が要る）
+  try {
+    const res = await fetch(apiUrl(), {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ token: apiToken(), action: 'ping' }),
+    });
+    const t = await res.text();
+    let j = null;
+    try { j = JSON.parse(t); } catch (e) { j = null; }
+    rows.push(j && j.status === 'ok'
+      ? ['ok', '書き込み（POST）', '通りました']
+      : ['err', '書き込み（POST）', 'Googleの画面が返りました（' + esc(t.slice(0, 60).replace(/\s+/g, ' ')) + '…）']);
+  } catch (e) {
+    rows.push(['err', '書き込み（POST）', esc(e.message)]);
+  }
+
+  const okRead = rows[0][0] === 'ok';
+  const okWrite = rows[1][0] === 'ok';
+
+  let h = '<div class="table-wrap"><table><tbody>'
+    + rows.map(function (x) {
+        return '<tr><td style="white-space:nowrap">' + (x[0] === 'ok' ? '✅' : '⚠️') + ' <b>' + x[1] + '</b></td>'
+          + '<td>' + x[2] + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+
+  if (okRead && okWrite) {
+    h += '<div class="alert ok" style="margin-top:.75rem"><b>どちらも通っています。</b>'
+      + 'つなぎ先に問題はありません。</div>';
+  } else if (okRead && !okWrite) {
+    h += '<div class="alert warn" style="margin-top:.75rem">'
+      + '<b>読み込みは通り、書き込みだけが通りません。</b><br />'
+      + 'デプロイの<b>「アクセスできるユーザー」が「全員」以外</b>になっているときの症状です。'
+      + '書き込みはログイン情報を送らないため、「全員」でないと弾かれます。<br /><br />'
+      + '<b>直し方</b>：Apps Script →「デプロイ」→「デプロイを管理」→ 鉛筆マーク →'
+      + '<b>アクセスできるユーザーを「全員」</b>にして「デプロイ」。<br />'
+      + '（このアプリは書き込みを読み込みと同じやり方で送り直すので、'
+      + 'この状態でも登録はできます。ただ、直したほうが速く確実です）</div>';
+  } else if (!okRead && !okWrite) {
+    h += '<div class="alert err" style="margin-top:.75rem">'
+      + '<b>どちらも通りません。</b>URLか合言葉が違うか、デプロイが無い可能性があります。'
+      + 'Apps Script の「デプロイを管理」で、いまのURLを上に貼り直してください。</div>';
+  } else {
+    h += '<div class="alert warn" style="margin-top:.75rem">'
+      + '<b>書き込みは通り、読み込みが通りません。</b>合言葉（TOKEN）が合っているか確認してください。</div>';
+  }
+  el.innerHTML = h;
+}
+
+async function doFill() {
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = r; });
+  const recs = SEED_MAIN
+    .filter(function (x) { const r = known[x.name]; return r && x.payRate && !(+r.payRate); })
+    .map(function (x) {
+      return { name: x.name, payKind: x.payKind, payRate: x.payRate,
+               commute: x.commute || 0, commuteKind: x.commuteKind || 'none',
+               kyuyoName: x.kyuyoName || '' };
+    });
+  if (!recs.length) { alert('入れるものがありません。'); return; }
+  if (!confirm(recs.length + ' 名に単価を入れます。\n\nすでに入っている欄は書き換えません。よろしいですか？')) return;
+
+  setState('busy', '保存中…');
+  const btn = document.getElementById('btn-fill');
+  if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+  try {
+    const res = await apiPost({ action: 'staffFill', recs: recs });
+    if (res.status !== 'ok') throw new Error(res.message || '入れられませんでした');
+    await reload();
+    alert((res.filled || []).length + ' 名に入れました。'
+      + ((res.untouched || []).length ? '\n' + res.untouched.length + ' 名はすでに入っていたので触っていません。' : ''));
+  } catch (e) {
+    alert('入れられませんでした：' + e.message);
+    setState('err', e.message);
+    renderSetup();
+  }
+}
+
+async function sendImport(recs) {
+  setState('busy', '取り込み中…');
+  const btn = document.getElementById('btn-import');
+  if (btn) { btn.disabled = true; btn.textContent = '取り込み中…'; }
+  try {
+    const res = await apiPost({ action: 'staffImport', recs: recs });
+    if (res.status !== 'ok') throw new Error(res.message || '取り込めませんでした');
+    seedPick = {};
+    await reload();
+    alert((res.added || []).length + ' 名を取り込みました。'
+      + ((res.skipped || []).length ? '\n' + res.skipped.length + ' 名はすでに登録されていたため飛ばしました。' : ''));
+  } catch (e) {
+    alert('取り込めませんでした：' + e.message);
+    setState('err', e.message);
+    renderSetup();
+  }
+}
+
+/* =========================================================
+   給与一覧への登録
+   期間ごとのスプレッドシートに、その人の出勤簿シートと
+   給与一覧表の行を作る。給与に触るので、押したときだけ動かす。
+   ========================================================= */
+let payrollFiles = null;   // 給与一覧のファイル一覧（読み込むまで null）
+let payrollErrors = [];    // 読み込めなかった理由
+let payrollPick = {};
+
+async function openPayroll(id) {
+  const r = findRec(id);
+  if (!r) return;
+  const sids = storeIdsOf(r);
+  if (!sids.length) { alert('配属する現場が決まっていないため、給与一覧には作れません。'); return; }
+
+  openSheet('<div class="card-title">給与一覧に作る</div>'
+    + '<div class="card-desc">読み込んでいます…</div>');
+
+  if (!payrollFiles) {
+    try {
+      const res = await apiGet({ action: 'payrollFiles' });
+      if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
+      payrollFiles = res.files || [];
+      payrollErrors = res.errors || [];
+    } catch (e) {
+      openSheet('<div class="card-title">給与一覧に作る</div>'
+        + '<div class="alert err">給与一覧のファイルを読めませんでした：' + esc(e.message) + '</div>'
+        + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
+      return;
+    }
+  }
+
+  // 入社日以降で、まだ終わっていない期間だけをはじめから選んでおく。
+  // 支払いの済んだ過去の月に、うっかり行を足さないため。
+  const from = r.joinedAt || '';
+  const t = new Date();
+  const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
+    + '-' + String(t.getDate()).padStart(2, '0');
+  payrollPick = {};
+  payrollFiles.forEach(function (f) {
+    if ((!from || f.end >= from) && f.end >= today) payrollPick[f.id] = true;
+  });
+  renderPayroll(r);
+}
+
+function renderPayroll(r) {
+  const sids = storeIdsOf(r);
+  const grp = kyuyoGroup(sids[0]);
+  const nm = r.kyuyoName || r.name;
+  const n = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; }).length;
+
+  let h = '<div class="card-title">給与一覧に作る</div>'
+    + '<div class="card-desc">選んだ期間のスプレッドシートに、'
+    + '<b>' + esc(nm) + '</b> さんの出勤簿シートを作り、給与一覧表の <b>' + esc(grp) + '</b> に行を足します。<br />'
+    + '同じ現場の人のシートをそのまま複製して、氏名と単価だけ差し替えるので、給与の計算式は崩れません。</div>';
+
+  h += '<div class="alert info">'
+    + '単価：' + (r.payRate ? (r.payKind === 'daily' ? '日給' : '時給') + ' ' + Number(r.payRate).toLocaleString() + '円'
+                            : '<b style="color:#a32d2d">未設定</b>')
+    + '　／　通勤手当：' + (r.commuteKind === 'monthly' ? Number(r.commute).toLocaleString() + '円（月ぎめ）'
+        : r.commuteKind === 'daily' ? Number(r.commute).toLocaleString() + '円 × 出勤日数' : 'なし')
+    + '</div>';
+
+  if (!r.payRate) {
+    h += '<div class="alert err">単価が入っていないため作れません。先に「編集」から時給または日給を入れてください。</div>'
+      + '<div class="row-actions"><button class="btn" onclick="closeSheet();openEdit(\'' + r.id + '\')">編集する</button>'
+      + '<button class="btn ghost" onclick="closeSheet()">閉じる</button></div>';
+    openSheet(h);
+    return;
+  }
+
+  if (!payrollFiles.length) {
+    h += '<div class="alert err"><b>給与一覧のスプレッドシートが1つも見つかりませんでした。</b><br />'
+      + 'Apps Script からドライブを見られていない可能性が高いです。'
+      + '<b>Apps Script のエディタで「デプロイ → デプロイを管理 → 鉛筆 → 新バージョン → デプロイ」</b>'
+      + 'をもう一度行ってください。権限を許可したあとに、デプロイをやり直す必要があります。</div>'
+      + (payrollErrors.length
+          ? '<div class="alert warn"><b>Apps Script からの知らせ</b><br />'
+            + payrollErrors.map(esc).join('<br />') + '</div>'
+          : '<div class="muted">Apps Script からのエラーの知らせはありませんでした。'
+            + '「給与一覧_2026_9_16-2026_10_15」のような名前のファイルがドライブにあるか確認してください。</div>')
+      + '<div class="row-actions"><button class="btn" onclick="payrollFiles=null;closeSheet();openPayroll(\'' + r.id + '\')">もう一度読み込む</button>'
+      + '<button class="btn ghost" onclick="closeSheet()">閉じる</button></div>';
+    openSheet(h);
+    return;
+  }
+
+  h += '<div class="field"><label>作る期間（' + n + ' 件を選択中）</label>'
+    + '<div class="chip-row" style="max-height:230px;overflow-y:auto">'
+    + payrollFiles.map(function (f) {
+        return '<span class="chip' + (payrollPick[f.id] ? ' on' : '') + '"'
+          + ' onclick="payrollPick[\'' + f.id + '\']=!payrollPick[\'' + f.id + '\'];renderPayroll(findRec(\'' + r.id + '\'))">'
+          + esc(f.label) + '</span>';
+      }).join('')
+    + '</div><div class="hint">入社日以降で、まだ終わっていない期間をはじめから選んでいます。'
+    + '<b>支払いの済んだ過去の月は選んでいません</b>（必要なら押して選べます）。<br />'
+    + 'すでにその人のシートがある期間は、押しても何も起きません（上書きしません）。</div></div>';
+
+  h += '<div class="row-actions">'
+    + '<button class="btn primary" onclick="runPayroll(\'' + r.id + '\')">' + n + ' 件に作る</button>'
+    + '<button class="btn" onclick="runPayrollRate(\'' + r.id + '\')">単価だけ入れ直す</button>'
+    + '<button class="btn ghost" onclick="closeSheet()">やめる</button></div>'
+    + '<div class="muted" style="margin-top:.6rem">'
+    + '<b>単価だけ入れ直す</b>…すでにある出勤簿の時給・通勤手当を、いまの登録内容に合わせます。'
+    + '昇給したときや、登録を直したときに使ってください。出勤・退勤の記録には触りません。</div>';
+  openSheet(h);
+}
+
+// すでにある出勤簿の単価だけを入れ直す
+async function runPayrollRate(id) {
+  const r = findRec(id);
+  const ids = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; });
+  if (!ids.length) { alert('期間を1つ以上選んでください。'); return; }
+  if (!r.payRate) { alert('単価が入っていません。先に「編集」から入れてください。'); return; }
+  if (!confirm(r.name + ' さんの出勤簿 ' + ids.length + ' 件の単価を、いまの登録内容に合わせます。\n\n'
+    + (r.payKind === 'daily' ? '日給' : '時給') + ' ' + Number(r.payRate).toLocaleString() + '円\n'
+    + '通勤手当 ' + (r.commuteKind === 'monthly' ? Number(r.commute).toLocaleString() + '円（月ぎめ）'
+        : r.commuteKind === 'daily' ? Number(r.commute).toLocaleString() + '円 × 出勤日数' : 'なし') + '\n\n'
+    + '出勤・退勤の記録には触りません。よろしいですか？')) return;
+
+  openSheet('<div class="card-title">単価を入れ直す</div>'
+    + '<div class="alert info">直しています。' + ids.length + ' 件ぶんあるので、少し時間がかかります…</div>');
+  try {
+    const res = await apiPost({
+      action: 'payrollRate', fileIds: ids,
+      rec: { name: r.kyuyoName || r.name, payKind: r.payKind, payRate: r.payRate,
+             commute: r.commute, commuteKind: r.commuteKind },
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
+    openSheet(payrollResultHtml('単価を入れ直しました', res));
+  } catch (e) {
+    openSheet('<div class="card-title">単価を入れ直す</div>'
+      + '<div class="alert err">直せませんでした：' + esc(e.message) + '</div>'
+      + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
+  }
+}
+
+// 作成・入れ直しの結果を同じ形で出す
+function payrollResultHtml(title, res) {
+  let h = '<div class="card-title">' + esc(title) + '</div>';
+  if ((res.done || []).length) {
+    h += '<div class="alert ok"><b>' + res.done.length + ' 件を直しました。</b><br />'
+      + res.done.map(esc).join('<br />') + '</div>';
+  }
+  if ((res.skipped || []).length) {
+    h += '<div class="alert info"><b>' + res.skipped.length + ' 件は飛ばしました。</b><br />'
+      + res.skipped.map(esc).join('<br />') + '</div>';
+  }
+  if ((res.failed || []).length) {
+    h += '<div class="alert err"><b>' + res.failed.length + ' 件は直せませんでした。</b><br />'
+      + res.failed.map(esc).join('<br />') + '</div>';
+  }
+  return h + '<div class="muted">スプレッドシートを開いて確認してください。</div>'
+    + '<div class="row-actions"><button class="btn" onclick="closeSheet()">閉じる</button></div>';
+}
+
+async function runPayroll(id) {
+  const r = findRec(id);
+  const ids = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; });
+  if (!ids.length) { alert('期間を1つ以上選んでください。'); return; }
+  const sids = storeIdsOf(r);
+
+  openSheet('<div class="card-title">給与一覧に作る</div>'
+    + '<div class="alert info">作成中です。' + ids.length + ' 件ぶんあるので、少し時間がかかります…</div>');
+
+  try {
+    const res = await apiPost({
+      action: 'payrollAdd',
+      fileIds: ids,
+      rec: {
+        name: r.kyuyoName || r.name,
+        group: kyuyoGroup(sids[0]),
+        payKind: r.payKind, payRate: r.payRate,
+        commute: r.commute, commuteKind: r.commuteKind,
+      },
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '作れませんでした');
+
+    let h = '<div class="card-title">給与一覧に作りました</div>';
+    if ((res.done || []).length) {
+      h += '<div class="alert ok"><b>' + res.done.length + ' 件に作りました。</b><br />'
+        + res.done.map(esc).join('<br />') + '</div>';
+    }
+    if ((res.skipped || []).length) {
+      h += '<div class="alert info"><b>' + res.skipped.length + ' 件は飛ばしました。</b><br />'
+        + res.skipped.map(esc).join('<br />') + '</div>';
+    }
+    if ((res.failed || []).length) {
+      h += '<div class="alert err"><b>' + res.failed.length + ' 件は作れませんでした。</b><br />'
+        + res.failed.map(esc).join('<br />') + '</div>';
+    }
+    h += '<div class="muted">スプレッドシートを開いて、出勤簿シートと給与一覧表の行ができているか確認してください。</div>'
+      + '<div class="row-actions"><button class="btn" onclick="closeSheet()">閉じる</button></div>';
+    openSheet(h);
+  } catch (e) {
+    openSheet('<div class="card-title">給与一覧に作る</div>'
+      + '<div class="alert err">作れませんでした：' + esc(e.message) + '</div>'
+      + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
+  }
+}
+
+/* =========================================================
+   共通
+   ========================================================= */
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.panel === id); });
+  document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('active', p.id === id); });
+  renderAll();
+}
+
+function renderAll() { renderNew(); renderList(); renderSetup(); }
+
+reload();
+</script>
+</body>
+</html>

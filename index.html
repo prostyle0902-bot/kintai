@@ -189,6 +189,78 @@
       { pin: '2385', name: 'ナディシャ',  dept: '飲食事業部', locs: [{ lat: 35.8998, lng: 140.6404, name: '神栖横丁', radius: 300 }] },
     ];
 
+    /* =========================================================
+       共通スタッフ名簿（入社登録アプリ onboarding.html と共有）
+       開いたときに名簿を読み、上の一覧に足したり外したりします。
+       通信できないときは、前に読めた内容（この端末に控えたもの）を使い、
+       それも無ければ上の一覧のまま動きます。
+       ========================================================= */
+    const MASTER_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
+    const MASTER_TOKEN = 'prostyle-shift-2026';
+    const MASTER_KIND = 'staff';          // この画面で扱う区分
+    const MASTER_LS = 'prostyle_master_staff';   // 前回読めた名簿の控え
+
+    // 上の一覧をそのまま残しておく（名簿が読めないときの土台）
+    const BASE_EMPLOYEES = employees.map(e => ({ pin: e.pin, name: e.name, dept: e.dept, locs: e.locs }));
+
+    function applyMaster(list) {
+      const out = BASE_EMPLOYEES.map(e => ({ pin: e.pin, name: e.name, dept: e.dept, locs: e.locs }));
+      const drop = {};   // 退職した人（名前・PINのどちらでも外せるように）
+
+      list.forEach(rec => {
+        if ((rec.kind || 'part') !== MASTER_KIND) return;
+        const name = String(rec.name || '').trim();
+        if (!name) return;
+
+        if (rec.status === 'retired') { drop[name] = true; if (rec.pin) drop['#' + rec.pin] = true; return; }
+
+        let locs = null;
+        try { const a = JSON.parse(rec.locs || '[]'); if (a && a.length) locs = a; } catch (e) { locs = null; }
+
+        const emp = { pin: String(rec.pin || ''), name: name, dept: String(rec.dept || ''), locs: locs };
+        if (!emp.pin) return;                       // PINが無い人はログインできないので入れない
+
+        const i = out.findIndex(e => e.name === name);
+        if (i >= 0) out[i] = emp; else out.push(emp);
+      });
+
+      const kept = out.filter(e => !drop[e.name] && !drop['#' + e.pin]);
+      employees.splice(0, employees.length, ...kept);
+    }
+
+    // 前に読めた名簿があれば、通信を待たずに先に反映する
+    (function () {
+      try {
+        const raw = localStorage.getItem(MASTER_LS);
+        if (raw) applyMaster(JSON.parse(raw));
+      } catch (e) { /* 控えが壊れていたら上の一覧のまま */ }
+    })();
+
+    // 名簿を読みにいく。GETなのでJSONPで確実に読める
+    (function () {
+      if (!MASTER_API || MASTER_API.indexOf('script.google.com') < 0) return;
+      const cb = '_msc' + Date.now();
+      const timer = setTimeout(cleanup, 20000);
+      function cleanup() {
+        clearTimeout(timer);
+        delete window[cb];
+        const el = document.getElementById(cb);
+        if (el) el.remove();
+      }
+      window[cb] = function (res) {
+        cleanup();
+        if (!res || res.status !== 'ok' || !res.staff) return;
+        applyMaster(res.staff);
+        try { localStorage.setItem(MASTER_LS, JSON.stringify(res.staff)); } catch (e) {}
+      };
+      const sc = document.createElement('script');
+      sc.id = cb;
+      sc.src = MASTER_API + '?action=staffList&token=' + encodeURIComponent(MASTER_TOKEN)
+             + '&callback=' + cb + '&t=' + Date.now();
+      sc.onerror = cleanup;
+      document.head.appendChild(sc);
+    })();
+
     let pinBuffer    = '';
     let currentEmp   = null;
     let todayIn      = null;
