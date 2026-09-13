@@ -171,6 +171,12 @@
   .sync-chip.busy { background: #FFF6E0; color: #92650a; border-color: rgba(212,160,23,.3); }
   .sync-chip.err  { background: #FAECE7; color: #993C1D; border-color: rgba(153,60,29,.25); }
   .sync-chip.off  { display: none; }
+  /* 保存ボタン。直したものがあるときだけ目立たせる */
+  .save-btn { font-size: 13px; padding: 7px 18px; font-weight: 600; }
+  .save-btn.dirty { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .save-btn.dirty:hover { background: #125F96; }
+  .save-btn.saved { color: var(--text-secondary); }
+  .save-btn:disabled { cursor: default; opacity: .75; }
 
   .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50;
     align-items: center; justify-content: center; padding: 1rem; }
@@ -358,6 +364,7 @@
       <select id="store-select" onchange="onStoreChange()"></select>
       <input type="month" id="month-input" onchange="onMonthChange()" />
       <span class="period-badge" id="period-badge"></span>
+      <button class="btn save-btn" id="save-btn" style="display:none" onclick="syncNow()">保存</button>
       <span class="sync-chip off" id="sync-chip" style="display:none" onclick="syncNow()" title="押すと今すぐ保存します"></span>
     </div>
   </div>
@@ -3351,6 +3358,21 @@ function setSyncInfo(state, text) {
   el.style.display = syncOn() ? '' : 'none';
   const b = document.getElementById('sync-detail');
   if (b) b.textContent = text;
+
+  // 保存ボタン。直したものがあるときだけ押せるようにする
+  const sb = document.getElementById('save-btn');
+  if (sb) {
+    sb.style.display = syncOn() ? '' : 'none';
+    if (state === 'busy' && /未保存/.test(text)) {
+      sb.className = 'btn save-btn dirty'; sb.textContent = '保存'; sb.disabled = false;
+    } else if (state === 'busy') {
+      sb.className = 'btn save-btn'; sb.textContent = '保存中…'; sb.disabled = true;
+    } else if (state === 'err') {
+      sb.className = 'btn save-btn dirty'; sb.textContent = 'もう一度保存'; sb.disabled = false;
+    } else {
+      sb.className = 'btn save-btn saved'; sb.textContent = '保存済み'; sb.disabled = true;
+    }
+  }
 }
 
 // 開いたときに読み込む
@@ -4119,6 +4141,10 @@ function startApp(who) {
   renderWho();
   // ブラウザの印刷（Ctrl+P など）から呼ばれたときも、同じ紙面を組み立てる
   window.addEventListener('beforeprint', buildPrintArea);
+  // 保存できていないまま閉じようとしたら、ブラウザに確認を出させる
+  window.addEventListener('beforeunload', function (e) {
+    if (syncOn() && syncDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
   // 共有リンク（#sync=...）で開かれたときは、その共有先につなぐ
   if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
   // 共有が設定されていれば、開いたときに最新を読み込み、続けて共通スタッフ名簿も取り込む
