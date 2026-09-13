@@ -1397,6 +1397,18 @@ function renderSetup() {
         : '')
     + '</div>';
 
+  // --- 名簿をスプレッドシートに書き出す ---
+  if (apiOn()) {
+    h += '<div class="card"><div class="card-title">名簿をスプレッドシートに出す</div>'
+      + '<div class="card-desc">いまの全員を、人が読むための表にして Google ドライブに書き出します。'
+      + '入っている場所は <b>マイドライブ →「人事」フォルダ</b>。雇用契約書のフォルダも、そこにまとめます。<br />'
+      + '押すたびに最新の内容で作り直します。'
+      + '<b>表を直接書き換えても名簿には戻りません</b>ので、直すときはこのアプリの「編集」からお願いします。</div>'
+      + '<div class="row-actions"><button class="btn" id="btn-roster" onclick="exportRoster()">名簿を書き出す</button></div>'
+      + '<div id="roster-result" style="margin-top:.75rem"></div>'
+      + '</div>';
+  }
+
   if (!apiOn()) { el.innerHTML = h; return; }
 
   // --- 2. 取り込み ---
@@ -1734,6 +1746,25 @@ async function makeContract(id) {
     alert('作れませんでした：' + e.message);
     setState('err', e.message);
   }
+}
+
+/* 名簿をスプレッドシートに書き出す。
+   人が読むための表なので、見出しは日本語、値も「パート」「加入」のように書き下す。 */
+async function exportRoster() {
+  const btn = document.getElementById('btn-roster');
+  const out = document.getElementById('roster-result');
+  btn.disabled = true; btn.textContent = '書き出し中…';
+  out.innerHTML = '<div class="alert info">書き出しています…（30名ほどで10秒くらいかかります）</div>';
+  try {
+    const res = await apiPost({ action: 'rosterExport' });
+    if (res.status !== 'ok') throw new Error(res.message || '書き出せませんでした');
+    out.innerHTML = '<div class="alert ok"><b>書き出しました。</b><br />'
+      + '在籍 ' + res.active + ' 名／退職を含めて ' + res.count + ' 名　（' + esc(res.at) + '）<br />'
+      + '<a href="' + esc(res.url) + '" target="_blank" rel="noopener">スタッフ名簿をひらく</a></div>';
+  } catch (e) {
+    out.innerHTML = '<div class="alert err">書き出せませんでした：' + esc(e.message) + '</div>';
+  }
+  btn.disabled = false; btn.textContent = '名簿を書き出す';
 }
 
 async function doFill() {

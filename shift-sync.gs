@@ -127,6 +127,7 @@ function handle_(p, cb) {
       if (p.action === 'staffFill') return json_(staffFill_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
       if (p.action === 'contractMake') return json_(contractMake_(p), cb);
+      if (p.action === 'rosterExport') return json_(rosterExport_(), cb);
       if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
       if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
@@ -1570,4 +1571,179 @@ function fixTemplateStyle() {
   });
   Logger.log('');
   Logger.log('Drive の「' + CONTRACT_FOLDER + '」フォルダで、見た目を確かめてください。');
+}
+
+
+/* =========================================================
+   スタッフ名簿を書き出す
+
+   共通スタッフ名簿（staffシート）は、アプリが読むための表で、
+   見出しが英語のうえ列も多い。人が見るための名簿を別に書き出す。
+   押すたびに最新の内容で作り直す。
+   ========================================================= */
+
+var HR_FOLDER    = '人事';           // 契約書も名簿も、ここにまとめる
+var ROSTER_SHEET = 'スタッフ名簿';
+
+// 書き出す列。[見出し, 値の作り方]
+function rosterCols_() {
+  return [
+    ['在籍',        function (r) { return r.status === 'retired' ? '退職' : '在籍'; }],
+    ['区分',        function (r) { return r.kind === 'staff' ? '社員' : 'パート'; }],
+    ['氏名',        function (r) { return r.name; }],
+    ['フリガナ',    function (r) { return r.kana; }],
+    ['PIN',         function (r) { return r.pin; }],
+    ['所属',        function (r) { return r.dept; }],
+    ['入社日',      function (r) { return r.joinedAt; }],
+    ['退職日',      function (r) { return r.retiredAt; }],
+    ['生年月日',    function (r) { return r.birthday; }],
+    ['年齢',        function (r) { return age_(r.birthday); }],
+    ['住所',        function (r) { return r.address; }],
+    ['電話',        function (r) { return r.tel; }],
+    ['メール',      function (r) { return r.email; }],
+    ['緊急連絡先',  function (r) {
+      return [r.emgName, r.emgRel ? '（' + r.emgRel + '）' : '', r.emgTel ? ' ' + r.emgTel : '']
+        .join('').trim(); }],
+    ['賃金',        function (r) {
+      return (+r.payRate) ? ((r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.payRate)) : ''; }],
+    ['通勤手当',    function (r) {
+      if (!(+r.commute)) return 'なし';
+      return yen_(r.commute) + (r.commuteKind === 'daily' ? '／日' : '／月'); }],
+    ['契約期間',    function (r) { return r.contractType === 'permanent' ? '定めなし' : '定めあり'; }],
+    ['契約終了日',  function (r) { return r.contractEnd; }],
+    ['更新',        function (r) {
+      return r.renewal === 'none' ? '更新しない'
+           : r.renewal === 'auto' ? '自動更新'
+           : r.renewal === 'may'  ? '更新あり' : ''; }],
+    ['更新の上限',  function (r) { return r.renewalLimit; }],
+    ['試用期間',    function (r) { return (+r.trialMonths) ? ((+r.trialMonths) + 'か月') : 'なし'; }],
+    ['業務内容',    function (r) { return r.jobDuties; }],
+    ['勤務時間',    function (r) {
+      if (!r.startTime && !r.endTime) return 'シフトによる';
+      return r.startTime + '〜' + r.endTime; }],
+    ['休憩',        function (r) { return (+r.breakMin) ? ((+r.breakMin) + '分') : 'なし'; }],
+    ['休日',        function (r) { return r.holidayRule; }],
+    ['昇給',        function (r) { return r.raise ? 'あり' : 'なし'; }],
+    ['賞与',        function (r) { return r.bonus ? 'あり' : 'なし'; }],
+    ['退職手当',    function (r) { return r.severance ? 'あり' : 'なし'; }],
+    ['社会保険',    function (r) { return r.socialIns ? '加入' : '未加入'; }],
+    ['雇用保険',    function (r) { return r.empIns ? '加入' : '未加入'; }],
+    ['契約書',      function (r) { return r.contractUrl ? '作成済 ' + (r.contractAt || '') : '未作成'; }],
+    ['最終更新',    function (r) { return r.updatedAt; }],
+    ['更新した人',  function (r) { return r.updatedBy; }]
+  ];
+}
+
+// 1140 → 「1,140円」。環境によって toLocaleString が効かないので自分で区切る
+function yen_(n) {
+  var v = String(Math.round(Number(n) || 0));
+  var out = '';
+  while (v.length > 3) { out = ',' + v.slice(-3) + out; v = v.slice(0, -3); }
+  return v + out + '円';
+}
+
+function age_(birthday) {
+  if (!birthday) return '';
+  var d = new Date(String(birthday));
+  if (isNaN(d.getTime())) return '';
+  var t = new Date();
+  var a = t.getFullYear() - d.getFullYear();
+  var m = t.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+  return (a >= 0 && a < 120) ? a : '';
+}
+
+function rosterExport_() {
+  // 1) 人事フォルダを用意し、雇用契約書フォルダをその中へ移す
+  var hr = folderNamed_(HR_FOLDER);
+  moveInto_(contractFolder_(), hr);
+
+  // 2) 名簿のスプレッドシートを用意する
+  var ss = null;
+  var it = hr.getFilesByName(ROSTER_SHEET);
+  if (it.hasNext()) {
+    ss = SpreadsheetApp.open(it.next());
+  } else {
+    ss = SpreadsheetApp.create(ROSTER_SHEET);
+    moveInto_(DriveApp.getFileById(ss.getId()), hr);
+  }
+
+  // 3) 中身を作り直す
+  var cols = rosterCols_();
+  var sh   = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+  list.sort(function (a, b) {
+    if ((a.status === 'retired') !== (b.status === 'retired')) return a.status === 'retired' ? 1 : -1;
+    if (a.kind !== b.kind) return a.kind === 'staff' ? -1 : 1;
+    return String(a.kana || a.name).localeCompare(String(b.kana || b.name), 'ja');
+  });
+
+  var rows = [cols.map(function (c) { return c[0]; })];
+  for (var i = 0; i < list.length; i++) {
+    rows.push(cols.map(function (c) {
+      var v = c[1](list[i]);
+      return (v === null || v === undefined) ? '' : v;
+    }));
+  }
+
+  var tab = ss.getSheets()[0];
+  tab.setName('名簿').clear();
+  tab.getRange(1, 1, rows.length, cols.length).setValues(rows);
+
+  // 見た目を整える
+  var head = tab.getRange(1, 1, 1, cols.length);
+  head.setFontWeight('bold').setBackground('#E7F2FA').setFontColor('#12608f');
+  tab.setFrozenRows(1);
+  tab.setFrozenColumns(3);
+  if (tab.getFilter()) tab.getFilter().remove();
+  tab.getRange(1, 1, rows.length, cols.length).createFilter();
+  tab.autoResizeColumns(1, cols.length);
+  // 住所や業務内容が長くなりすぎないように上限をつける
+  for (var c = 1; c <= cols.length; c++) {
+    if (tab.getColumnWidth(c) > 260) tab.setColumnWidth(c, 260);
+  }
+  tab.getRange(2, 1, Math.max(rows.length - 1, 1), cols.length).setVerticalAlignment('middle');
+
+  // 退職した人は薄く
+  for (var r2 = 0; r2 < list.length; r2++) {
+    if (list[r2].status === 'retired') {
+      tab.getRange(r2 + 2, 1, 1, cols.length).setFontColor('#939cac');
+    }
+  }
+
+  ss.rename(ROSTER_SHEET);
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  tab.getRange(1, cols.length + 2).setValue('この表は「入社登録アプリ」から書き出したものです。直接書き換えても名簿には戻りません。');
+  tab.getRange(2, cols.length + 2).setValue('書き出した日時：' + stamp);
+  tab.getRange(1, cols.length + 2, 2, 1).setFontColor('#939cac').setFontSize(9);
+
+  return { status: 'ok', url: ss.getUrl(), count: list.length, at: stamp,
+           active: list.filter(function (r) { return r.status !== 'retired'; }).length };
+}
+
+// 名前のフォルダを探す。無ければ作る
+function folderNamed_(name) {
+  var it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+}
+
+// ファイルやフォルダを、指定のフォルダの中だけに置く
+function moveInto_(item, parent) {
+  try {
+    var ps = item.getParents();
+    var already = false;
+    var olds = [];
+    while (ps.hasNext()) {
+      var pf = ps.next();
+      if (pf.getId() === parent.getId()) already = true; else olds.push(pf);
+    }
+    if (!already) {
+      if (item.getMimeType) parent.addFile(item); else parent.addFolder(item);
+    }
+    for (var i = 0; i < olds.length; i++) {
+      if (item.getMimeType) olds[i].removeFile(item); else olds[i].removeFolder(item);
+    }
+  } catch (e) {
+    // 移せなくても、作ること自体は続ける
+  }
 }
