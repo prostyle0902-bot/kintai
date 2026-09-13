@@ -41,20 +41,36 @@
  * ======================================================================= */
 function authorizeOnce() {
   var lines = [];
+  var ng = 0;
 
-  try {
-    lines.push('名簿の置き場所：' + SpreadsheetApp.getActiveSpreadsheet().getName());
-  } catch (e) {
-    lines.push('【要対応】名簿のスプレッドシートを開けません：' + String(e));
+  function check(name, fn) {
+    try { lines.push('OK　' + name + '：' + fn()); }
+    catch (e) { lines.push('【要対応】' + name + '：' + String(e)); ng++; }
   }
 
-  // 給与一覧を開けるか。ここが通れば、給与一覧への登録は動く
-  try {
-    var t = SpreadsheetApp.openById(PAYROLL_FILES[PAYROLL_FILES.length - 1].id);
-    lines.push('給与一覧を開けました：' + t.getName());
-  } catch (e) {
-    lines.push('【要対応】給与一覧を開けません：' + String(e));
-  }
+  // このスクリプトが使っているものを、ひととおり触って許可をもらう
+  check('名簿のスプレッドシート', function () {
+    return SpreadsheetApp.getActiveSpreadsheet().getName();
+  });
+  check('給与一覧を開く', function () {
+    return SpreadsheetApp.openById(PAYROLL_FILES[PAYROLL_FILES.length - 1].id).getName();
+  });
+  check('ドライブのフォルダ', function () {
+    return contractFolder_().getName() + ' フォルダが見えます';
+  });
+  check('契約書のひな型（ドキュメント）', function () {
+    if (!CONTRACT_TPL.part) return 'IDが未設定です（契約書を作るときに要ります）';
+    return DocumentApp.openById(CONTRACT_TPL.part).getName();
+  });
+  check('覚えておく場所（キャッシュ）', function () {
+    CacheService.getScriptCache().put('_authcheck', '1', 60);
+    return '使えます';
+  });
+
+  lines.push('');
+  lines.push(ng === 0
+    ? '■ ぜんぶ通りました。アプリから使えます。'
+    : '■ ' + ng + ' 件が通っていません。上の【要対応】を見てください。');
 
   var msg = lines.join('\n');
   Logger.log(msg);
