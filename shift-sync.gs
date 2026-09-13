@@ -1327,8 +1327,8 @@ function fixLedger() {
 // 「契約書のひな型」フォルダに入れた2枚のドキュメントのID。
 // 空のままなら、makeContractTemplates() を1回実行すると作られる。
 var CONTRACT_TPL = {
-  staff: '',   // 社員用（期間の定めなし）
-  part:  ''    // パート・アルバイト用（期間の定めあり）
+  staff: '1z7LXt82qaeyoxQtvmC5Z6Q3nTsDZjlLGFH2QQ3G56bU',   // 社員用（期間の定めなし）
+  part:  '1Mv4o2cwJnl4h5X2ZQPIDIuKcaaqkxLmkFgNvkblEkDI'    // パート・アルバイト用（期間の定めあり）
 };
 var CONTRACT_FOLDER = '雇用契約書';   // できたPDFを入れるフォルダ名
 
@@ -1428,8 +1428,11 @@ function makeContractTemplates() {
     Logger.log((kind === 'staff' ? '社員用' : 'パート・アルバイト用') + '：' + id);
   });
   Logger.log('');
-  Logger.log('上の CONTRACT_TPL を、こう書き換えてください：');
-  Logger.log("var CONTRACT_TPL = { staff: '" + out.staff + "', part: '" + out.part + "' };");
+  Logger.log('上のほうにある CONTRACT_TPL の、空の \'\' の中だけを書き換えてください。');
+  Logger.log('（var で始まる行をまるごと足すと、二重になって動かなくなります）');
+  Logger.log('');
+  Logger.log("  staff: '" + out.staff + "',");
+  Logger.log("  part:  '" + out.part  + "'");
   Logger.log('');
   Logger.log('ドキュメントは Drive の「' + CONTRACT_FOLDER + '」フォルダにあります。');
   Logger.log('文面はそのまま直して構いません。{{ }} の目印だけ消さないでください。');
