@@ -145,6 +145,7 @@ function handle_(p, cb) {
       if (p.action === 'staffFill') return json_(staffFill_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
       if (p.action === 'contractMake') return json_(contractMake_(p), cb);
+      if (p.action === 'staffDelete') return json_(staffDelete_(p), cb);
       if (p.action === 'rosterExport') return json_(rosterExport_(), cb);
       if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
@@ -1785,4 +1786,31 @@ function staffShift_() {
     out.push(o);
   }
   return { status: 'ok', staffRev: staffRev_(), staff: out };
+}
+
+
+/* 名簿から行ごと消す。
+   テストで作った行などを片付けるためのもの。
+   退職にした人だけを消せるようにして、在籍の人を誤って消さないようにする。
+   打刻や給与の記録は別のファイルなので、消えない。 */
+function staffDelete_(p) {
+  var id = String(p.id || '').trim();
+  if (!id) return { status: 'error', message: '誰を消すのかが分かりません' };
+
+  var sh = getStaffSheet_();
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
+
+  var target = null;
+  for (var i = 0; i < list.length; i++) {
+    if (String(list[i].id) === id) { target = list[i]; break; }
+  }
+  if (!target) return { status: 'error', message: 'その人が名簿に見つかりません' };
+  if (target.status !== 'retired') {
+    return { status: 'error', message: '在籍中の人は消せません。先に「退職」にしてください。' };
+  }
+
+  sh.deleteRow(target._row);
+  bumpStaffRev_();
+  return { status: 'ok', name: target.name, staffRev: staffRev_() };
 }

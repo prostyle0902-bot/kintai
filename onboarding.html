@@ -1159,7 +1159,8 @@ function renderList() {
       + '<button class="btn sm ghost" onclick="openEdit(\'' + r.id + '\')">編集</button> '
       + (isActive(r)
           ? '<button class="btn sm danger" onclick="openRetire(\'' + r.id + '\')">退職</button>'
-          : '<button class="btn sm" onclick="reinstate(\'' + r.id + '\')">復帰</button>')
+          : '<button class="btn sm" onclick="reinstate(\'' + r.id + '\')">復帰</button> '
+            + '<button class="btn sm danger" onclick="removeStaff(\'' + r.id + '\')" title="名簿から行ごと消します">消す</button>')
       + '</td></tr>';
   });
   h += '</tbody></table></div></div>';
@@ -1840,6 +1841,31 @@ async function exportRoster() {
     out.innerHTML = '<div class="alert err">書き出せませんでした：' + esc(e.message) + '</div>';
   }
   btn.disabled = false; btn.textContent = '名簿を書き出す';
+}
+
+/* 名簿から行ごと消す。退職にした人だけ。
+   テストで作った行を片付けるためのもの。打刻や給与の記録は別なので消えない。 */
+async function removeStaff(id) {
+  const r = findRec(id);
+  if (!r) return;
+  if (isActive(r)) { alert('在籍中の人は消せません。先に「退職」にしてください。'); return; }
+  if (!confirm(r.name + ' さんを、名簿から完全に消します。\n\n'
+    + '・元に戻せません\n'
+    + '・打刻の記録と給与一覧は、別のファイルなので消えません\n'
+    + '・各アプリからは、開き直したときに消えます\n\n'
+    + 'よろしいですか？')) return;
+  if (!confirm('本当に消してよろしいですか？\n\n' + r.name + '（PIN ' + (r.pin || 'なし') + '）')) return;
+
+  setState('busy', '削除中…');
+  try {
+    const res = await apiPost({ action: 'staffDelete', id: id });
+    if (res.status !== 'ok') throw new Error(res.message || '消せませんでした');
+    await reload();
+    alert(res.name + ' さんを名簿から消しました。');
+  } catch (e) {
+    alert('消せませんでした：' + e.message);
+    setState('err', e.message);
+  }
 }
 
 async function doFill() {
