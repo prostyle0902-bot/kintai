@@ -1433,6 +1433,33 @@ function renderSetup() {
         : '')
     + '</div>';
 
+  // --- 打刻できる場所が、配属現場に足りているか ---
+  const locBad = locMismatch();
+  if (apiOn()) {
+    h += '<div class="card"><div class="card-title">打刻できる場所を点検する</div>'
+      + '<div class="card-desc">配属した現場なのに、そこで打刻できない人がいないかを調べます。'
+      + '取り込んだときの元データに、1か所ぶんしか入っていなかった人がいます。</div>';
+    if (!locBad.length) {
+      h += '<div class="alert ok"><b>問題ありません。</b>'
+        + '配属した現場では、全員が打刻できます。</div>';
+    } else {
+      h += '<div class="alert warn"><b>' + locBad.length + ' 名が、配属した現場で打刻できません。</b></div>'
+        + '<div class="table-wrap"><table><thead><tr>'
+        + '<th>氏名</th><th>PIN</th><th>配属</th><th>打刻できない場所</th></tr></thead><tbody>'
+        + locBad.map(function (x) {
+            return '<tr><td><b>' + esc(x.name) + '</b></td><td class="pin">' + esc(x.pin) + '</td>'
+              + '<td>' + esc(x.sites) + '</td>'
+              + '<td><span style="color:var(--text-danger)">' + esc(x.missing) + '</span></td></tr>';
+          }).join('')
+        + '</tbody></table></div>'
+        + '<div class="row-actions">'
+        + '<button class="btn primary" id="btn-locfix" onclick="fixLocs()">'
+        + locBad.length + ' 名を直す</button></div>'
+        + '<div class="hint">配属した現場の場所を足すだけです。いま入っている場所は消しません。</div>';
+    }
+    h += '</div>';
+  }
+
   // --- 名簿をスプレッドシートに書き出す ---
   if (apiOn()) {
     h += '<div class="card"><div class="card-title">名簿をスプレッドシートに出す</div>'
@@ -1866,6 +1893,77 @@ async function removeStaff(id) {
     alert('消せませんでした：' + e.message);
     setState('err', e.message);
   }
+}
+
+/* 配属した現場なのに、そこで打刻できない人を探す。
+   取り込んだときの元データに、打刻できる場所が1か所ぶんしか
+   入っていなかった人がいるため。 */
+function locMismatch() {
+  const out = [];
+  STAFF.forEach(function (r) {
+    if (!isActive(r)) return;
+    const ids = storeIdsOf(r);
+    if (!ids.length) return;
+    let have = [];
+    try { have = JSON.parse(r.locs || '[]') || []; } catch (e) { have = []; }
+    if (!have.length) return;              // 場所を問わない人は対象外
+    const haveNames = have.map(function (l) { return l.name; });
+    const miss = [];
+    ids.forEach(function (id) {
+      const st = site(id);
+      if (!st) return;
+      (st.locs || []).forEach(function (l) {
+        if (haveNames.indexOf(l.name) < 0 && miss.indexOf(l.name) < 0) miss.push(l.name);
+      });
+    });
+    if (miss.length) {
+      out.push({ id: r.id, name: r.name, pin: r.pin,
+                 sites: ids.map(siteName).join('、'), missing: miss.join('、') });
+    }
+  });
+  return out;
+}
+
+// 足りない場所を足す。いま入っている場所は消さない
+async function fixLocs() {
+  const bad = locMismatch();
+  if (!bad.length) { alert('直すものはありません。'); return; }
+  if (!confirm(bad.length + ' 名に、配属した現場の打刻場所を足します。\n\n'
+    + bad.map(function (x) { return '　' + x.name + '　+ ' + x.missing; }).join('\n')
+    + '\n\nいま入っている場所は消しません。よろしいですか？')) return;
+
+  const btn = document.getElementById('btn-locfix');
+  if (btn) { btn.disabled = true; btn.textContent = '直しています…'; }
+  setState('busy', '直しています…');
+  let done = 0;
+  try {
+    for (const x of bad) {
+      const r = findRec(x.id);
+      if (!r) continue;
+      let have = [];
+      try { have = JSON.parse(r.locs || '[]') || []; } catch (e) { have = []; }
+      const names = have.map(function (l) { return l.name; });
+      storeIdsOf(r).forEach(function (id) {
+        const st = site(id);
+        if (!st) return;
+        (st.locs || []).forEach(function (l) {
+          if (names.indexOf(l.name) < 0) { have.push(l); names.push(l.name); }
+        });
+      });
+      const rec = {};
+      Object.keys(r).forEach(function (k) { rec[k] = r[k]; });
+      rec.locs = JSON.stringify(have);
+      const res = await apiPost({ action: 'staffSave', rec: rec });
+      if (res.status !== 'ok') throw new Error(r.name + '：' + (res.message || '直せませんでした'));
+      done++;
+    }
+    await reload();
+    alert(done + ' 名を直しました。\n\nその方には、打刻アプリを開き直してもらってください。');
+  } catch (e) {
+    await reload();
+    alert('途中で止まりました：' + e.message + '\n\n（' + done + ' 名までは直っています）');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '直す'; }
 }
 
 async function doFill() {
