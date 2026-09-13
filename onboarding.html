@@ -425,7 +425,8 @@ function readJson(r) {
         // Googleの画面が返ってきている。多いのは次の2つ
         const gone = /ファイルを開くことができません|Sorry, unable to open the file/.test(t);
         throw new Error(gone
-          ? 'このURLのデプロイが見つかりません。Apps Script で「デプロイ → デプロイを管理」を開き、'
+          ? 'このURLのデプロイが見つかりません（' + apiUrl().slice(-28) + '）。'
+            + 'Apps Script で「デプロイ → デプロイを管理」を開き、'
             + 'いまのウェブアプリのURLをコピーして、「はじめの取り込み・設定」タブに貼り直してください。'
           : 'Apps Script から返事が返りませんでした。デプロイのURLが変わったか、'
             + '許可がまだの可能性があります。「はじめの取り込み・設定」タブの'
@@ -451,6 +452,15 @@ function loadCfg() {
   return { apiUrl: '', token: '', userName: '' };
 }
 function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
+
+/* 手入力したURLを消して、アプリにはじめから入っているURLに戻す。
+   「デプロイが見つかりません」が出たとき、まずこれを試す。 */
+function resetApiUrl() {
+  if (!confirm('手入力したURLを消して、アプリにはじめから入っているURLに戻します。\n\nよろしいですか？')) return;
+  CFG.apiUrl = '';
+  saveCfg();
+  reload(true);
+}
 
 function setState(cls, text) {
   const el = document.getElementById('state-chip');
@@ -1374,7 +1384,12 @@ function renderSetup() {
     + '<div class="field"><label>あなたの名前（誰が登録したか残ります）</label>'
     + '<input type="text" value="' + esc(CFG.userName) + '" placeholder="例：花見" onchange="CFG.userName=this.value.trim();saveCfg()" /></div>'
     + '</div>'
-    + '<div class="muted">いまのつなぎ先：' + (apiOn() ? esc(apiUrl()) : '未設定') + '</div>'
+    + '<div class="muted" style="word-break:break-all">いまのつなぎ先：'
+    + (apiOn() ? '<code>' + esc(apiUrl()) + '</code>' : '未設定')
+    + (CFG.apiUrl
+        ? '<br /><b>これは、この端末で手入力されたURLです。</b>'
+          + ' <a href="#" onclick="resetApiUrl();return false">はじめのURLに戻す</a>'
+        : '<br />アプリにはじめから入っているURLを使っています。') + '</div>'
     + (apiOn()
         ? '<div class="row-actions" style="margin-top:.75rem">'
           + '<button class="btn" onclick="checkLink()">つなぎ先を確かめる</button></div>'

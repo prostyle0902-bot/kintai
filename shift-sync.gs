@@ -1452,7 +1452,8 @@ function buildTemplate_(kind, folder) {
   d.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
 
   body.appendParagraph('{{氏名}} 殿').setBold(true);
-  body.appendParagraph('下記のとおり労働条件を明示し、雇用契約を締結します。');
+  // ここで戻しておかないと、以降の文字がすべて太字になる
+  body.appendParagraph('下記のとおり労働条件を明示し、雇用契約を締結します。').setBold(false);
 
   var rows = [];
   rows.push(['契約期間',
@@ -1491,23 +1492,27 @@ function buildTemplate_(kind, folder) {
 
   var t = body.appendTable(rows);
   t.setBorderWidth(1);
+  unboldTable_(t);
   for (var r = 0; r < rows.length; r++) {
     var c0 = t.getCell(r, 0);
     c0.setWidth(120);
-    c0.getChild(0).asParagraph().setBold(true);
+    c0.editAsText().setBold(true);      // 左の見出しだけ太字
   }
 
   body.appendParagraph('');
-  body.appendParagraph('以上の労働条件に合意し、本書2通を作成のうえ各自1通を保有する。');
+  body.appendParagraph('以上の労働条件に合意し、本書2通を作成のうえ各自1通を保有する。').setBold(false);
   body.appendParagraph('');
 
+  var nushi = [COMPANY.name, COMPANY.addr, COMPANY.boss + '　　　　　　印']
+    .filter(function (x) { return x; }).join('\n');
   var sign = body.appendTable([
-    ['事業主', COMPANY.name + '\n' + COMPANY.addr + '\n' + COMPANY.boss + '　　　　　　印'],
+    ['事業主', nushi],
     ['労働者', '住所：{{住所}}\n\n氏名：　　　　　　　　　　　　　　　　　印\n\n日付：　　　年　　月　　日']
   ]);
   sign.setBorderWidth(1);
-  sign.getCell(0, 0).setWidth(70);
-  sign.getCell(1, 0).setWidth(70);
+  unboldTable_(sign);
+  sign.getCell(0, 0).setWidth(70).editAsText().setBold(true);
+  sign.getCell(1, 0).setWidth(70).editAsText().setBold(true);
 
   doc.saveAndClose();
 
@@ -1516,4 +1521,50 @@ function buildTemplate_(kind, folder) {
   folder.addFile(f);
   DriveApp.getRootFolder().removeFile(f);
   return doc.getId();
+}
+
+
+// 表の中の太字をいったん全部外す
+function unboldTable_(t) {
+  for (var r = 0; r < t.getNumRows(); r++) {
+    var row = t.getRow(r);
+    for (var c = 0; c < row.getNumCells(); c++) row.getCell(c).editAsText().setBold(false);
+  }
+}
+
+/* すでに作ったひな型の「全部太字」を直す。
+   CONTRACT_TPL にIDを貼ってから、この関数を1回実行してください。
+   ドキュメントは作り直さないので、IDは変わりません。 */
+function fixTemplateStyle() {
+  ['staff', 'part'].forEach(function (kind) {
+    var id = CONTRACT_TPL[kind];
+    if (!id) { Logger.log((kind === 'staff' ? '社員用' : 'パート用') + '：IDが空です'); return; }
+    var doc  = DocumentApp.openById(id);
+    var body = doc.getBody();
+
+    // まず本文の太字を全部外す
+    body.editAsText().setBold(false);
+
+    // 見出しだけ太字に戻す
+    var ps = body.getParagraphs();
+    for (var i = 0; i < ps.length; i++) {
+      var txt = ps[i].getText();
+      if (txt.indexOf('雇 用 契 約 書') >= 0 || txt.indexOf('殿') >= 0) {
+        ps[i].editAsText().setBold(true);
+      }
+    }
+    // 表の左の列だけ太字に戻す
+    var n = body.getNumChildren();
+    for (var k = 0; k < n; k++) {
+      var el = body.getChild(k);
+      if (el.getType() === DocumentApp.ElementType.TABLE) {
+        var t = el.asTable();
+        for (var r = 0; r < t.getNumRows(); r++) t.getCell(r, 0).editAsText().setBold(true);
+      }
+    }
+    doc.saveAndClose();
+    Logger.log((kind === 'staff' ? '社員用' : 'パート用') + '：直しました');
+  });
+  Logger.log('');
+  Logger.log('Drive の「' + CONTRACT_FOLDER + '」フォルダで、見た目を確かめてください。');
 }
