@@ -92,6 +92,9 @@
   textarea { min-height: 64px; resize: vertical; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 1rem; }
   .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 1rem; }
+  .allow-row { display: grid; grid-template-columns: 1fr 120px auto; gap: .5rem; margin-bottom: .5rem; align-items: center; }
+  .allow-row input { margin: 0; }
+  @media (max-width: 420px) { .allow-row { grid-template-columns: 1fr 100px auto; } }
   .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
   .btn { padding: 9px 16px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
@@ -495,9 +498,73 @@ function blankForm() {
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
     payKind: 'hourly', payRate: 0, commuteKind: 'none', commute: 0,
     shiftName: '', kyuyoName: '', note: '',
+
+    // 本人の連絡先
+    birthday: '', address: '', tel: '', email: '',
+    emgName: '', emgRel: '', emgTel: '',
+
+    // 雇用契約の条件（区分を選ぶと既定値が入る）
+    contractType: '', contractEnd: '', renewal: '', renewalLimit: '',
+    trialMonths: 3, jobDuties: '', jobScope: '', placeScope: '',
+    breakMin: 0, breakAuto: true, overtime: true, holidayRule: '',
+    allowances: [], raise: false, bonus: false, severance: false,
+    socialIns: false, empIns: false,
   };
 }
+
+/* 区分（社員・パート）ごとの、契約条件の既定値。
+   ここを選んだ時点で、契約書に要る項目のほとんどが埋まる。
+   人によって違うところだけ、あとから直せばよい。 */
+function contractDefaults(kind) {
+  if (kind === 'staff') {
+    return {
+      contractType: 'permanent', contractEnd: '', renewal: 'none', renewalLimit: '',
+      trialMonths: 3, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
+      overtime: true, holidayRule: 'シフトによる。週2日以上',
+      raise: true, bonus: true, severance: false,
+      socialIns: true, empIns: true,
+    };
+  }
+  return {
+    contractType: 'fixed', contractEnd: '', renewal: 'may', renewalLimit: '上限なし',
+    trialMonths: 3, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
+    overtime: true, holidayRule: 'シフトによる',
+    raise: false, bonus: false, severance: false,
+    socialIns: false, empIns: false,
+  };
+}
+
+// 入社日の1年後の前日。有期契約の終了日の既定値に使う
+function oneYearLater(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return '';
+  d.setFullYear(d.getFullYear() + 1);
+  d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+         + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// 始業・終業から、法定の休憩時間を出す（6時間超で45分、8時間超で60分）
+function autoBreak(start, end) {
+  if (!start || !end) return 0;
+  const a = start.split(':'), b = end.split(':');
+  if (a.length < 2 || b.length < 2) return 0;
+  let min = (+b[0] * 60 + +b[1]) - (+a[0] * 60 + +a[1]);
+  if (min <= 0) min += 24 * 60;          // 日をまたぐ勤務
+  if (min > 8 * 60) return 60;
+  if (min > 6 * 60) return 45;
+  return 0;
+}
+
+// 区分を選び直したとき、契約条件の既定値を入れ直す
+function applyContractDefaults() {
+  const d = contractDefaults(F.kind);
+  Object.keys(d).forEach(function (k) { F[k] = d[k]; });
+  F.contractEnd = (F.contractType === 'fixed') ? oneYearLater(F.joinedAt) : '';
+}
 let F = blankForm();
+applyContractDefaults();
 
 // 現場を選び直したとき、所属表示と既定の勤務時間を入れ直す
 function syncFromSites() {
@@ -539,7 +606,34 @@ function toggleDay(d) {
   renderNew();
 }
 function setF(k, v) { F[k] = v; }
+function setKind(k) { F.kind = k; applyContractDefaults(); renderNew(); }
+function setJoinedAt(v) {
+  const wasAuto = (F.contractEnd === oneYearLater(F.joinedAt)) || !F.contractEnd;
+  F.joinedAt = v;
+  if (wasAuto && F.contractType === 'fixed') F.contractEnd = oneYearLater(v);
+  renderNew();
+}
+function setAllow(i, k, v) { F.allowances[i][k] = (k === 'amount' ? (+v || 0) : v); }
+function addAllow()   { F.allowances.push({ name: '', amount: 0 }); renderNew(); }
+function delAllow(i)  { F.allowances.splice(i, 1); renderNew(); }
 function setFRender(k, v) { F[k] = v; renderNew(); }
+
+function opt(v, label, cur) {
+  return '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + esc(label) + '</option>';
+}
+function yesNo(label, key, val, onTxt, offTxt) {
+  return '<div class="field"><label>' + esc(label) + '</label><div class="chip-row">'
+    + '<span class="chip' + (val ? ' on' : '') + '" onclick="setFRender(\'' + key + '\',true)">' + esc(onTxt || 'あり') + '</span>'
+    + '<span class="chip' + (!val ? ' on' : '') + '" onclick="setFRender(\'' + key + '\',false)">' + esc(offTxt || 'なし') + '</span>'
+    + '</div></div>';
+}
+function setContractType(t) {
+  F.contractType = t;
+  F.contractEnd = (t === 'fixed') ? (F.contractEnd || oneYearLater(F.joinedAt)) : '';
+  if (t === 'permanent') { F.renewal = 'none'; F.renewalLimit = ''; }
+  else if (!F.renewal || F.renewal === 'none') { F.renewal = 'may'; F.renewalLimit = F.renewalLimit || '上限なし'; }
+  renderNew();
+}
 
 function renderNew() {
   const el = document.getElementById('new-body');
@@ -563,13 +657,13 @@ function renderNew() {
     + '<div class="grid2">'
     + '<div class="field"><label>区分<span class="req">必須</span></label>'
     + '<div class="chip-row">'
-    + '<span class="chip' + (F.kind === 'part' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'part\')">パート・アルバイト</span>'
-    + '<span class="chip' + (F.kind === 'staff' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'staff\')">社員</span>'
+    + '<span class="chip' + (F.kind === 'part' ? ' on' : '') + '" onclick="setKind(\'part\')">パート・アルバイト</span>'
+    + '<span class="chip' + (F.kind === 'staff' ? ' on' : '') + '" onclick="setKind(\'staff\')">社員</span>'
     + '</div>'
     + '<div class="hint">' + (F.kind === 'part'
         ? 'PA勤怠（kintai-pa）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
     + '<div class="field"><label>入社日</label>'
-    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setF(\'joinedAt\',this.value)" /></div>'
+    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setJoinedAt(this.value)" /></div>'
     + '</div>'
     + '<div class="grid2">'
     + '<div class="field"><label>氏名<span class="req">必須</span></label>'
@@ -690,6 +784,113 @@ function renderNew() {
     + '<input type="number" min="0" max="7" value="' + F.maxPerWeek + '" onchange="setF(\'maxPerWeek\',+this.value||0)" /></div>'
     + '</div></div>';
 
+  // --- 本人の連絡先（雇用契約書に使う） ---
+  h += '<div class="card"><div class="card-title">本人の連絡先</div>'
+    + '<div class="card-desc">雇用契約書に載ります。入社時にどのみち聞くものなので、ここで入れておくと後がラクです。</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>生年月日<span class="req">必須</span></label>'
+    + '<input type="date" value="' + esc(F.birthday) + '" onchange="setF(\'birthday\',this.value)" />'
+    + '<div class="hint">18歳未満は深夜（22時〜翌5時）に入れられません。シフト作成でも見ます。</div></div>'
+    + '<div class="field"><label>電話番号</label>'
+    + '<input type="tel" value="' + esc(F.tel) + '" placeholder="例：090-1234-5678" onchange="setF(\'tel\',this.value)" /></div>'
+    + '</div>'
+    + '<div class="field"><label>住所<span class="req">必須</span></label>'
+    + '<input type="text" value="' + esc(F.address) + '" placeholder="例：茨城県神栖市○○1-2-3" onchange="setF(\'address\',this.value)" /></div>'
+    + '<div class="field"><label>メールアドレス</label>'
+    + '<input type="email" value="' + esc(F.email) + '" placeholder="契約書をPDFで送るなら" onchange="setF(\'email\',this.value)" /></div>'
+    + '<div class="grid3">'
+    + '<div class="field"><label>緊急連絡先（氏名）</label>'
+    + '<input type="text" value="' + esc(F.emgName) + '" onchange="setF(\'emgName\',this.value)" /></div>'
+    + '<div class="field"><label>続柄</label>'
+    + '<input type="text" value="' + esc(F.emgRel) + '" placeholder="例：母" onchange="setF(\'emgRel\',this.value)" /></div>'
+    + '<div class="field"><label>電話</label>'
+    + '<input type="tel" value="' + esc(F.emgTel) + '" onchange="setF(\'emgTel\',this.value)" /></div>'
+    + '</div></div>';
+
+  // --- 雇用契約の条件 ---
+  const isFixed = (F.contractType === 'fixed');
+  const bAuto = autoBreak(F.timeMode === 'custom' ? F.startTime : (first ? first.start : ''),
+                          F.timeMode === 'custom' ? F.endTime   : (first ? first.end   : ''));
+  h += '<div class="card"><div class="card-title">雇用契約の条件</div>'
+    + '<div class="card-desc">区分を選んだ時点で、ふつうの内容が入っています。'
+    + '<b>この人だけ違うところ</b>があれば直してください。ここが契約書にそのまま出ます。</div>'
+
+    + '<div class="grid2">'
+    + '<div class="field"><label>契約期間の定め</label><div class="chip-row">'
+    + '<span class="chip' + (!isFixed ? ' on' : '') + '" onclick="setContractType(\'permanent\')">なし（無期）</span>'
+    + '<span class="chip' + (isFixed ? ' on' : '') + '" onclick="setContractType(\'fixed\')">あり（有期）</span>'
+    + '</div></div>'
+    + (isFixed
+        ? '<div class="field"><label>契約の終了日</label>'
+          + '<input type="date" value="' + esc(F.contractEnd) + '" onchange="setF(\'contractEnd\',this.value)" />'
+          + '<div class="hint">入社日の1年後の前日を入れてあります。</div></div>'
+        : '<div class="field"><label>試用期間（月）</label>'
+          + '<input type="number" min="0" max="12" value="' + F.trialMonths + '" onchange="setF(\'trialMonths\',+this.value||0)" /></div>')
+    + '</div>'
+
+    + (isFixed
+        ? '<div class="grid3">'
+          + '<div class="field"><label>更新の有無</label><select onchange="setF(\'renewal\',this.value)">'
+          + opt('may',  '更新する場合がある', F.renewal)
+          + opt('none', '更新しない',         F.renewal)
+          + opt('auto', '自動的に更新する',   F.renewal)
+          + '</select></div>'
+          + '<div class="field"><label>更新の上限<span class="req">必須</span></label>'
+          + '<input type="text" value="' + esc(F.renewalLimit) + '" placeholder="例：通算3年／上限なし" onchange="setF(\'renewalLimit\',this.value)" />'
+          + '<div class="hint">2024年4月から必須です。</div></div>'
+          + '<div class="field"><label>試用期間（月）</label>'
+          + '<input type="number" min="0" max="12" value="' + F.trialMonths + '" onchange="setF(\'trialMonths\',+this.value||0)" /></div>'
+          + '</div>'
+        : '')
+
+    + '<div class="field"><label>業務の内容<span class="req">必須</span></label>'
+    + '<input type="text" value="' + esc(F.jobDuties) + '" placeholder="例：ホール接客、調理補助、清掃" onchange="setF(\'jobDuties\',this.value)" />'
+    + '<div class="hint">所属名ではなく、実際にやってもらう仕事を書いてください。</div></div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>業務の変更の範囲</label>'
+    + '<input type="text" value="' + esc(F.jobScope) + '" onchange="setF(\'jobScope\',this.value)" />'
+    + '<div class="hint">2024年4月から必須です。</div></div>'
+    + '<div class="field"><label>就業場所の変更の範囲</label>'
+    + '<input type="text" value="' + esc(F.placeScope) + '" onchange="setF(\'placeScope\',this.value)" />'
+    + '<div class="hint">掛け持ちがある人はここが効きます。</div></div>'
+    + '</div>'
+
+    + '<div class="grid3">'
+    + '<div class="field"><label>休憩時間（分）</label>'
+    + '<input type="number" min="0" max="240" step="15" value="' + F.breakMin + '" onchange="setF(\'breakMin\',+this.value||0)" />'
+    + '<div class="hint">' + (bAuto
+        ? '勤務時間からは <b>' + bAuto + '分</b> になります。'
+          + '<a href="#" onclick="setFRender(\'breakMin\',' + bAuto + ');return false">これを入れる</a>'
+        : (first || F.timeMode === 'custom'
+            ? '1日6時間以内の勤務なので、法律上は不要です。'
+            : '現場を選ぶと、勤務時間から必要な休憩を出します。')) + '</div></div>'
+    + '<div class="field"><label>所定時間外労働</label><div class="chip-row">'
+    + '<span class="chip' + (F.overtime ? ' on' : '') + '" onclick="setFRender(\'overtime\',true)">有</span>'
+    + '<span class="chip' + (!F.overtime ? ' on' : '') + '" onclick="setFRender(\'overtime\',false)">無</span>'
+    + '</div></div>'
+    + '<div class="field"><label>休日の決め方</label>'
+    + '<input type="text" value="' + esc(F.holidayRule) + '" onchange="setF(\'holidayRule\',this.value)" /></div>'
+    + '</div>'
+
+    + '<div class="field"><label>諸手当</label>'
+    + F.allowances.map(function (a, i) {
+        return '<div class="allow-row">'
+          + '<input type="text" value="' + esc(a.name) + '" placeholder="手当の名前（例：役職手当）" onchange="setAllow(' + i + ',\'name\',this.value)" />'
+          + '<input type="number" min="0" value="' + (+a.amount || 0) + '" onchange="setAllow(' + i + ',\'amount\',this.value)" />'
+          + '<button type="button" class="btn sm ghost" onclick="delAllow(' + i + ')">消す</button></div>';
+      }).join('')
+    + '<button type="button" class="btn sm ghost" onclick="addAllow()">＋ 手当を足す</button>'
+    + '<div class="hint">通勤手当は上で入れたものが自動で入るので、ここには要りません。</div></div>'
+
+    + '<div class="grid3">'
+    + yesNo('昇給', 'raise', F.raise) + yesNo('賞与', 'bonus', F.bonus) + yesNo('退職手当', 'severance', F.severance)
+    + '</div>'
+    + '<div class="grid2" style="margin-bottom:0">'
+    + yesNo('社会保険（健保・厚年）', 'socialIns', F.socialIns, '加入する', '加入しない')
+    + yesNo('雇用保険', 'empIns', F.empIns, '加入する', '加入しない')
+    + '</div>'
+    + '</div>';
+
   // --- 詳しい設定（折りたたみ） ---
   h += '<div class="card"><div class="card-title">補足（必要なときだけ）</div>'
     + '<div class="field"><label>シフト表での表記</label>'
@@ -719,7 +920,7 @@ function setTimeMode(m) {
   if (m === 'default') { syncFromSites(); }
   renderNew();
 }
-function resetForm() { F = blankForm(); lastDone = null; renderNew(); }
+function resetForm() { F = blankForm(); applyContractDefaults(); lastDone = null; renderNew(); }
 
 async function submitNew() {
   if (!F.name.trim()) { alert('氏名を入れてください。'); return; }
@@ -743,6 +944,19 @@ async function submitNew() {
     startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
     targetDays: F.targetDays, maxDays: F.maxDays, maxPerWeek: F.maxPerWeek,
     note: F.note.trim(),
+
+    // 雇用契約書のための欄
+    birthday: F.birthday, address: F.address.trim(), tel: F.tel.trim(), email: F.email.trim(),
+    emgName: F.emgName.trim(), emgRel: F.emgRel.trim(), emgTel: F.emgTel.trim(),
+    contractType: F.contractType || 'fixed',
+    contractEnd: F.contractType === 'fixed' ? F.contractEnd : '',
+    renewal: F.renewal, renewalLimit: F.renewalLimit.trim(),
+    trialMonths: F.trialMonths, totalYears: 0,
+    jobDuties: F.jobDuties.trim(), jobScope: F.jobScope.trim(), placeScope: F.placeScope.trim(),
+    breakMin: F.breakMin, overtime: !!F.overtime, holidayRule: F.holidayRule.trim(),
+    allowances: JSON.stringify(F.allowances.filter(function (a) { return a.name && a.amount; })),
+    raise: !!F.raise, bonus: !!F.bonus, severance: !!F.severance,
+    socialIns: !!F.socialIns, empIns: !!F.empIns,
   };
   if (F.timeMode === 'custom') {
     rec.startTime = F.startTime; rec.endTime = F.endTime;
@@ -930,6 +1144,7 @@ function renderList() {
       + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
       + '<td class="muted">' + esc(r.joinedAt || '') + '</td>'
       + '<td style="text-align:right;white-space:nowrap">'
+      + (isActive(r) ? contractBtn(r) : '')
       + (isActive(r) && r.kyuyo ? '<button class="btn sm" onclick="openPayroll(\'' + r.id + '\')">給与一覧</button> ' : '')
       + '<button class="btn sm ghost" onclick="openEdit(\'' + r.id + '\')">編集</button> '
       + (isActive(r)
@@ -968,6 +1183,26 @@ function openEdit(id) {
   let locs = [];
   try { locs = JSON.parse(r.locs || '[]'); } catch (e) { locs = []; }
   F.noLoc = !locs.length && F.storeIds.some(function (id2) { const s = site(id2); return s && s.locs.length; });
+
+  // 雇用契約の欄。まだ入っていない人は、区分ごとの既定値で埋める
+  applyContractDefaults();
+  ['birthday','address','tel','email','emgName','emgRel','emgTel',
+   'renewalLimit','jobDuties','jobScope','placeScope','holidayRule'].forEach(function (k) {
+    if (r[k]) F[k] = String(r[k]);
+  });
+  if (r.contractType) {
+    F.contractType = r.contractType;
+    F.contractEnd  = r.contractEnd || '';
+    F.renewal      = r.renewal || F.renewal;
+  }
+  if (F.contractType === 'fixed' && !F.contractEnd) F.contractEnd = oneYearLater(F.joinedAt);
+  if (r.trialMonths !== undefined && r.trialMonths !== '') F.trialMonths = +r.trialMonths || 0;
+  if (r.breakMin !== undefined && r.breakMin !== '') F.breakMin = +r.breakMin || 0;
+  ['overtime','raise','bonus','severance','socialIns','empIns'].forEach(function (k) {
+    if (r[k] !== undefined && r[k] !== '') F[k] = !!r[k];
+  });
+  try { F.allowances = JSON.parse(r.allowances || '[]') || []; } catch (e) { F.allowances = []; }
+
   lastDone = null;
   showTab('p-new');
 }
@@ -1336,6 +1571,154 @@ async function checkLink() {
       + '<b>書き込みは通り、読み込みが通りません。</b>合言葉（TOKEN）が合っているか確認してください。</div>';
   }
   el.innerHTML = h;
+}
+
+/* =========================================================
+   雇用契約書
+
+   何をどう書くかは、ここで決めてGASに渡す。
+   GAS側は「ひな型を複製して {{…}} を差し替え、PDFにする」だけを受け持つので、
+   文面の言い回しを直したいときは、この下だけを見ればよい。
+   ========================================================= */
+
+const PAY_DAY      = '翌月10日';                    // ★実際の支払日に合わせてください
+const CONSULT_DESK = '本社　花見 朗子（0299-XX-XXXX）'; // ★実際の窓口に合わせてください
+
+// 契約書に必ず要る欄。空なら作らせない
+const CONTRACT_NEED = [
+  ['birthday',  '生年月日'],
+  ['address',   '住所'],
+  ['jobDuties', '業務の内容'],
+];
+
+function contractMissing(r) {
+  const out = [];
+  CONTRACT_NEED.forEach(function (x) { if (!String(r[x[0]] || '').trim()) out.push(x[1]); });
+  if (r.contractType === 'fixed') {
+    if (!r.contractEnd) out.push('契約の終了日');
+    if (!String(r.renewalLimit || '').trim()) out.push('更新の上限');
+  }
+  return out;
+}
+
+function contractBtn(r) {
+  const miss = contractMissing(r);
+  if (miss.length) {
+    return '<button class="btn sm ghost" title="' + esc(miss.join('・')) + ' が空です" '
+      + 'onclick="alert(\'契約書を作るには、つぎの欄が要ります：\\n\\n' + esc(miss.join('\\n')) + '\\n\\n「編集」から入れてください。\')">契約書 ⚠</button> ';
+  }
+  if (r.contractUrl) {
+    return '<a class="btn sm" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">契約書 ✓</a> '
+      + '<button class="btn sm ghost" onclick="makeContract(\'' + r.id + '\')" title="作り直す">再作成</button> ';
+  }
+  return '<button class="btn sm" onclick="makeContract(\'' + r.id + '\')">契約書</button> ';
+}
+
+function jpDate(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (+m[1]) + '年' + (+m[2]) + '月' + (+m[3]) + '日' : String(iso);
+}
+function yen(n) { return (+n || 0).toLocaleString('ja-JP') + '円'; }
+
+function contractVars(r) {
+  const sids  = storeIdsOf(r);
+  const isFix = (r.contractType === 'fixed');
+
+  // 就業の場所
+  let place = sids.length ? sids.map(siteName).join('、') : (r.dept || '');
+  // 始業・終業
+  let time = '';
+  if (r.startTime && r.endTime) {
+    time = r.startTime + ' 〜 ' + r.endTime;
+    if (r.startTimeWeekend && (r.startTimeWeekend !== r.startTime || r.endTimeWeekend !== r.endTime)) {
+      time += '（土日祝は ' + r.startTimeWeekend + ' 〜 ' + r.endTimeWeekend + '）';
+    }
+  } else {
+    const first = sids.length ? site(sids[0]) : null;
+    time = first ? (first.start + ' 〜 ' + first.end + '（現場のシフトによる）') : 'シフトによる';
+  }
+  // 休日
+  const days = String(r.days || '').split(',').filter(function (x) { return x !== ''; }).map(Number);
+  let holiday = r.holidayRule || 'シフトによる';
+  if (days.length && days.length < 7) {
+    holiday += '（勤務できる曜日：' + days.map(function (d) { return DOW[d]; }).join('・') + '）';
+  }
+  if (r.holidayOk === false) holiday += '　祝日は休み';
+
+  // 諸手当
+  let allow = [];
+  try { (JSON.parse(r.allowances || '[]') || []).forEach(function (a) {
+    if (a.name) allow.push(a.name + ' ' + yen(a.amount));
+  }); } catch (e) { /* 壊れていたら無視 */ }
+  if (+r.commute > 0) {
+    allow.push('通勤手当 ' + yen(r.commute)
+      + (r.commuteKind === 'daily' ? '（出勤1日あたり）' : '（月額）'));
+  }
+
+  return {
+    '作成日':   jpDate(new Date().toISOString().slice(0, 10)),
+    '氏名':     r.name || '',
+    'フリガナ': r.kana || '',
+    '生年月日': jpDate(r.birthday),
+    '住所':     r.address || '',
+    '電話':     r.tel || '',
+
+    '契約期間': isFix
+      ? (jpDate(r.joinedAt) + ' から ' + jpDate(r.contractEnd) + ' まで')
+      : ('期間の定めなし（' + jpDate(r.joinedAt) + ' から）'),
+    '更新': r.renewal === 'none' ? '更新しない'
+          : r.renewal === 'auto' ? '自動的に更新する' : '更新する場合がある',
+    '更新の上限': r.renewalLimit || '上限なし',
+    '試用期間': (+r.trialMonths > 0)
+      ? ('採用日から ' + (+r.trialMonths) + " か月（この期間中の労働条件は本契約と同じ）")
+      : 'なし',
+
+    '就業場所': place,
+    '就業場所の変更の範囲': r.placeScope || '会社の定める事業所',
+    '業務内容': r.jobDuties || '',
+    '業務の変更の範囲': r.jobScope || '会社の定める業務',
+
+    '始業終業': time,
+    '休憩': (+r.breakMin > 0) ? ((+r.breakMin) + '分') : 'なし（1日の労働時間が6時間以内のため）',
+    '所定時間外労働': r.overtime ? '有' : '無',
+    '休日': holiday,
+
+    '賃金': (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen(r.payRate),
+    '諸手当': allow.length ? allow.join('、') : 'なし',
+    '支払日': PAY_DAY,
+    '昇給': r.raise ? '有（勤務成績等を考慮して決定する）' : '無',
+    '賞与': r.bonus ? '有（会社の業績等により支給する）' : '無',
+    '退職手当': r.severance ? '有（就業規則による）' : '無',
+
+    '社会保険': r.socialIns ? '健康保険・厚生年金保険に加入する' : '加入しない',
+    '雇用保険': r.empIns ? '適用あり' : '適用なし',
+    '相談窓口': CONSULT_DESK,
+  };
+}
+
+async function makeContract(id) {
+  const r = findRec(id);
+  if (!r) return;
+  const miss = contractMissing(r);
+  if (miss.length) { alert('つぎの欄が空です：\n\n' + miss.join('\n')); return; }
+  if (!confirm(r.name + ' さんの雇用契約書を作ります。\n\nよろしいですか？')) return;
+
+  setState('busy', '作成中…');
+  try {
+    const res = await apiPost({
+      action: 'contractMake', name: r.name, kind: r.kind || 'part',
+      vars: contractVars(r),
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '作れませんでした');
+    await reload();
+    if (confirm('契約書を作りました。\n\n' + res.title + '\n\n今すぐ開きますか？')) {
+      window.open(res.url, '_blank', 'noopener');
+    }
+  } catch (e) {
+    alert('作れませんでした：' + e.message);
+    setState('err', e.message);
+  }
 }
 
 async function doFill() {
