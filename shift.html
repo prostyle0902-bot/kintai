@@ -39,6 +39,26 @@
   .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
   .logo-title { font-size: 19px; font-weight: 600; color: var(--text-primary); letter-spacing: .06em; }
   .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+  /* ログイン画面 */
+  #gate { position: fixed; inset: 0; background: var(--bg); z-index: 60;
+          display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #gate .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+                padding: 28px 24px; width: 100%; max-width: 360px;
+                display: flex; flex-direction: column; gap: 14px; }
+  #gate .lock-logo { display: flex; align-items: center; justify-content: center; gap: 8px;
+                     color: var(--accent); margin-bottom: 2px; }
+  #gate .lock-logo svg { display: block; }
+  #gate h2 { font-size: 15px; margin: 0; text-align: center; font-weight: 600; }
+  #gate label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+  #gate input { width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 16px;
+                border: 1px solid var(--border-md); border-radius: var(--radius-md);
+                background: var(--surface); color: var(--text-primary); }
+  #gate .btn { width: 100%; padding: 12px; font-size: 15px; }
+  #gate .err { font-size: 13px; color: var(--text-danger); min-height: 1.2em; text-align: center; }
+  #gate .keep { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-secondary); }
+  #gate .keep input { width: auto; }
+  .who { font-size: 12px; color: var(--text-secondary); display: inline-flex;
+         align-items: center; gap: 8px; margin-top: 4px; }
 
     /* Prostyle ロゴ（ブランド色 #1778BC） */
     .logo-row { display: flex; align-items: center; gap: 11px; }
@@ -151,6 +171,12 @@
   .sync-chip.busy { background: #FFF6E0; color: #92650a; border-color: rgba(212,160,23,.3); }
   .sync-chip.err  { background: #FAECE7; color: #993C1D; border-color: rgba(153,60,29,.25); }
   .sync-chip.off  { display: none; }
+  /* 保存ボタン。直したものがあるときだけ目立たせる */
+  .save-btn { font-size: 13px; padding: 7px 18px; font-weight: 600; }
+  .save-btn.dirty { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .save-btn.dirty:hover { background: #125F96; }
+  .save-btn.saved { color: var(--text-secondary); }
+  .save-btn:disabled { cursor: default; opacity: .75; }
 
   .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50;
     align-items: center; justify-content: center; padding: 1rem; }
@@ -312,6 +338,17 @@
 <style id="print-page">@page { size: A4 landscape; margin: 8mm; }</style>
 </head>
 <body>
+<div id="gate">
+  <form class="card" id="gate-form" autocomplete="on">
+    <div class="lock-logo"><svg style="height:24px;width:auto" viewBox="217.9 106.5 404.2 249.7" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path transform="matrix(1,0,0,-1,604.5645,185.522)" d="M0 0C-7.741 28.07-62.489 37.399-122.248 20.83-182.007 4.266-224.1-31.936-216.327-60.033-208.522-88.114-153.773-97.463-94.004-80.857-34.277-64.293 7.784-28.092 0 0M-203.122 70.849C-175.742 76.212-149.101 78.743-124.379 78.743-48.895 78.743 8.807 55.034 16.485 15.715 26.736-36.534-54.96-96.509-166.019-118.293-185.561-122.111-204.715-124.495-223.077-125.55V-170.553C-397.164-146.179-386.49-51.954-386.49-51.954-384.159-2.61-306.355 50.583-203.122 70.849" fill="currentColor"/></svg><svg style="height:15px;width:auto" viewBox="84.4 377.2 670.7 99.5" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path transform="matrix(1,0,0,-1,182.0894,413.61909)" d="M0 0C-1.72-4.988-5.01-9.26-9.852-12.761-14.714-16.284-19.628-18.035-24.617-18.035H-60.614L-70.39-44.95H-97.317L-70.866 28.645H-43.95L-57.281-8.965H-34.827C-31.769-8.965-29.69-7.467-28.646-4.504L-18.858 22.57C-18.669 23.034-18.574 23.53-18.574 24.005-18.574 26.02-19.628 27.031-21.728 27.031H-80.189C-79.24 29.573-77.552 31.714-75.157 33.465-72.753 35.216-70.348 36.103-67.944 36.103H-4.895C-1.055 36.103 1.981 35.016 4.239 32.864 6.496 30.67 7.635 27.865 7.635 24.406 7.635 22.381 7.255 20.303 6.476 18.193Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,225.7319,422.58399)" d="M0 0C-2.489 0-4.937-.865-7.341-2.584-9.724-4.324-11.349-6.423-12.245-8.933H11.801C8.458-13.152 6.771-17.223 6.771-21.167 6.771-24.236 7.784-26.726 9.798-28.645 11.801-30.565 14.501-31.535 17.855-31.535 22.18-31.535 26.42-29.995 30.596-26.926 34.762-23.847 37.672-20.103 39.308-15.704 39.972-13.879 40.321-12.087 40.321-10.367 40.321-7.299 39.308-4.81 37.293-2.88 35.269-.949 32.579 0 29.235 0ZM-22.16-35.985H-49.086L-35.987 0H-9.06Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,325.9687,449.64649)" d="M0 0 6.466 17.992H-20.46L-27.073 0ZM28.646 4.598C27.285 .854 24.838-2.321 21.221-4.979 17.625-7.604 13.954-8.923 10.209-8.923H-43.769C-46.648-8.923-48.958-8.111-50.688-6.476-52.417-4.853-53.283-2.7-53.283 0-53.283 1.434-52.977 2.974-52.417 4.598L-49.096 13.531C-47.756 17.275-45.288 20.471-41.691 23.107-38.084 25.734-34.425 27.062-30.67 27.062H23.309C26.199 27.062 28.477 26.239 30.165 24.605 31.831 22.992 32.674 20.84 32.674 18.13 32.674 16.695 32.389 15.155 31.81 13.531Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,454.5459,422.58399)" d="M0 0C-.865-2.541-2.489-4.683-4.915-6.434-7.31-8.195-9.756-9.07-12.234-9.07H-39.161L-22.043-35.985H-89.553C-91.663-35.985-92.718-34.974-92.718-32.959-92.718-31.535-92.021-30.196-90.629-28.941-89.237-27.686-87.771-27.062-86.242-27.062H-63.777L-80.905 0Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,528.4268,422.58399)" d="M0 0C-.886-2.541-2.51-4.683-4.894-6.434-7.299-8.195-9.756-9.07-12.245-9.07H-21.178L-27.802-27.062H-23.34C-21.22-27.062-20.166-28.034-20.166-29.942-20.166-31.377-20.852-32.759-22.18-34.045-23.52-35.342-24.964-35.985-26.482-35.985H-58.039L-48.241-9.07H-66.234C-65.265-6.571-63.587-4.451-61.182-2.721-58.788-.98-56.373-.127-53.916-.127-51.469-.127-49.085 .738-46.723 2.479-44.371 4.209-42.725 6.317-41.755 8.839L-33.423 31.483C-32.073 35.248-29.594 38.454-25.987 41.102-22.401 43.727-18.783 45.067-15.135 45.067H-1.592L-17.993 0Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,600.7158,476.5732)" d="M0 0H-31.536C-33.666 0-34.711 1.012-34.711 3.017-34.711 4.473-34.004 5.832-32.602 7.13-31.22 8.416-29.764 9.08-28.213 9.08H-23.763L-17.276 27.063C-18.226 24.521-19.902 22.391-22.233 20.63-24.597 18.868-26.969 18.004-29.374 18.004H-60.888C-63.788 18.004-66.077 18.815-67.816 20.451-69.536 22.074-70.401 24.227-70.401 26.927-70.401 28.36-70.116 29.9-69.536 31.524L-61.341 53.989H-34.394L-44.191 27.063H-17.129L-7.341 53.989H19.584Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,649.6738,458.5693)" d="M0 0H-31.503L-6.919 67.521C-5.537 71.244-3.091 74.439 .506 77.087 4.113 79.712 7.741 81.053 11.4 81.053H24.911L-1.287 9.06H3.322C5.337 9.06 6.35 8.1 6.35 6.19 6.35 4.641 5.664 3.227 4.345 1.94 2.984 .644 1.54 0 0 0" fill="currentColor"/><path transform="matrix(1,0,0,-1,751.0508,445.0488)" d="M0 0H-45.057C-44.086 2.542-42.41 4.693-40.005 6.444-37.601 8.194-35.216 9.07-32.822 9.07H-23.763L-22.17 13.395H-49.096L-55.72-4.461H-10.652C-8.543-4.461-7.479-5.474-7.479-7.478-7.479-9.018-8.164-10.409-9.557-11.644-10.969-12.898-12.425-13.521-13.954-13.521H-72.415C-75.273-13.521-77.594-12.709-79.323-11.073-81.043-9.45-81.907-7.298-81.907-4.598-81.907-3.164-81.611-1.624-81.043 0L-77.731 8.934C-76.381 12.678-73.934 15.873-70.327 18.51-66.72 21.137-63.071 22.465-59.316 22.465H-5.337C-2.437 22.465-.169 21.642 1.519 20.008 3.185 18.395 4.039 16.285 4.039 13.679 4.039 12.149 3.744 10.558 3.174 8.934Z" fill="currentColor"/></svg></div>
+    <h2>シフト作成</h2>
+    <div><label for="gate-id">ID</label><input type="text" id="gate-id" name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" /></div>
+    <div><label for="gate-pw">パスワード</label><input type="password" id="gate-pw" name="password" autocomplete="current-password" /></div>
+    <label class="keep"><input type="checkbox" id="gate-keep" checked />この端末では次回から省く</label>
+    <button type="submit" class="btn primary">入る</button>
+    <div class="err" id="gate-err"></div>
+  </form>
+</div>
 <div class="app">
   <div class="head no-print">
     <div>
@@ -320,12 +357,14 @@
         <span class="logo-div"></span>
         <span class="logo-title">シフト作成</span>
       </div>
-      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-11b</span></div>
+      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-13a</span></div>
+      <div class="who" id="who"></div>
     </div>
     <div class="toolbar">
       <select id="store-select" onchange="onStoreChange()"></select>
       <input type="month" id="month-input" onchange="onMonthChange()" />
       <span class="period-badge" id="period-badge"></span>
+      <button class="btn save-btn" id="save-btn" style="display:none" onclick="syncNow()">保存</button>
       <span class="sync-chip off" id="sync-chip" style="display:none" onclick="syncNow()" title="押すと今すぐ保存します"></span>
     </div>
   </div>
@@ -1047,8 +1086,15 @@ function getTransfer() { return DB.transfers[transferKey()] || null; }
 
 function num(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function saveDB() {
+  // 誰がいつ直したかを残す。共有していれば全員の画面に出る
+  if (typeof ME !== 'undefined' && ME && !applyingRemote) {
+    DB.lastBy = ME;
+    DB.lastAt = new Date().toLocaleString('ja-JP',
+      { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
   localStorage.setItem(LS_KEY, JSON.stringify(DB));
   scheduleSync();     // 共有が有効なら、少し待ってからまとめて送る
+  if (typeof renderWho === 'function') renderWho();
 }
 
 function store() { return DB.stores.find(s => s.id === DB.activeStoreId) || DB.stores[0]; }
@@ -2014,9 +2060,219 @@ function renderRequests() {
 /* =========================================================
    画面：スタッフ
    ========================================================= */
+/* =========================================================
+   名簿と突き合わせる
+
+   シフト表の名前は手で入れてきたので、共通名簿と食い違うことがある。
+   （網代愛／綱代愛、山崎悠人／山﨑悠人、小金澤登美江／小金澤登美 など）
+   食い違ったままだと、名簿から「別人」が追加されて二重になる。
+   ここで見つけて、まとめて直せるようにする。
+   ========================================================= */
+
+// 名簿に載っている名前（シフト表での表記）
+function masterShiftNames() {
+  const out = {};
+  masterList.forEach(function (r) {
+    const nm = String(r.shiftName || r.name || '').trim();
+    if (nm) out[nm] = r;
+  });
+  return out;
+}
+
+// 2つの文字列がどれだけ違うか（1文字の違い＝1）
+function editDist(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = [];
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1,
+                        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// 表記ゆれを吸収してから比べる（異体字・中黒・空白）
+function normName(s) {
+  return String(s || '')
+    .replace(/[\s　・･]/g, '')
+    .replace(/﨑/g, '崎').replace(/髙/g, '高').replace(/濵/g, '浜')
+    .replace(/眞/g, '真').replace(/齊|齋/g, '斉');
+}
+
+/* シフト表に居るのに名簿と合わない人を探す。
+   似た名前が名簿にあれば、直し先の候補として出す。 */
+function staffAudit() {
+  const known = masterShiftNames();
+  const normKnown = {};
+  Object.keys(known).forEach(function (k) { normKnown[normName(k)] = k; });
+
+  const retiredNames = {};
+  masterList.forEach(function (r) {
+    if (r.status === 'retired') {
+      const nm = String(r.shiftName || r.name || '').trim();
+      if (nm) retiredNames[nm] = true;
+      retiredNames[normName(nm)] = true;
+    }
+  });
+
+  const seen = {};
+  DB.stores.forEach(function (st) {
+    (st.staff || []).forEach(function (u) {
+      const nm = String(u.name || '').trim();
+      if (!nm) return;
+      if (!seen[nm]) seen[nm] = { name: nm, stores: [] };
+      seen[nm].stores.push(st.name);
+    });
+  });
+
+  const mismatch = [], retired = [];
+  Object.keys(seen).forEach(function (nm) {
+    const item = seen[nm];
+    if (retiredNames[nm] || retiredNames[normName(nm)]) { retired.push(item); return; }
+    if (known[nm]) return;                       // そのまま合っている
+
+    // 表記ゆれだけの違いなら、そこに直す
+    const hitNorm = normKnown[normName(nm)];
+    if (hitNorm) { item.suggest = hitNorm; item.why = '表記のゆれ'; mismatch.push(item); return; }
+
+    // 1〜2文字違いの名前を探す
+    let best = null, bestD = 99;
+    Object.keys(known).forEach(function (k) {
+      const d = editDist(normName(nm), normName(k));
+      if (d < bestD) { bestD = d; best = k; }
+    });
+    const limit = normName(nm).length >= 5 ? 2 : 1;
+    if (best && bestD <= limit) { item.suggest = best; item.why = bestD + '文字ちがい'; }
+    mismatch.push(item);
+  });
+
+  return { mismatch: mismatch, retired: retired, total: mismatch.length + retired.length };
+}
+
+// 全部の現場で、この人の名前を変える。行き先に同じ人が居れば1つにまとめる
+function renameEverywhere(from, to) {
+  DB.stores.forEach(function (st) {
+    const list = st.staff || [];
+    const already = list.filter(function (u) { return u.name === to; });
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].name !== from) continue;
+      if (already.length) { list.splice(i, 1); }   // 二重になるので古いほうを消す
+      else { list[i].name = to; }
+    }
+  });
+  // 希望休など、名前で持っているものも合わせて直す
+  if (DB.requests) {
+    Object.keys(DB.requests).forEach(function (k) {
+      const r = DB.requests[k];
+      if (r && r[from] !== undefined && r[to] === undefined) { r[to] = r[from]; }
+      if (r && r[from] !== undefined) delete r[from];
+    });
+  }
+}
+
+function removeEverywhere(name) {
+  DB.stores.forEach(function (st) {
+    st.staff = (st.staff || []).filter(function (u) { return u.name !== name; });
+  });
+  if (DB.requests) {
+    Object.keys(DB.requests).forEach(function (k) {
+      if (DB.requests[k]) delete DB.requests[k][name];
+    });
+  }
+}
+
+function fixOne(name, to) {
+  if (!confirm(name + ' さんを「' + to + '」に直します。\n\nすべての現場と希望休が、この名前に揃います。')) return;
+  renameEverywhere(name, to);
+  saveDB(); renderAll();
+}
+function dropOne(name) {
+  if (!confirm(name + ' さんを、すべての現場から削除します。\n\n作成済みのシフトは変わりません。よろしいですか？')) return;
+  removeEverywhere(name);
+  saveDB(); renderAll();
+}
+
+function fixAllStaff() {
+  const a = staffAudit();
+  const ren = a.mismatch.filter(function (x) { return x.suggest; });
+  const del = a.retired;
+  if (!ren.length && !del.length) { alert('直すものはありません。'); return; }
+
+  const msg = []
+    .concat(ren.length ? ['【名前をそろえる】'].concat(ren.map(function (x) { return '　' + x.name + ' → ' + x.suggest; })) : [])
+    .concat(del.length ? ['', '【退職したので削除】'].concat(del.map(function (x) { return '　' + x.name; })) : [])
+    .join('\n');
+  if (!confirm('つぎのように直します。\n\n' + msg + '\n\nよろしいですか？')) return;
+
+  ren.forEach(function (x) { renameEverywhere(x.name, x.suggest); });
+  del.forEach(function (x) { removeEverywhere(x.name); });
+  saveDB(); renderAll();
+  alert('直しました。名前をそろえた人：' + ren.length + ' 名／削除した人：' + del.length + ' 名');
+}
+
+function auditCard() {
+  if (!masterList.length) return '';
+  const all = staffAudit();
+  // 直し先の候補があるものだけを前に出す。
+  // 候補が無い人は「まだ名簿に入っていないだけ」のことが多いので、数だけ知らせる。
+  const a = {
+    mismatch: all.mismatch.filter(function (x) { return x.suggest; }),
+    unknown:  all.mismatch.filter(function (x) { return !x.suggest; }),
+    retired:  all.retired
+  };
+  a.total = a.mismatch.length + a.retired.length;
+  if (!a.total) {
+    return '<div class="card" style="margin-bottom:1rem"><div class="p-hint" style="background:#E1F5EE;color:#0F6E56">'
+      + '✅ シフト表の名前は、共通名簿と揃っています。</div></div>';
+  }
+  let h = '<div class="card" style="margin-bottom:1rem">'
+    + '<div class="card-title">名簿と合っていない人（' + a.total + ' 名）</div>'
+    + '<div class="p-hint">このままだと、名簿から「別人」が足されて二重になります。'
+    + '直すと、すべての現場と希望休の名前が揃います。</div>'
+    + '<div class="table-wrap"><table><thead><tr>'
+    + '<th>シフト表の名前</th><th>出ている現場</th><th>どうする</th></tr></thead><tbody>';
+
+  a.mismatch.forEach(function (x) {
+    h += '<tr><td><b>' + esc(x.name) + '</b></td><td>' + esc(x.stores.join('、')) + '</td><td>'
+      + '<button class="btn sm" onclick="fixOne(' + JSON.stringify(x.name).replace(/"/g, '&quot;')
+      + ',' + JSON.stringify(x.suggest).replace(/"/g, '&quot;') + ')">「'
+      + esc(x.suggest) + '」に直す</button> <span class="muted">' + esc(x.why || '') + '</span> '
+      + '<button class="btn sm danger" onclick="dropOne(' + JSON.stringify(x.name).replace(/"/g, '&quot;') + ')">削除</button>'
+      + '</td></tr>';
+  });
+  a.retired.forEach(function (x) {
+    h += '<tr><td><b>' + esc(x.name) + '</b></td><td>' + esc(x.stores.join('、')) + '</td>'
+      + '<td><span class="muted">名簿では退職</span> '
+      + '<button class="btn sm danger" onclick="dropOne(' + JSON.stringify(x.name).replace(/"/g, '&quot;') + ')">削除</button>'
+      + '</td></tr>';
+  });
+
+  h += '</tbody></table></div>';
+
+  if (a.unknown.length) {
+    h += '<details style="margin-top:.75rem"><summary class="muted" style="cursor:pointer">'
+      + '名簿に載っていない人：' + a.unknown.length + ' 名（似た名前も見つかりません）</summary>'
+      + '<div class="p-hint" style="margin-top:.5rem">入社登録アプリで取り込んでいない人か、'
+      + 'シフト表だけで使っている名前です。<b>急いで直す必要はありません。</b></div>'
+      + '<div class="muted" style="margin-top:.5rem;line-height:2">'
+      + a.unknown.map(function (x) { return esc(x.name); }).join('、')
+      + '</div></details>';
+  }
+
+  h += '<div class="row-actions"><button class="btn primary" onclick="fixAllStaff()">まとめて直す</button>'
+    + '<button class="btn ghost" onclick="masterPull(true)">名簿を読み直す</button></div></div>';
+  return h;
+}
+
 function renderStaff() {
   const st = store();
-  let h = '';
+  let h = auditCard();
   st.staff.forEach((u, i) => {
     h += '<div class="staff-row ' + (u.active ? '' : 'inactive') + '">';
     h += '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name) + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
@@ -2947,6 +3203,7 @@ async function transferTest() {
    ・この画面で手で足した人は、名簿にいないので触らない
    ========================================================= */
 let masterRev = -1;
+let masterList = [];   // 最後に読めた共通名簿。名前の突き合わせに使う
 
 // 名簿から来た人かどうかの目印。異動で外すかどうかの判断に使う
 function markFromMaster(u) { if (!u.fromMaster) { u.fromMaster = true; } }
@@ -3017,10 +3274,12 @@ function applyMaster(list) {
 async function masterPull(force) {
   if (!syncOn()) return;
   try {
-    const res = await syncGet({ action: 'staffList' });
+    // 住所や単価は受け取らない。シフトに要る欄だけの staffShift を使う
+    const res = await syncGet({ action: 'staffShift' });
     if (!res || res.status !== 'ok') return;
     if (!force && res.staffRev === masterRev) return;
     masterRev = res.staffRev;
+    masterList = res.staff || [];
     if (applyMaster(res.staff || [])) {
       saveDB();      // 共有にも送って、全員の画面を揃える
       renderAll();
@@ -3033,7 +3292,7 @@ async function masterPull(force) {
    店舗設定・スタッフ・営業日・希望休・作成したシフトを全員で共有する。
    表示の設定（時間表示など）と、いま見ている現場は各自のままにする。
    ========================================================= */
-const SYNCED_KEYS = ['stores', 'dayOverrides', 'requests', 'shifts', 'transfers', 'transferDest', 'rosterSync'];
+const SYNCED_KEYS = ['stores', 'dayOverrides', 'requests', 'shifts', 'transfers', 'transferDest', 'rosterSync', 'lastBy', 'lastAt'];
 const SYNC_POLL = 60000;          // 誰かが更新していないか見にいく間隔
 const SYNC_IDLE = 15 * 60 * 1000; // ずっと触っていなければ見にいくのをやめる
 
@@ -3099,6 +3358,21 @@ function setSyncInfo(state, text) {
   el.style.display = syncOn() ? '' : 'none';
   const b = document.getElementById('sync-detail');
   if (b) b.textContent = text;
+
+  // 保存ボタン。直したものがあるときだけ押せるようにする
+  const sb = document.getElementById('save-btn');
+  if (sb) {
+    sb.style.display = syncOn() ? '' : 'none';
+    if (state === 'busy' && /未保存/.test(text)) {
+      sb.className = 'btn save-btn dirty'; sb.textContent = '保存'; sb.disabled = false;
+    } else if (state === 'busy') {
+      sb.className = 'btn save-btn'; sb.textContent = '保存中…'; sb.disabled = true;
+    } else if (state === 'err') {
+      sb.className = 'btn save-btn dirty'; sb.textContent = 'もう一度保存'; sb.disabled = false;
+    } else {
+      sb.className = 'btn save-btn saved'; sb.textContent = '保存済み'; sb.disabled = true;
+    }
+  }
 }
 
 // 開いたときに読み込む
@@ -3805,16 +4079,113 @@ function renderAll() {
   renderShift();
 }
 
-renderAll();
-// ブラウザの印刷（Ctrl+P など）から呼ばれたときも、同じ紙面を組み立てる
-window.addEventListener('beforeprint', buildPrintArea);
-// 共有リンク（#sync=...）で開かれたときは、その共有先につなぐ
-if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
-// 共有が設定されていれば、開いたときに最新を読み込み、続けて共通スタッフ名簿も取り込む
-if (syncOn()) syncPull().then(function () { return masterPull(true); });
-// あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
-// （共有していない端末では syncCheck が何もしない）
-startSyncWatch();
+/* =========================================================
+   ログイン
+
+   誰が開いているかを出し、シフトを直した人を記録するためのもの。
+   パスワードは置かず、照合用に変換した値だけを持つ。
+   ID・パスワードは入社登録アプリと同じ。覚えるものを増やさないため。
+   ========================================================= */
+const GATE_SALT = 'prostyle-onboarding-2026';
+const GATE_LS   = 'prostyle_shift_login';
+const GATE_DAYS = 14;
+
+/* このアプリを開ける人。入社登録アプリとは別に持つ
+   （あちらには単価や住所が入っているので、同じ権限にはしない）。 */
+const ACCOUNTS = [
+  { id: 'sakae', name: '飯田栄（社長）', hash: 'fc055247aface0e39613adda05fa85b8e4167c583f41a364ab22653b2999d906' },
+  { id: 'akiko', name: '花見朗子', hash: 'ff96ae88e522c3af7d769298c3ed4a2d557e87857c651c4e05f75f9a8fea2cd7' },
+  { id: 'junko', name: '飯田純子', hash: '700457fa44444538e3b6789422e23013d47175353cef4f88fa22cf16636691fc' },
+  { id: 'fuseda', name: '伏田幸枝', hash: '973c1bb3c8f548c8ca0070d35565895cd1d09c219ce11559cafaad4327189421' },
+  { id: 'takumi', name: '石毛拓海', hash: 'b94a231a94d3407e9413442bf84c537e1bf5f3c64d854011943363bfcc081f50' },
+];
+
+async function gateHash(id, pw) {
+  const data = new TextEncoder().encode(id + ':' + pw + ':' + GATE_SALT);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+let ME = '';   // いま開いている人。シフトを直したときの記録に使う
+
+function gateSession() {
+  try {
+    const o = JSON.parse(localStorage.getItem(GATE_LS) || 'null');
+    if (o && o.name && o.until > Date.now()) return o;
+  } catch (e) { /* 壊れていたら入り直してもらう */ }
+  return null;
+}
+function gateLogout() {
+  try { localStorage.removeItem(GATE_LS); } catch (e) {}
+  location.reload();
+}
+
+function renderWho() {
+  const el = document.getElementById('who');
+  if (!el) return;
+  let h = esc(ME) + ' <button class="btn sm ghost" onclick="gateLogout()">ログアウト</button>';
+  if (DB.lastBy) {
+    h += '<span style="margin-left:.6rem">最後に直した人：<b>' + esc(DB.lastBy) + '</b>'
+      + (DB.lastAt ? '　' + esc(DB.lastAt) : '') + '</span>';
+  }
+  el.innerHTML = h;
+}
+
+function startApp(who) {
+  ME = who.name;
+  const g = document.getElementById('gate');
+  if (g) g.remove();
+
+  renderAll();
+  renderWho();
+  // ブラウザの印刷（Ctrl+P など）から呼ばれたときも、同じ紙面を組み立てる
+  window.addEventListener('beforeprint', buildPrintArea);
+  // 保存できていないまま閉じようとしたら、ブラウザに確認を出させる
+  window.addEventListener('beforeunload', function (e) {
+    if (syncOn() && syncDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+  // 共有リンク（#sync=...）で開かれたときは、その共有先につなぐ
+  if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
+  // 共有が設定されていれば、開いたときに最新を読み込み、続けて共通スタッフ名簿も取り込む
+  if (syncOn()) syncPull().then(function () { return masterPull(true); }).then(renderWho);
+  // あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
+  startSyncWatch();
+}
+
+(function () {
+  const saved = gateSession();
+  if (saved) { startApp(saved); return; }
+
+  const form = document.getElementById('gate-form');
+  const err  = document.getElementById('gate-err');
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const id = document.getElementById('gate-id').value.trim().toLowerCase();
+    const pw = document.getElementById('gate-pw').value;
+    err.textContent = '';
+    if (!id || !pw) { err.textContent = 'IDとパスワードを入れてください'; return; }
+    if (!window.crypto || !crypto.subtle) { err.textContent = 'この画面は https で開いてください'; return; }
+    let h;
+    try { h = await gateHash(id, pw); }
+    catch (e) { err.textContent = '確かめられませんでした'; return; }
+
+    const hit = ACCOUNTS.find(function (a) { return a.id === id && a.hash === h; });
+    if (!hit) {
+      err.textContent = 'IDかパスワードが違います';
+      document.getElementById('gate-pw').value = '';
+      return;
+    }
+    const days = document.getElementById('gate-keep').checked ? GATE_DAYS : 0.5;
+    try {
+      localStorage.setItem(GATE_LS, JSON.stringify({
+        id: hit.id, name: hit.name, until: Date.now() + days * 86400000,
+      }));
+    } catch (e) { /* 覚えられなくても、この回は使える */ }
+    startApp(hit);
+  });
+  document.getElementById('gate-id').focus();
+})();
 </script>
 </body>
 </html>

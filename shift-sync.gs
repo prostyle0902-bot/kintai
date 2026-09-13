@@ -41,20 +41,36 @@
  * ======================================================================= */
 function authorizeOnce() {
   var lines = [];
+  var ng = 0;
 
-  try {
-    lines.push('名簿の置き場所：' + SpreadsheetApp.getActiveSpreadsheet().getName());
-  } catch (e) {
-    lines.push('【要対応】名簿のスプレッドシートを開けません：' + String(e));
+  function check(name, fn) {
+    try { lines.push('OK　' + name + '：' + fn()); }
+    catch (e) { lines.push('【要対応】' + name + '：' + String(e)); ng++; }
   }
 
-  // 給与一覧を開けるか。ここが通れば、給与一覧への登録は動く
-  try {
-    var t = SpreadsheetApp.openById(PAYROLL_FILES[PAYROLL_FILES.length - 1].id);
-    lines.push('給与一覧を開けました：' + t.getName());
-  } catch (e) {
-    lines.push('【要対応】給与一覧を開けません：' + String(e));
-  }
+  // このスクリプトが使っているものを、ひととおり触って許可をもらう
+  check('名簿のスプレッドシート', function () {
+    return SpreadsheetApp.getActiveSpreadsheet().getName();
+  });
+  check('給与一覧を開く', function () {
+    return SpreadsheetApp.openById(PAYROLL_FILES[PAYROLL_FILES.length - 1].id).getName();
+  });
+  check('ドライブのフォルダ', function () {
+    return contractFolder_().getName() + ' フォルダが見えます';
+  });
+  check('契約書のひな型（ドキュメント）', function () {
+    if (!CONTRACT_TPL.part) return 'IDが未設定です（契約書を作るときに要ります）';
+    return DocumentApp.openById(CONTRACT_TPL.part).getName();
+  });
+  check('覚えておく場所（キャッシュ）', function () {
+    CacheService.getScriptCache().put('_authcheck', '1', 60);
+    return '使えます';
+  });
+
+  lines.push('');
+  lines.push(ng === 0
+    ? '■ ぜんぶ通りました。アプリから使えます。'
+    : '■ ' + ng + ' 件が通っていません。上の【要対応】を見てください。');
 
   var msg = lines.join('\n');
   Logger.log(msg);
@@ -113,6 +129,8 @@ function handle_(p, cb) {
     if (p.action === 'staffList') return json_(staffList_(), cb);
     // 打刻アプリ向けの軽い名簿。必要な欄だけなので3分の1ほどの大きさになる
     if (p.action === 'staffPunch') return json_(staffPunch_(), cb);
+    // シフト作成向けの名簿。住所や単価は渡さない
+    if (p.action === 'staffShift') return json_(staffShift_(), cb);
 
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(20000)) {
@@ -126,6 +144,9 @@ function handle_(p, cb) {
       if (p.action === 'staffImport') return json_(staffImport_(p), cb);
       if (p.action === 'staffFill') return json_(staffFill_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
+      if (p.action === 'contractMake') return json_(contractMake_(p), cb);
+      if (p.action === 'staffDelete') return json_(staffDelete_(p), cb);
+      if (p.action === 'rosterExport') return json_(rosterExport_(), cb);
       if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
       if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
@@ -255,13 +276,60 @@ var STAFF_COLS = [
   'startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend',
   'targetDays', 'maxDays', 'maxPerWeek',
   'note',
-  'updatedAt', 'updatedBy'
+  'updatedAt', 'updatedBy',
+
+  /* ここから下は雇用契約書のための欄。
+     2024年4月から明示が必須になったもの（業務・就業場所の変更の範囲、更新の上限）も含む。 */
+
+  // 本人のこと
+  'birthday',      // 生年月日 YYYY-MM-DD
+  'address',       // 住所
+  'tel',           // 電話番号
+  'email',         // メールアドレス
+  'emgName',       // 緊急連絡先の氏名
+  'emgRel',        // 緊急連絡先の続柄
+  'emgTel',        // 緊急連絡先の電話
+
+  // 契約の期間
+  'contractType',  // permanent（期間の定めなし） / fixed（あり）
+  'contractEnd',   // 契約の終了日 YYYY-MM-DD（fixed のときだけ）
+  'renewal',       // may（更新する場合がある） / none（更新しない） / auto（自動更新）
+  'renewalLimit',  // 更新の上限 例「通算3年」「上限なし」★2024年4月から必須
+  'trialMonths',   // 試用期間（月）。0なら無し
+  'totalYears',    // 通算の契約期間（年）。5年を超えると無期転換の申込権が出る
+
+  // 働く場所と仕事
+  'jobDuties',     // 業務の内容
+  'jobScope',      // 業務の変更の範囲 ★2024年4月から必須
+  'placeScope',    // 就業場所の変更の範囲 ★2024年4月から必須
+
+  // 労働時間と休み
+  'breakMin',      // 休憩時間（分）
+  'overtime',      // 所定時間外労働の有無
+  'holidayRule',   // 休日の決め方 例「シフトによる。週2日以上」
+
+  // 賃金
+  'allowances',    // 諸手当。JSONの配列 [{name,amount,kind}]
+  'raise',         // 昇給の有無 ★パート・有期には必須
+  'bonus',         // 賞与の有無 ★パート・有期には必須
+  'severance',     // 退職手当の有無 ★パート・有期には必須
+
+  // 保険
+  'socialIns',     // 社会保険（健康保険・厚生年金）に入るか
+  'empIns',        // 雇用保険に入るか
+
+  // 契約書の管理
+  'contractStatus',// ''（未作成） / made（作成済） / signed（本人署名済）
+  'contractAt',    // 契約書を作った日
+  'contractUrl'    // 作った契約書（PDF）のURL
 ];
 
 // 数字として扱う列（空欄は0にする）
-var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek'];
+var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek',
+                      'breakMin', 'trialMonths', 'totalYears'];
 // はい／いいえで扱う列
-var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk'];
+var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk',
+                       'overtime', 'raise', 'bonus', 'severance', 'socialIns', 'empIns'];
 
 function getStaffSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1264,4 +1332,485 @@ function fixLedger() {
     + (failed.length ? '\n\n直せなかったもの：\n' + failed.join('\n') : '');
   Logger.log(msg);
   return msg;
+}
+
+
+/* =========================================================
+   雇用契約書をつくる
+
+   ひな型のGoogleドキュメントを複製し、{{…}} の目印を差し替えてPDFにする。
+   文面を直したいときは、ひな型のドキュメントを直すだけでよい。
+   何をどう書くかは入社登録アプリ側が決めて送ってくるので、
+   ここは「複製して、置き換えて、PDFにする」だけを受け持つ。
+   ========================================================= */
+
+// 「契約書のひな型」フォルダに入れた2枚のドキュメントのID。
+// 空のままなら、makeContractTemplates() を1回実行すると作られる。
+var CONTRACT_TPL = {
+  staff: '1z7LXt82qaeyoxQtvmC5Z6Q3nTsDZjlLGFH2QQ3G56bU',   // 社員用（期間の定めなし）
+  part:  '1Mv4o2cwJnl4h5X2ZQPIDIuKcaaqkxLmkFgNvkblEkDI'    // パート・アルバイト用（期間の定めあり）
+};
+var CONTRACT_FOLDER = '雇用契約書';   // できたPDFを入れるフォルダ名
+
+function contractMake_(p) {
+  var name = String(p.name || '').trim();
+  if (!name) return { status: 'error', message: '誰の契約書かが分かりません' };
+
+  var kind = (String(p.kind || 'part') === 'staff') ? 'staff' : 'part';
+  var tplId = CONTRACT_TPL[kind];
+  if (!tplId) {
+    return { status: 'error', message: 'ひと型がまだ作られていません。'
+      + 'Apps Script で makeContractTemplates を1回実行し、出てきたIDを CONTRACT_TPL に貼ってください。' };
+  }
+
+  var vars = p.vars;
+  if (typeof vars === 'string') {
+    try { vars = JSON.parse(vars); } catch (e) { vars = null; }
+  }
+  if (!vars) return { status: 'error', message: '差し込む内容が届きませんでした' };
+
+  var tpl;
+  try { tpl = DriveApp.getFileById(tplId); }
+  catch (e) { return { status: 'error', message: 'ひな型のドキュメントが開けません（ID: ' + tplId + '）' }; }
+
+  var folder = contractFolder_();
+  var title  = '雇用契約書_' + name + '_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
+
+  // 複製して差し替える
+  var copy = tpl.makeCopy(title + '_編集用', folder);
+  var doc  = DocumentApp.openById(copy.getId());
+  var b    = doc.getBody();
+  Object.keys(vars).forEach(function (k) {
+    b.replaceText('\\{\\{' + escapeForRegex_(k) + '\\}\\}', String(vars[k] === null || vars[k] === undefined ? '' : vars[k]));
+  });
+  // 残った目印は空にする（ひな型にあって送られてこなかったもの）
+  b.replaceText('\\{\\{[^}]*\\}\\}', '');
+  doc.saveAndClose();
+
+  // PDFにして、編集用は消す
+  var pdf = folder.createFile(DriveApp.getFileById(copy.getId()).getAs('application/pdf')).setName(title + '.pdf');
+  DriveApp.getFileById(copy.getId()).setTrashed(true);
+
+  var url = pdf.getUrl();
+  var at  = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  // 名簿に書き戻す
+  var sh   = getStaffSheet_();
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].name === name) {
+      setStaffCell_(sh, head, list[i]._row, 'contractStatus', 'made');
+      setStaffCell_(sh, head, list[i]._row, 'contractAt', at);
+      setStaffCell_(sh, head, list[i]._row, 'contractUrl', url);
+      break;
+    }
+  }
+  bumpStaffRev_();
+  return { status: 'ok', name: name, url: url, at: at, title: title };
+}
+
+function setStaffCell_(sh, head, row, col, val) {
+  var c = head.indexOf(col);
+  if (c >= 0) sh.getRange(row, c + 1).setValue(val);
+}
+
+function escapeForRegex_(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function contractFolder_() {
+  var it = DriveApp.getFoldersByName(CONTRACT_FOLDER);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(CONTRACT_FOLDER);
+}
+
+
+/* =========================================================
+   契約書のひな型を作る（Apps Script のエディタで1回だけ実行）
+
+   社員用とパート用の2枚を、Googleドキュメントとして作る。
+   実行ログに出たIDを、上の CONTRACT_TPL に貼り付ければ準備完了。
+   文面はあとからドキュメントを直せばよく、ここを直す必要はない。
+   ========================================================= */
+
+var COMPANY = {
+  name:  'Prostyle株式会社',
+  addr:  '',                 // 会社の所在地。ひな型に直接書いてもよい
+  boss:  '代表取締役　飯田　栄'
+};
+
+function makeContractTemplates() {
+  var folder = contractFolder_();
+  var out = {};
+  ['staff', 'part'].forEach(function (kind) {
+    var id = buildTemplate_(kind, folder);
+    out[kind] = id;
+    Logger.log((kind === 'staff' ? '社員用' : 'パート・アルバイト用') + '：' + id);
+  });
+  Logger.log('');
+  Logger.log('上のほうにある CONTRACT_TPL の、空の \'\' の中だけを書き換えてください。');
+  Logger.log('（var で始まる行をまるごと足すと、二重になって動かなくなります）');
+  Logger.log('');
+  Logger.log("  staff: '" + out.staff + "',");
+  Logger.log("  part:  '" + out.part  + "'");
+  Logger.log('');
+  Logger.log('ドキュメントは Drive の「' + CONTRACT_FOLDER + '」フォルダにあります。');
+  Logger.log('文面はそのまま直して構いません。{{ }} の目印だけ消さないでください。');
+}
+
+function buildTemplate_(kind, folder) {
+  var isPart = (kind === 'part');
+  var title  = isPart ? '【ひな型】雇用契約書（パート・アルバイト）'
+                      : '【ひな型】雇用契約書（社員）';
+
+  var doc  = DocumentApp.create(title);
+  var body = doc.getBody();
+  body.setMarginTop(40).setMarginBottom(40).setMarginLeft(50).setMarginRight(50);
+
+  var h = body.appendParagraph('雇 用 契 約 書 兼 労 働 条 件 通 知 書');
+  h.setHeading(DocumentApp.ParagraphHeading.TITLE);
+  h.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+  var d = body.appendParagraph('{{作成日}}');
+  d.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+
+  body.appendParagraph('{{氏名}} 殿').setBold(true);
+  // ここで戻しておかないと、以降の文字がすべて太字になる
+  body.appendParagraph('下記のとおり労働条件を明示し、雇用契約を締結します。').setBold(false);
+
+  var rows = [];
+  rows.push(['契約期間',
+    isPart
+      ? '{{契約期間}}\n更新の有無：{{更新}}\n更新の上限：{{更新の上限}}\n'
+        + '更新の判断基準：契約期間満了時の業務量、勤務成績・勤務態度、能力、会社の経営状況、'
+        + '従事している業務の進捗状況により判断する。'
+      : '{{契約期間}}']);
+  rows.push(['試用期間', '{{試用期間}}']);
+  rows.push(['就業の場所',
+    '雇入れ直後：{{就業場所}}\n変更の範囲：{{就業場所の変更の範囲}}']);
+  rows.push(['従事すべき業務',
+    '雇入れ直後：{{業務内容}}\n変更の範囲：{{業務の変更の範囲}}']);
+  rows.push(['始業・終業の時刻', '{{始業終業}}']);
+  rows.push(['休憩時間', '{{休憩}}']);
+  rows.push(['所定時間外労働', '{{所定時間外労働}}']);
+  rows.push(['休日', '{{休日}}']);
+  rows.push(['休暇',
+    '年次有給休暇：労働基準法の定めるところにより付与する。\nその他の休暇：就業規則による。']);
+  rows.push(['賃金',
+    '基本賃金：{{賃金}}\n諸手当：{{諸手当}}\n'
+    + '割増賃金率：時間外 25％　深夜（22時〜翌5時）25％　法定休日 35％\n'
+    + '賃金締切日：毎月15日\n賃金支払日：{{支払日}}\n支払方法：本人名義の口座へ振込']);
+  rows.push(['昇給', '{{昇給}}']);
+  rows.push(['賞与', '{{賞与}}']);
+  rows.push(['退職手当', '{{退職手当}}']);
+  if (!isPart) rows.push(['定年', '満60歳（本人が希望し、就業規則の定める基準を満たす場合は65歳まで継続雇用する）']);
+  rows.push(['退職に関する事項',
+    '自己都合により退職する場合は、退職しようとする日の30日前までに届け出ること。\n'
+    + '解雇の事由及び手続は、就業規則の定めるところによる。']);
+  rows.push(['社会保険の加入', '{{社会保険}}']);
+  rows.push(['雇用保険の適用', '{{雇用保険}}']);
+  rows.push(['その他',
+    '労災保険：適用あり\n雇用管理の改善等に関する事項に係る相談窓口：{{相談窓口}}\n'
+    + 'この契約書に定めのない事項は、就業規則及び労働関係法令による。']);
+
+  var t = body.appendTable(rows);
+  t.setBorderWidth(1);
+  unboldTable_(t);
+  for (var r = 0; r < rows.length; r++) {
+    var c0 = t.getCell(r, 0);
+    c0.setWidth(120);
+    c0.editAsText().setBold(true);      // 左の見出しだけ太字
+  }
+
+  body.appendParagraph('');
+  body.appendParagraph('以上の労働条件に合意し、本書2通を作成のうえ各自1通を保有する。').setBold(false);
+  body.appendParagraph('');
+
+  var nushi = [COMPANY.name, COMPANY.addr, COMPANY.boss + '　　　　　　印']
+    .filter(function (x) { return x; }).join('\n');
+  var sign = body.appendTable([
+    ['事業主', nushi],
+    ['労働者', '住所：{{住所}}\n\n氏名：　　　　　　　　　　　　　　　　　印\n\n日付：　　　年　　月　　日']
+  ]);
+  sign.setBorderWidth(1);
+  unboldTable_(sign);
+  sign.getCell(0, 0).setWidth(70).editAsText().setBold(true);
+  sign.getCell(1, 0).setWidth(70).editAsText().setBold(true);
+
+  doc.saveAndClose();
+
+  // 「雇用契約書」フォルダへ移す
+  var f = DriveApp.getFileById(doc.getId());
+  folder.addFile(f);
+  DriveApp.getRootFolder().removeFile(f);
+  return doc.getId();
+}
+
+
+// 表の中の太字をいったん全部外す
+function unboldTable_(t) {
+  for (var r = 0; r < t.getNumRows(); r++) {
+    var row = t.getRow(r);
+    for (var c = 0; c < row.getNumCells(); c++) row.getCell(c).editAsText().setBold(false);
+  }
+}
+
+/* すでに作ったひな型の「全部太字」を直す。
+   CONTRACT_TPL にIDを貼ってから、この関数を1回実行してください。
+   ドキュメントは作り直さないので、IDは変わりません。 */
+function fixTemplateStyle() {
+  ['staff', 'part'].forEach(function (kind) {
+    var id = CONTRACT_TPL[kind];
+    if (!id) { Logger.log((kind === 'staff' ? '社員用' : 'パート用') + '：IDが空です'); return; }
+    var doc  = DocumentApp.openById(id);
+    var body = doc.getBody();
+
+    // まず本文の太字を全部外す
+    body.editAsText().setBold(false);
+
+    // 見出しだけ太字に戻す
+    var ps = body.getParagraphs();
+    for (var i = 0; i < ps.length; i++) {
+      var txt = ps[i].getText();
+      if (txt.indexOf('雇 用 契 約 書') >= 0 || txt.indexOf('殿') >= 0) {
+        ps[i].editAsText().setBold(true);
+      }
+    }
+    // 表の左の列だけ太字に戻す
+    var n = body.getNumChildren();
+    for (var k = 0; k < n; k++) {
+      var el = body.getChild(k);
+      if (el.getType() === DocumentApp.ElementType.TABLE) {
+        var t = el.asTable();
+        for (var r = 0; r < t.getNumRows(); r++) t.getCell(r, 0).editAsText().setBold(true);
+      }
+    }
+    doc.saveAndClose();
+    Logger.log((kind === 'staff' ? '社員用' : 'パート用') + '：直しました');
+  });
+  Logger.log('');
+  Logger.log('Drive の「' + CONTRACT_FOLDER + '」フォルダで、見た目を確かめてください。');
+}
+
+
+/* =========================================================
+   スタッフ名簿を書き出す
+
+   共通スタッフ名簿（staffシート）は、アプリが読むための表で、
+   見出しが英語のうえ列も多い。人が見るための名簿を別に書き出す。
+   押すたびに最新の内容で作り直す。
+   ========================================================= */
+
+var HR_FOLDER    = '人事';           // 契約書も名簿も、ここにまとめる
+var ROSTER_SHEET = 'スタッフ名簿';
+
+// 書き出す列。[見出し, 値の作り方]
+function rosterCols_() {
+  return [
+    ['在籍',        function (r) { return r.status === 'retired' ? '退職' : '在籍'; }],
+    ['区分',        function (r) { return r.kind === 'staff' ? '社員' : 'パート'; }],
+    ['氏名',        function (r) { return r.name; }],
+    ['フリガナ',    function (r) { return r.kana; }],
+    ['PIN',         function (r) { return r.pin; }],
+    ['所属',        function (r) { return r.dept; }],
+    ['入社日',      function (r) { return r.joinedAt; }],
+    ['退職日',      function (r) { return r.retiredAt; }],
+    ['生年月日',    function (r) { return r.birthday; }],
+    ['年齢',        function (r) { return age_(r.birthday); }],
+    ['住所',        function (r) { return r.address; }],
+    ['電話',        function (r) { return r.tel; }],
+    ['メール',      function (r) { return r.email; }],
+    ['緊急連絡先',  function (r) {
+      return [r.emgName, r.emgRel ? '（' + r.emgRel + '）' : '', r.emgTel ? ' ' + r.emgTel : '']
+        .join('').trim(); }],
+    ['賃金',        function (r) {
+      return (+r.payRate) ? ((r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.payRate)) : ''; }],
+    ['通勤手当',    function (r) {
+      if (!(+r.commute)) return 'なし';
+      return yen_(r.commute) + (r.commuteKind === 'daily' ? '／日' : '／月'); }],
+    ['契約期間',    function (r) { return r.contractType === 'permanent' ? '定めなし' : '定めあり'; }],
+    ['契約終了日',  function (r) { return r.contractEnd; }],
+    ['更新',        function (r) {
+      return r.renewal === 'none' ? '更新しない'
+           : r.renewal === 'auto' ? '自動更新'
+           : r.renewal === 'may'  ? '更新あり' : ''; }],
+    ['更新の上限',  function (r) { return r.renewalLimit; }],
+    ['試用期間',    function (r) { return (+r.trialMonths) ? ((+r.trialMonths) + 'か月') : 'なし'; }],
+    ['業務内容',    function (r) { return r.jobDuties; }],
+    ['勤務時間',    function (r) {
+      if (!r.startTime && !r.endTime) return 'シフトによる';
+      return r.startTime + '〜' + r.endTime; }],
+    ['休憩',        function (r) { return (+r.breakMin) ? ((+r.breakMin) + '分') : 'なし'; }],
+    ['休日',        function (r) { return r.holidayRule; }],
+    ['昇給',        function (r) { return r.raise ? 'あり' : 'なし'; }],
+    ['賞与',        function (r) { return r.bonus ? 'あり' : 'なし'; }],
+    ['退職手当',    function (r) { return r.severance ? 'あり' : 'なし'; }],
+    ['社会保険',    function (r) { return r.socialIns ? '加入' : '未加入'; }],
+    ['雇用保険',    function (r) { return r.empIns ? '加入' : '未加入'; }],
+    ['契約書',      function (r) { return r.contractUrl ? '作成済 ' + (r.contractAt || '') : '未作成'; }],
+    ['最終更新',    function (r) { return r.updatedAt; }],
+    ['更新した人',  function (r) { return r.updatedBy; }]
+  ];
+}
+
+// 1140 → 「1,140円」。環境によって toLocaleString が効かないので自分で区切る
+function yen_(n) {
+  var v = String(Math.round(Number(n) || 0));
+  var out = '';
+  while (v.length > 3) { out = ',' + v.slice(-3) + out; v = v.slice(0, -3); }
+  return v + out + '円';
+}
+
+function age_(birthday) {
+  if (!birthday) return '';
+  var d = new Date(String(birthday));
+  if (isNaN(d.getTime())) return '';
+  var t = new Date();
+  var a = t.getFullYear() - d.getFullYear();
+  var m = t.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+  return (a >= 0 && a < 120) ? a : '';
+}
+
+function rosterExport_() {
+  // 1) 人事フォルダを用意し、雇用契約書フォルダをその中へ移す
+  var hr = folderNamed_(HR_FOLDER);
+  moveInto_(contractFolder_(), hr);
+
+  // 2) 名簿のスプレッドシートを用意する
+  var ss = null;
+  var it = hr.getFilesByName(ROSTER_SHEET);
+  if (it.hasNext()) {
+    ss = SpreadsheetApp.open(it.next());
+  } else {
+    ss = SpreadsheetApp.create(ROSTER_SHEET);
+    moveInto_(DriveApp.getFileById(ss.getId()), hr);
+  }
+
+  // 3) 中身を作り直す
+  var cols = rosterCols_();
+  var sh   = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+  list.sort(function (a, b) {
+    if ((a.status === 'retired') !== (b.status === 'retired')) return a.status === 'retired' ? 1 : -1;
+    if (a.kind !== b.kind) return a.kind === 'staff' ? -1 : 1;
+    return String(a.kana || a.name).localeCompare(String(b.kana || b.name), 'ja');
+  });
+
+  var rows = [cols.map(function (c) { return c[0]; })];
+  for (var i = 0; i < list.length; i++) {
+    rows.push(cols.map(function (c) {
+      var v = c[1](list[i]);
+      return (v === null || v === undefined) ? '' : v;
+    }));
+  }
+
+  var tab = ss.getSheets()[0];
+  tab.setName('名簿').clear();
+  tab.getRange(1, 1, rows.length, cols.length).setValues(rows);
+
+  // 見た目を整える
+  var head = tab.getRange(1, 1, 1, cols.length);
+  head.setFontWeight('bold').setBackground('#E7F2FA').setFontColor('#12608f');
+  tab.setFrozenRows(1);
+  tab.setFrozenColumns(3);
+  if (tab.getFilter()) tab.getFilter().remove();
+  tab.getRange(1, 1, rows.length, cols.length).createFilter();
+  tab.autoResizeColumns(1, cols.length);
+  // 住所や業務内容が長くなりすぎないように上限をつける
+  for (var c = 1; c <= cols.length; c++) {
+    if (tab.getColumnWidth(c) > 260) tab.setColumnWidth(c, 260);
+  }
+  tab.getRange(2, 1, Math.max(rows.length - 1, 1), cols.length).setVerticalAlignment('middle');
+
+  // 退職した人は薄く
+  for (var r2 = 0; r2 < list.length; r2++) {
+    if (list[r2].status === 'retired') {
+      tab.getRange(r2 + 2, 1, 1, cols.length).setFontColor('#939cac');
+    }
+  }
+
+  ss.rename(ROSTER_SHEET);
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  tab.getRange(1, cols.length + 2).setValue('この表は「入社登録アプリ」から書き出したものです。直接書き換えても名簿には戻りません。');
+  tab.getRange(2, cols.length + 2).setValue('書き出した日時：' + stamp);
+  tab.getRange(1, cols.length + 2, 2, 1).setFontColor('#939cac').setFontSize(9);
+
+  return { status: 'ok', url: ss.getUrl(), count: list.length, at: stamp,
+           active: list.filter(function (r) { return r.status !== 'retired'; }).length };
+}
+
+// 名前のフォルダを探す。無ければ作る
+function folderNamed_(name) {
+  var it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+}
+
+// ファイルやフォルダを、指定のフォルダの中だけに置く
+function moveInto_(item, parent) {
+  try {
+    var ps = item.getParents();
+    var already = false;
+    var olds = [];
+    while (ps.hasNext()) {
+      var pf = ps.next();
+      if (pf.getId() === parent.getId()) already = true; else olds.push(pf);
+    }
+    if (!already) {
+      if (item.getMimeType) parent.addFile(item); else parent.addFolder(item);
+    }
+    for (var i = 0; i < olds.length; i++) {
+      if (item.getMimeType) olds[i].removeFile(item); else olds[i].removeFolder(item);
+    }
+  } catch (e) {
+    // 移せなくても、作ること自体は続ける
+  }
+}
+
+
+/* シフト作成アプリ向けの名簿。
+   シフトを組むのに要る欄だけを返す。
+   住所・生年月日・電話・緊急連絡先・単価は渡さない。
+   画面に出さなくても、渡せば相手の手元には届いてしまうため。 */
+function staffShift_() {
+  var sh = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+  var keep = ['name', 'shiftName', 'kyuyoName', 'status', 'kind', 'kyuyo', 'storeIds',
+              'days', 'holidayOk', 'startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend',
+              'targetDays', 'maxDays', 'maxPerWeek'];
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    if (!list[i].name) continue;
+    var o = {};
+    for (var k = 0; k < keep.length; k++) o[keep[k]] = list[i][keep[k]];
+    out.push(o);
+  }
+  return { status: 'ok', staffRev: staffRev_(), staff: out };
+}
+
+
+/* 名簿から行ごと消す。
+   テストで作った行などを片付けるためのもの。
+   退職にした人だけを消せるようにして、在籍の人を誤って消さないようにする。
+   打刻や給与の記録は別のファイルなので、消えない。 */
+function staffDelete_(p) {
+  var id = String(p.id || '').trim();
+  if (!id) return { status: 'error', message: '誰を消すのかが分かりません' };
+
+  var sh = getStaffSheet_();
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
+
+  var target = null;
+  for (var i = 0; i < list.length; i++) {
+    if (String(list[i].id) === id) { target = list[i]; break; }
+  }
+  if (!target) return { status: 'error', message: 'その人が名簿に見つかりません' };
+  if (target.status !== 'retired') {
+    return { status: 'error', message: '在籍中の人は消せません。先に「退職」にしてください。' };
+  }
+
+  sh.deleteRow(target._row);
+  bumpStaffRev_();
+  return { status: 'ok', name: target.name, staffRev: staffRev_() };
 }

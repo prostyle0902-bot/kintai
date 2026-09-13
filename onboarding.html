@@ -35,6 +35,26 @@
   .logo-title { font-size: 19px; font-weight: 600; color: var(--text-primary); letter-spacing: .06em; }
   .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
 
+  /* ログイン画面 */
+  #gate { position: fixed; inset: 0; background: var(--bg); z-index: 50;
+          display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #gate .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+                padding: 28px 24px; width: 100%; max-width: 360px;
+                display: flex; flex-direction: column; gap: 14px; }
+  #gate .lock-logo { display: flex; align-items: center; justify-content: center; gap: 8px;
+                     color: var(--accent); margin-bottom: 2px; }
+  #gate .lock-logo svg { display: block; }
+  #gate h2 { font-size: 15px; margin: 0; text-align: center; font-weight: 600; }
+  #gate label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+  #gate input { width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 16px;
+                border: 1px solid var(--border-md); border-radius: var(--radius-md);
+                background: var(--surface); color: var(--text-primary); }
+  #gate .btn { width: 100%; padding: 12px; font-size: 15px; }
+  #gate .err { font-size: 13px; color: var(--text-danger); min-height: 1.2em; text-align: center; }
+  #gate .keep { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-secondary); }
+  #gate .keep input { width: auto; }
+  .who { font-size: 12px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 8px; }
+
     /* Prostyle ロゴ（ブランド色 #1778BC） */
     .logo-row { display: flex; align-items: center; gap: 11px; }
     .logo-lockup { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); }
@@ -72,6 +92,9 @@
   textarea { min-height: 64px; resize: vertical; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 1rem; }
   .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 1rem; }
+  .allow-row { display: grid; grid-template-columns: 1fr 120px auto; gap: .5rem; margin-bottom: .5rem; align-items: center; }
+  .allow-row input { margin: 0; }
+  @media (max-width: 420px) { .allow-row { grid-template-columns: 1fr 100px auto; } }
   .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
   .btn { padding: 9px 16px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
@@ -143,6 +166,24 @@
 </style>
 </head>
 <body>
+<div id="gate">
+  <form class="card" id="gate-form" autocomplete="on">
+    <div class="lock-logo"><svg style="height:24px;width:auto" viewBox="217.9 106.5 404.2 249.7" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path transform="matrix(1,0,0,-1,604.5645,185.522)" d="M0 0C-7.741 28.07-62.489 37.399-122.248 20.83-182.007 4.266-224.1-31.936-216.327-60.033-208.522-88.114-153.773-97.463-94.004-80.857-34.277-64.293 7.784-28.092 0 0M-203.122 70.849C-175.742 76.212-149.101 78.743-124.379 78.743-48.895 78.743 8.807 55.034 16.485 15.715 26.736-36.534-54.96-96.509-166.019-118.293-185.561-122.111-204.715-124.495-223.077-125.55V-170.553C-397.164-146.179-386.49-51.954-386.49-51.954-384.159-2.61-306.355 50.583-203.122 70.849" fill="currentColor"/></svg><svg style="height:15px;width:auto" viewBox="84.4 377.2 670.7 99.5" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path transform="matrix(1,0,0,-1,182.0894,413.61909)" d="M0 0C-1.72-4.988-5.01-9.26-9.852-12.761-14.714-16.284-19.628-18.035-24.617-18.035H-60.614L-70.39-44.95H-97.317L-70.866 28.645H-43.95L-57.281-8.965H-34.827C-31.769-8.965-29.69-7.467-28.646-4.504L-18.858 22.57C-18.669 23.034-18.574 23.53-18.574 24.005-18.574 26.02-19.628 27.031-21.728 27.031H-80.189C-79.24 29.573-77.552 31.714-75.157 33.465-72.753 35.216-70.348 36.103-67.944 36.103H-4.895C-1.055 36.103 1.981 35.016 4.239 32.864 6.496 30.67 7.635 27.865 7.635 24.406 7.635 22.381 7.255 20.303 6.476 18.193Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,225.7319,422.58399)" d="M0 0C-2.489 0-4.937-.865-7.341-2.584-9.724-4.324-11.349-6.423-12.245-8.933H11.801C8.458-13.152 6.771-17.223 6.771-21.167 6.771-24.236 7.784-26.726 9.798-28.645 11.801-30.565 14.501-31.535 17.855-31.535 22.18-31.535 26.42-29.995 30.596-26.926 34.762-23.847 37.672-20.103 39.308-15.704 39.972-13.879 40.321-12.087 40.321-10.367 40.321-7.299 39.308-4.81 37.293-2.88 35.269-.949 32.579 0 29.235 0ZM-22.16-35.985H-49.086L-35.987 0H-9.06Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,325.9687,449.64649)" d="M0 0 6.466 17.992H-20.46L-27.073 0ZM28.646 4.598C27.285 .854 24.838-2.321 21.221-4.979 17.625-7.604 13.954-8.923 10.209-8.923H-43.769C-46.648-8.923-48.958-8.111-50.688-6.476-52.417-4.853-53.283-2.7-53.283 0-53.283 1.434-52.977 2.974-52.417 4.598L-49.096 13.531C-47.756 17.275-45.288 20.471-41.691 23.107-38.084 25.734-34.425 27.062-30.67 27.062H23.309C26.199 27.062 28.477 26.239 30.165 24.605 31.831 22.992 32.674 20.84 32.674 18.13 32.674 16.695 32.389 15.155 31.81 13.531Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,454.5459,422.58399)" d="M0 0C-.865-2.541-2.489-4.683-4.915-6.434-7.31-8.195-9.756-9.07-12.234-9.07H-39.161L-22.043-35.985H-89.553C-91.663-35.985-92.718-34.974-92.718-32.959-92.718-31.535-92.021-30.196-90.629-28.941-89.237-27.686-87.771-27.062-86.242-27.062H-63.777L-80.905 0Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,528.4268,422.58399)" d="M0 0C-.886-2.541-2.51-4.683-4.894-6.434-7.299-8.195-9.756-9.07-12.245-9.07H-21.178L-27.802-27.062H-23.34C-21.22-27.062-20.166-28.034-20.166-29.942-20.166-31.377-20.852-32.759-22.18-34.045-23.52-35.342-24.964-35.985-26.482-35.985H-58.039L-48.241-9.07H-66.234C-65.265-6.571-63.587-4.451-61.182-2.721-58.788-.98-56.373-.127-53.916-.127-51.469-.127-49.085 .738-46.723 2.479-44.371 4.209-42.725 6.317-41.755 8.839L-33.423 31.483C-32.073 35.248-29.594 38.454-25.987 41.102-22.401 43.727-18.783 45.067-15.135 45.067H-1.592L-17.993 0Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,600.7158,476.5732)" d="M0 0H-31.536C-33.666 0-34.711 1.012-34.711 3.017-34.711 4.473-34.004 5.832-32.602 7.13-31.22 8.416-29.764 9.08-28.213 9.08H-23.763L-17.276 27.063C-18.226 24.521-19.902 22.391-22.233 20.63-24.597 18.868-26.969 18.004-29.374 18.004H-60.888C-63.788 18.004-66.077 18.815-67.816 20.451-69.536 22.074-70.401 24.227-70.401 26.927-70.401 28.36-70.116 29.9-69.536 31.524L-61.341 53.989H-34.394L-44.191 27.063H-17.129L-7.341 53.989H19.584Z" fill="currentColor"/><path transform="matrix(1,0,0,-1,649.6738,458.5693)" d="M0 0H-31.503L-6.919 67.521C-5.537 71.244-3.091 74.439 .506 77.087 4.113 79.712 7.741 81.053 11.4 81.053H24.911L-1.287 9.06H3.322C5.337 9.06 6.35 8.1 6.35 6.19 6.35 4.641 5.664 3.227 4.345 1.94 2.984 .644 1.54 0 0 0" fill="currentColor"/><path transform="matrix(1,0,0,-1,751.0508,445.0488)" d="M0 0H-45.057C-44.086 2.542-42.41 4.693-40.005 6.444-37.601 8.194-35.216 9.07-32.822 9.07H-23.763L-22.17 13.395H-49.096L-55.72-4.461H-10.652C-8.543-4.461-7.479-5.474-7.479-7.478-7.479-9.018-8.164-10.409-9.557-11.644-10.969-12.898-12.425-13.521-13.954-13.521H-72.415C-75.273-13.521-77.594-12.709-79.323-11.073-81.043-9.45-81.907-7.298-81.907-4.598-81.907-3.164-81.611-1.624-81.043 0L-77.731 8.934C-76.381 12.678-73.934 15.873-70.327 18.51-66.72 21.137-63.071 22.465-59.316 22.465H-5.337C-2.437 22.465-.169 21.642 1.519 20.008 3.185 18.395 4.039 16.285 4.039 13.679 4.039 12.149 3.744 10.558 3.174 8.934Z" fill="currentColor"/></svg></div>
+    <h2>入社登録アプリ</h2>
+    <div>
+      <label for="gate-id">ID</label>
+      <input type="text" id="gate-id" name="username" autocomplete="username"
+             autocapitalize="off" autocorrect="off" spellcheck="false" />
+    </div>
+    <div>
+      <label for="gate-pw">パスワード</label>
+      <input type="password" id="gate-pw" name="password" autocomplete="current-password" />
+    </div>
+    <label class="keep"><input type="checkbox" id="gate-keep" checked />この端末では次回から省く</label>
+    <button type="submit" class="btn primary">入る</button>
+    <div class="err" id="gate-err"></div>
+  </form>
+</div>
 <div class="app">
 
   <div class="head">
@@ -152,9 +193,10 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-11b</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-13a</span></div>
     </div>
     <div class="inline">
+      <span class="who" id="who"></span>
       <span class="chip-state" id="state-chip">読込中…</span>
       <button class="btn sm ghost" onclick="reload(true)">最新を読み込む</button>
     </div>
@@ -191,7 +233,7 @@
 /* =========================================================
    Prostyle 入社登録
    新しく入る人をここで1回登録すると、共通スタッフ名簿に入り、
-   PA勤怠（kintai_part.html）・勤怠（index.html）・シフト作成（shift.html）が
+   PA勤怠（kintai-pa）・勤怠（index.html）・シフト作成（shift.html）が
    その名簿を読んで自動で反映します。
    ========================================================= */
 
@@ -251,7 +293,7 @@ const SITES = [
 
 /* 打刻アプリのURL。本人に渡す案内に載せる */
 const APP_URLS = {
-  part:  'https://prostyle0902-bot.github.io/kintai/kintai_part.html',
+  part:  'https://prostyle0902-bot.github.io/kintai-pa/',
   staff: 'https://prostyle0902-bot.github.io/kintai/index.html',
 };
 function appUrl(kind) { return kind === 'staff' ? APP_URLS.staff : APP_URLS.part; }
@@ -383,7 +425,8 @@ function readJson(r) {
         // Googleの画面が返ってきている。多いのは次の2つ
         const gone = /ファイルを開くことができません|Sorry, unable to open the file/.test(t);
         throw new Error(gone
-          ? 'このURLのデプロイが見つかりません。Apps Script で「デプロイ → デプロイを管理」を開き、'
+          ? 'このURLのデプロイが見つかりません（' + apiUrl().slice(-28) + '）。'
+            + 'Apps Script で「デプロイ → デプロイを管理」を開き、'
             + 'いまのウェブアプリのURLをコピーして、「はじめの取り込み・設定」タブに貼り直してください。'
           : 'Apps Script から返事が返りませんでした。デプロイのURLが変わったか、'
             + '許可がまだの可能性があります。「はじめの取り込み・設定」タブの'
@@ -409,6 +452,15 @@ function loadCfg() {
   return { apiUrl: '', token: '', userName: '' };
 }
 function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
+
+/* 手入力したURLを消して、アプリにはじめから入っているURLに戻す。
+   「デプロイが見つかりません」が出たとき、まずこれを試す。 */
+function resetApiUrl() {
+  if (!confirm('手入力したURLを消して、アプリにはじめから入っているURLに戻します。\n\nよろしいですか？')) return;
+  CFG.apiUrl = '';
+  saveCfg();
+  reload(true);
+}
 
 function setState(cls, text) {
   const el = document.getElementById('state-chip');
@@ -456,9 +508,73 @@ function blankForm() {
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
     payKind: 'hourly', payRate: 0, commuteKind: 'none', commute: 0,
     shiftName: '', kyuyoName: '', note: '',
+
+    // 本人の連絡先
+    birthday: '', address: '', tel: '', email: '',
+    emgName: '', emgRel: '', emgTel: '',
+
+    // 雇用契約の条件（区分を選ぶと既定値が入る）
+    contractType: '', contractEnd: '', renewal: '', renewalLimit: '',
+    trialMonths: 3, jobDuties: '', jobScope: '', placeScope: '',
+    breakMin: 0, breakAuto: true, overtime: true, holidayRule: '',
+    allowances: [], raise: false, bonus: false, severance: false,
+    socialIns: false, empIns: false,
   };
 }
+
+/* 区分（社員・パート）ごとの、契約条件の既定値。
+   ここを選んだ時点で、契約書に要る項目のほとんどが埋まる。
+   人によって違うところだけ、あとから直せばよい。 */
+function contractDefaults(kind) {
+  if (kind === 'staff') {
+    return {
+      contractType: 'permanent', contractEnd: '', renewal: 'none', renewalLimit: '',
+      trialMonths: 3, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
+      overtime: true, holidayRule: 'シフトによる。週2日以上',
+      raise: true, bonus: true, severance: false,
+      socialIns: true, empIns: true,
+    };
+  }
+  return {
+    contractType: 'fixed', contractEnd: '', renewal: 'may', renewalLimit: '上限なし',
+    trialMonths: 3, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
+    overtime: true, holidayRule: 'シフトによる',
+    raise: false, bonus: false, severance: false,
+    socialIns: false, empIns: false,
+  };
+}
+
+// 入社日の1年後の前日。有期契約の終了日の既定値に使う
+function oneYearLater(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return '';
+  d.setFullYear(d.getFullYear() + 1);
+  d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+         + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// 始業・終業から、法定の休憩時間を出す（6時間超で45分、8時間超で60分）
+function autoBreak(start, end) {
+  if (!start || !end) return 0;
+  const a = start.split(':'), b = end.split(':');
+  if (a.length < 2 || b.length < 2) return 0;
+  let min = (+b[0] * 60 + +b[1]) - (+a[0] * 60 + +a[1]);
+  if (min <= 0) min += 24 * 60;          // 日をまたぐ勤務
+  if (min > 8 * 60) return 60;
+  if (min > 6 * 60) return 45;
+  return 0;
+}
+
+// 区分を選び直したとき、契約条件の既定値を入れ直す
+function applyContractDefaults() {
+  const d = contractDefaults(F.kind);
+  Object.keys(d).forEach(function (k) { F[k] = d[k]; });
+  F.contractEnd = (F.contractType === 'fixed') ? oneYearLater(F.joinedAt) : '';
+}
 let F = blankForm();
+applyContractDefaults();
 
 // 現場を選び直したとき、所属表示と既定の勤務時間を入れ直す
 function syncFromSites() {
@@ -500,7 +616,34 @@ function toggleDay(d) {
   renderNew();
 }
 function setF(k, v) { F[k] = v; }
+function setKind(k) { F.kind = k; applyContractDefaults(); renderNew(); }
+function setJoinedAt(v) {
+  const wasAuto = (F.contractEnd === oneYearLater(F.joinedAt)) || !F.contractEnd;
+  F.joinedAt = v;
+  if (wasAuto && F.contractType === 'fixed') F.contractEnd = oneYearLater(v);
+  renderNew();
+}
+function setAllow(i, k, v) { F.allowances[i][k] = (k === 'amount' ? (+v || 0) : v); }
+function addAllow()   { F.allowances.push({ name: '', amount: 0 }); renderNew(); }
+function delAllow(i)  { F.allowances.splice(i, 1); renderNew(); }
 function setFRender(k, v) { F[k] = v; renderNew(); }
+
+function opt(v, label, cur) {
+  return '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + esc(label) + '</option>';
+}
+function yesNo(label, key, val, onTxt, offTxt) {
+  return '<div class="field"><label>' + esc(label) + '</label><div class="chip-row">'
+    + '<span class="chip' + (val ? ' on' : '') + '" onclick="setFRender(\'' + key + '\',true)">' + esc(onTxt || 'あり') + '</span>'
+    + '<span class="chip' + (!val ? ' on' : '') + '" onclick="setFRender(\'' + key + '\',false)">' + esc(offTxt || 'なし') + '</span>'
+    + '</div></div>';
+}
+function setContractType(t) {
+  F.contractType = t;
+  F.contractEnd = (t === 'fixed') ? (F.contractEnd || oneYearLater(F.joinedAt)) : '';
+  if (t === 'permanent') { F.renewal = 'none'; F.renewalLimit = ''; }
+  else if (!F.renewal || F.renewal === 'none') { F.renewal = 'may'; F.renewalLimit = F.renewalLimit || '上限なし'; }
+  renderNew();
+}
 
 function renderNew() {
   const el = document.getElementById('new-body');
@@ -524,13 +667,13 @@ function renderNew() {
     + '<div class="grid2">'
     + '<div class="field"><label>区分<span class="req">必須</span></label>'
     + '<div class="chip-row">'
-    + '<span class="chip' + (F.kind === 'part' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'part\')">パート・アルバイト</span>'
-    + '<span class="chip' + (F.kind === 'staff' ? ' on' : '') + '" onclick="setFRender(\'kind\',\'staff\')">社員</span>'
+    + '<span class="chip' + (F.kind === 'part' ? ' on' : '') + '" onclick="setKind(\'part\')">パート・アルバイト</span>'
+    + '<span class="chip' + (F.kind === 'staff' ? ' on' : '') + '" onclick="setKind(\'staff\')">社員</span>'
     + '</div>'
     + '<div class="hint">' + (F.kind === 'part'
-        ? 'PA勤怠（kintai_part.html）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
+        ? 'PA勤怠（kintai-pa）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
     + '<div class="field"><label>入社日</label>'
-    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setF(\'joinedAt\',this.value)" /></div>'
+    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setJoinedAt(this.value)" /></div>'
     + '</div>'
     + '<div class="grid2">'
     + '<div class="field"><label>氏名<span class="req">必須</span></label>'
@@ -651,6 +794,113 @@ function renderNew() {
     + '<input type="number" min="0" max="7" value="' + F.maxPerWeek + '" onchange="setF(\'maxPerWeek\',+this.value||0)" /></div>'
     + '</div></div>';
 
+  // --- 本人の連絡先（雇用契約書に使う） ---
+  h += '<div class="card"><div class="card-title">本人の連絡先</div>'
+    + '<div class="card-desc">雇用契約書に載ります。入社時にどのみち聞くものなので、ここで入れておくと後がラクです。</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>生年月日<span class="req">必須</span></label>'
+    + '<input type="date" value="' + esc(F.birthday) + '" onchange="setF(\'birthday\',this.value)" />'
+    + '<div class="hint">18歳未満は深夜（22時〜翌5時）に入れられません。シフト作成でも見ます。</div></div>'
+    + '<div class="field"><label>電話番号</label>'
+    + '<input type="tel" value="' + esc(F.tel) + '" placeholder="例：090-1234-5678" onchange="setF(\'tel\',this.value)" /></div>'
+    + '</div>'
+    + '<div class="field"><label>住所<span class="req">必須</span></label>'
+    + '<input type="text" value="' + esc(F.address) + '" placeholder="例：茨城県神栖市○○1-2-3" onchange="setF(\'address\',this.value)" /></div>'
+    + '<div class="field"><label>メールアドレス</label>'
+    + '<input type="email" value="' + esc(F.email) + '" placeholder="契約書をPDFで送るなら" onchange="setF(\'email\',this.value)" /></div>'
+    + '<div class="grid3">'
+    + '<div class="field"><label>緊急連絡先（氏名）</label>'
+    + '<input type="text" value="' + esc(F.emgName) + '" onchange="setF(\'emgName\',this.value)" /></div>'
+    + '<div class="field"><label>続柄</label>'
+    + '<input type="text" value="' + esc(F.emgRel) + '" placeholder="例：母" onchange="setF(\'emgRel\',this.value)" /></div>'
+    + '<div class="field"><label>電話</label>'
+    + '<input type="tel" value="' + esc(F.emgTel) + '" onchange="setF(\'emgTel\',this.value)" /></div>'
+    + '</div></div>';
+
+  // --- 雇用契約の条件 ---
+  const isFixed = (F.contractType === 'fixed');
+  const bAuto = autoBreak(F.timeMode === 'custom' ? F.startTime : (first ? first.start : ''),
+                          F.timeMode === 'custom' ? F.endTime   : (first ? first.end   : ''));
+  h += '<div class="card"><div class="card-title">雇用契約の条件</div>'
+    + '<div class="card-desc">区分を選んだ時点で、ふつうの内容が入っています。'
+    + '<b>この人だけ違うところ</b>があれば直してください。ここが契約書にそのまま出ます。</div>'
+
+    + '<div class="grid2">'
+    + '<div class="field"><label>契約期間の定め</label><div class="chip-row">'
+    + '<span class="chip' + (!isFixed ? ' on' : '') + '" onclick="setContractType(\'permanent\')">なし（無期）</span>'
+    + '<span class="chip' + (isFixed ? ' on' : '') + '" onclick="setContractType(\'fixed\')">あり（有期）</span>'
+    + '</div></div>'
+    + (isFixed
+        ? '<div class="field"><label>契約の終了日</label>'
+          + '<input type="date" value="' + esc(F.contractEnd) + '" onchange="setF(\'contractEnd\',this.value)" />'
+          + '<div class="hint">入社日の1年後の前日を入れてあります。</div></div>'
+        : '<div class="field"><label>試用期間（月）</label>'
+          + '<input type="number" min="0" max="12" value="' + F.trialMonths + '" onchange="setF(\'trialMonths\',+this.value||0)" /></div>')
+    + '</div>'
+
+    + (isFixed
+        ? '<div class="grid3">'
+          + '<div class="field"><label>更新の有無</label><select onchange="setF(\'renewal\',this.value)">'
+          + opt('may',  '更新する場合がある', F.renewal)
+          + opt('none', '更新しない',         F.renewal)
+          + opt('auto', '自動的に更新する',   F.renewal)
+          + '</select></div>'
+          + '<div class="field"><label>更新の上限<span class="req">必須</span></label>'
+          + '<input type="text" value="' + esc(F.renewalLimit) + '" placeholder="例：通算3年／上限なし" onchange="setF(\'renewalLimit\',this.value)" />'
+          + '<div class="hint">2024年4月から必須です。</div></div>'
+          + '<div class="field"><label>試用期間（月）</label>'
+          + '<input type="number" min="0" max="12" value="' + F.trialMonths + '" onchange="setF(\'trialMonths\',+this.value||0)" /></div>'
+          + '</div>'
+        : '')
+
+    + '<div class="field"><label>業務の内容<span class="req">必須</span></label>'
+    + '<input type="text" value="' + esc(F.jobDuties) + '" placeholder="例：ホール接客、調理補助、清掃" onchange="setF(\'jobDuties\',this.value)" />'
+    + '<div class="hint">所属名ではなく、実際にやってもらう仕事を書いてください。</div></div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>業務の変更の範囲</label>'
+    + '<input type="text" value="' + esc(F.jobScope) + '" onchange="setF(\'jobScope\',this.value)" />'
+    + '<div class="hint">2024年4月から必須です。</div></div>'
+    + '<div class="field"><label>就業場所の変更の範囲</label>'
+    + '<input type="text" value="' + esc(F.placeScope) + '" onchange="setF(\'placeScope\',this.value)" />'
+    + '<div class="hint">掛け持ちがある人はここが効きます。</div></div>'
+    + '</div>'
+
+    + '<div class="grid3">'
+    + '<div class="field"><label>休憩時間（分）</label>'
+    + '<input type="number" min="0" max="240" step="15" value="' + F.breakMin + '" onchange="setF(\'breakMin\',+this.value||0)" />'
+    + '<div class="hint">' + (bAuto
+        ? '勤務時間からは <b>' + bAuto + '分</b> になります。'
+          + '<a href="#" onclick="setFRender(\'breakMin\',' + bAuto + ');return false">これを入れる</a>'
+        : (first || F.timeMode === 'custom'
+            ? '1日6時間以内の勤務なので、法律上は不要です。'
+            : '現場を選ぶと、勤務時間から必要な休憩を出します。')) + '</div></div>'
+    + '<div class="field"><label>所定時間外労働</label><div class="chip-row">'
+    + '<span class="chip' + (F.overtime ? ' on' : '') + '" onclick="setFRender(\'overtime\',true)">有</span>'
+    + '<span class="chip' + (!F.overtime ? ' on' : '') + '" onclick="setFRender(\'overtime\',false)">無</span>'
+    + '</div></div>'
+    + '<div class="field"><label>休日の決め方</label>'
+    + '<input type="text" value="' + esc(F.holidayRule) + '" onchange="setF(\'holidayRule\',this.value)" /></div>'
+    + '</div>'
+
+    + '<div class="field"><label>諸手当</label>'
+    + F.allowances.map(function (a, i) {
+        return '<div class="allow-row">'
+          + '<input type="text" value="' + esc(a.name) + '" placeholder="手当の名前（例：役職手当）" onchange="setAllow(' + i + ',\'name\',this.value)" />'
+          + '<input type="number" min="0" value="' + (+a.amount || 0) + '" onchange="setAllow(' + i + ',\'amount\',this.value)" />'
+          + '<button type="button" class="btn sm ghost" onclick="delAllow(' + i + ')">消す</button></div>';
+      }).join('')
+    + '<button type="button" class="btn sm ghost" onclick="addAllow()">＋ 手当を足す</button>'
+    + '<div class="hint">通勤手当は上で入れたものが自動で入るので、ここには要りません。</div></div>'
+
+    + '<div class="grid3">'
+    + yesNo('昇給', 'raise', F.raise) + yesNo('賞与', 'bonus', F.bonus) + yesNo('退職手当', 'severance', F.severance)
+    + '</div>'
+    + '<div class="grid2" style="margin-bottom:0">'
+    + yesNo('社会保険（健保・厚年）', 'socialIns', F.socialIns, '加入する', '加入しない')
+    + yesNo('雇用保険', 'empIns', F.empIns, '加入する', '加入しない')
+    + '</div>'
+    + '</div>';
+
   // --- 詳しい設定（折りたたみ） ---
   h += '<div class="card"><div class="card-title">補足（必要なときだけ）</div>'
     + '<div class="field"><label>シフト表での表記</label>'
@@ -680,7 +930,7 @@ function setTimeMode(m) {
   if (m === 'default') { syncFromSites(); }
   renderNew();
 }
-function resetForm() { F = blankForm(); lastDone = null; renderNew(); }
+function resetForm() { F = blankForm(); applyContractDefaults(); lastDone = null; renderNew(); }
 
 async function submitNew() {
   if (!F.name.trim()) { alert('氏名を入れてください。'); return; }
@@ -704,6 +954,19 @@ async function submitNew() {
     startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
     targetDays: F.targetDays, maxDays: F.maxDays, maxPerWeek: F.maxPerWeek,
     note: F.note.trim(),
+
+    // 雇用契約書のための欄
+    birthday: F.birthday, address: F.address.trim(), tel: F.tel.trim(), email: F.email.trim(),
+    emgName: F.emgName.trim(), emgRel: F.emgRel.trim(), emgTel: F.emgTel.trim(),
+    contractType: F.contractType || 'fixed',
+    contractEnd: F.contractType === 'fixed' ? F.contractEnd : '',
+    renewal: F.renewal, renewalLimit: F.renewalLimit.trim(),
+    trialMonths: F.trialMonths, totalYears: 0,
+    jobDuties: F.jobDuties.trim(), jobScope: F.jobScope.trim(), placeScope: F.placeScope.trim(),
+    breakMin: F.breakMin, overtime: !!F.overtime, holidayRule: F.holidayRule.trim(),
+    allowances: JSON.stringify(F.allowances.filter(function (a) { return a.name && a.amount; })),
+    raise: !!F.raise, bonus: !!F.bonus, severance: !!F.severance,
+    socialIns: !!F.socialIns, empIns: !!F.empIns,
   };
   if (F.timeMode === 'custom') {
     rec.startTime = F.startTime; rec.endTime = F.endTime;
@@ -761,7 +1024,7 @@ function doneHtml(rec) {
     + esc(appUrl(rec.kind)) + '</a><br />'
     + 'このURLとPINを本人にお伝えください。下のボタンで、そのまま送れる文面をコピーできます。</div>'
     + '<div class="card-title">反映されたところ</div><ul class="done-list">'
-    + '<li>' + (rec.kind === 'staff' ? '勤怠（index.html）' : 'PA勤怠（kintai_part.html）')
+    + '<li>' + (rec.kind === 'staff' ? '勤怠（index.html）' : 'PA勤怠（kintai-pa）')
     + ' … 「' + esc(rec.dept) + '」で打刻できます</li>';
   if (sids.length) {
     h += '<li>シフト作成 … ' + esc(sids.map(siteName).join('・')) + ' のスタッフに「' + esc(shiftLabel) + '」で追加</li>';
@@ -891,11 +1154,13 @@ function renderList() {
       + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
       + '<td class="muted">' + esc(r.joinedAt || '') + '</td>'
       + '<td style="text-align:right;white-space:nowrap">'
+      + (isActive(r) ? contractBtn(r) : '')
       + (isActive(r) && r.kyuyo ? '<button class="btn sm" onclick="openPayroll(\'' + r.id + '\')">給与一覧</button> ' : '')
       + '<button class="btn sm ghost" onclick="openEdit(\'' + r.id + '\')">編集</button> '
       + (isActive(r)
           ? '<button class="btn sm danger" onclick="openRetire(\'' + r.id + '\')">退職</button>'
-          : '<button class="btn sm" onclick="reinstate(\'' + r.id + '\')">復帰</button>')
+          : '<button class="btn sm" onclick="reinstate(\'' + r.id + '\')">復帰</button> '
+            + '<button class="btn sm danger" onclick="removeStaff(\'' + r.id + '\')" title="名簿から行ごと消します">消す</button>')
       + '</td></tr>';
   });
   h += '</tbody></table></div></div>';
@@ -929,6 +1194,26 @@ function openEdit(id) {
   let locs = [];
   try { locs = JSON.parse(r.locs || '[]'); } catch (e) { locs = []; }
   F.noLoc = !locs.length && F.storeIds.some(function (id2) { const s = site(id2); return s && s.locs.length; });
+
+  // 雇用契約の欄。まだ入っていない人は、区分ごとの既定値で埋める
+  applyContractDefaults();
+  ['birthday','address','tel','email','emgName','emgRel','emgTel',
+   'renewalLimit','jobDuties','jobScope','placeScope','holidayRule'].forEach(function (k) {
+    if (r[k]) F[k] = String(r[k]);
+  });
+  if (r.contractType) {
+    F.contractType = r.contractType;
+    F.contractEnd  = r.contractEnd || '';
+    F.renewal      = r.renewal || F.renewal;
+  }
+  if (F.contractType === 'fixed' && !F.contractEnd) F.contractEnd = oneYearLater(F.joinedAt);
+  if (r.trialMonths !== undefined && r.trialMonths !== '') F.trialMonths = +r.trialMonths || 0;
+  if (r.breakMin !== undefined && r.breakMin !== '') F.breakMin = +r.breakMin || 0;
+  ['overtime','raise','bonus','severance','socialIns','empIns'].forEach(function (k) {
+    if (r[k] !== undefined && r[k] !== '') F[k] = !!r[k];
+  });
+  try { F.allowances = JSON.parse(r.allowances || '[]') || []; } catch (e) { F.allowances = []; }
+
   lastDone = null;
   showTab('p-new');
 }
@@ -1049,6 +1334,29 @@ const SEED_MAIN = [
 
 /* シフト作成にだけ名前があり、勤怠アプリには登録がない人。
    取り込むとPINを自動で作り、勤怠アプリでも打刻できるようになります。 */
+/* 社員（勤怠アプリ index.html に入っている12名）＋ 社長。
+   名前はアプリごとに書き方が違うので、揃え先をそれぞれ持たせる。
+     name      … 勤怠アプリの表記（姓名のあいだにスペース）
+     shiftName … シフト作成での表記
+     kyuyoName … 出勤簿（kintai_YYYYMM）のタブ名
+   storeIds は「いまシフト作成に入っている現場」だけを入れてある。
+   空の人はシフトに入らない（勤怠と契約書だけ）。
+   社長は打刻もシフトもしないので、この一覧には入れていない。 */
+const SEED_STAFF = [
+  { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課",        shiftName:"平野健雄",  kyuyoName:"平野健雄",  storeIds:"" },
+  { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課",        shiftName:"安藤正樹",  kyuyoName:"安藤正樹",  storeIds:"" },
+  { kind:"staff", name:"伏田 幸枝", pin:"2571", dept:"業務課",        shiftName:"伏田幸枝",  kyuyoName:"伏田幸枝",  storeIds:"" },
+  { kind:"staff", name:"小林 俊樹", pin:"9034", dept:"業務課",        shiftName:"小林俊樹",  kyuyoName:"小林俊樹",  storeIds:"" },
+  { kind:"staff", name:"石毛 貴英", pin:"4718", dept:"業務課",        shiftName:"石毛貴英",  kyuyoName:"石毛貴英",  storeIds:"s_beer" },
+  { kind:"staff", name:"石毛 拓海", pin:"7263", dept:"飲食事業部",     shiftName:"石毛拓海",  kyuyoName:"石毛拓海",  storeIds:"" },
+  { kind:"staff", name:"花見 朗子", pin:"5409", dept:"バックオフィス", shiftName:"花見朗子",  kyuyoName:"花見朗子",  storeIds:"" },
+  { kind:"staff", name:"土屋 芳広", pin:"1836", dept:"飲食事業部",     shiftName:"土屋芳広",  kyuyoName:"土屋芳広",  storeIds:"s_momo" },
+  { kind:"staff", name:"及川 晶雄", pin:"8527", dept:"飲食事業部",     shiftName:"及川晶雄",  kyuyoName:"及川晶雄",  storeIds:"" },
+  { kind:"staff", name:"宮川 玲奈", pin:"3074", dept:"飲食事業部",     shiftName:"レナ",      kyuyoName:"宮川玲奈",  storeIds:"s_hana" },
+  { kind:"staff", name:"ハルシャニ", pin:"6941", dept:"飲食事業部",    shiftName:"ハルシャニ", kyuyoName:"ハルシャニ", storeIds:"s_takohai,s_hana" },
+  { kind:"staff", name:"ナディシャ", pin:"2385", dept:"飲食事業部",    shiftName:"ナディーシャ", kyuyoName:"ナディシャ", storeIds:"s_takohai,s_hana" },
+];
+
 const SEED_SHIFT_ONLY = [
   { kind:"part", name:"宮内眞知子", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_jingu", payKind:"hourly", payRate:1200 },
   { kind:"part", name:"河野竜二", pin:"", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan" },
@@ -1065,6 +1373,7 @@ function seedToRec(x) {
     kind: x.kind, name: x.name, kana: '', pin: x.pin || '',
     dept: x.dept || (first ? first.dept : ''),
     storeIds: x.storeIds || '', shiftName: x.shiftName || '',
+    kyuyoName: x.kyuyoName || '',
     locs: JSON.stringify(locs || []),
     joinedAt: '', retiredAt: '', status: 'active',
     kyuyo: !!x.kyuyo, days: '0,1,2,3,4,5,6', holidayOk: true,
@@ -1072,6 +1381,17 @@ function seedToRec(x) {
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
     note: '既存の名簿から取り込み',
   };
+}
+
+/* 取り込むときも、区分に応じた契約条件の既定値を入れておく。
+   生年月日や住所は空のままなので、契約書はまだ作れない（画面で知らせる）。 */
+function seedToRecFull(x) {
+  const rec = seedToRec(x);
+  const d = contractDefaults(x.kind === 'staff' ? 'staff' : 'part');
+  Object.keys(d).forEach(function (k) { rec[k] = d[k]; });
+  rec.allowances = '[]';
+  rec.contractEnd = '';
+  return rec;
 }
 
 let seedPick = {};   // シフトにだけいる人のうち、取り込む人
@@ -1100,13 +1420,57 @@ function renderSetup() {
     + '<div class="field"><label>あなたの名前（誰が登録したか残ります）</label>'
     + '<input type="text" value="' + esc(CFG.userName) + '" placeholder="例：花見" onchange="CFG.userName=this.value.trim();saveCfg()" /></div>'
     + '</div>'
-    + '<div class="muted">いまのつなぎ先：' + (apiOn() ? esc(apiUrl()) : '未設定') + '</div>'
+    + '<div class="muted" style="word-break:break-all">いまのつなぎ先：'
+    + (apiOn() ? '<code>' + esc(apiUrl()) + '</code>' : '未設定')
+    + (CFG.apiUrl
+        ? '<br /><b>これは、この端末で手入力されたURLです。</b>'
+          + ' <a href="#" onclick="resetApiUrl();return false">はじめのURLに戻す</a>'
+        : '<br />アプリにはじめから入っているURLを使っています。') + '</div>'
     + (apiOn()
         ? '<div class="row-actions" style="margin-top:.75rem">'
           + '<button class="btn" onclick="checkLink()">つなぎ先を確かめる</button></div>'
           + '<div id="link-result" style="margin-top:.75rem"></div>'
         : '')
     + '</div>';
+
+  // --- 打刻できる場所が、配属現場に足りているか ---
+  const locBad = locMismatch();
+  if (apiOn()) {
+    h += '<div class="card"><div class="card-title">打刻できる場所を点検する</div>'
+      + '<div class="card-desc">配属した現場なのに、そこで打刻できない人がいないかを調べます。'
+      + '取り込んだときの元データに、1か所ぶんしか入っていなかった人がいます。</div>';
+    if (!locBad.length) {
+      h += '<div class="alert ok"><b>問題ありません。</b>'
+        + '配属した現場では、全員が打刻できます。</div>';
+    } else {
+      h += '<div class="alert warn"><b>' + locBad.length + ' 名が、配属した現場で打刻できません。</b></div>'
+        + '<div class="table-wrap"><table><thead><tr>'
+        + '<th>氏名</th><th>PIN</th><th>配属</th><th>打刻できない場所</th></tr></thead><tbody>'
+        + locBad.map(function (x) {
+            return '<tr><td><b>' + esc(x.name) + '</b></td><td class="pin">' + esc(x.pin) + '</td>'
+              + '<td>' + esc(x.sites) + '</td>'
+              + '<td><span style="color:var(--text-danger)">' + esc(x.missing) + '</span></td></tr>';
+          }).join('')
+        + '</tbody></table></div>'
+        + '<div class="row-actions">'
+        + '<button class="btn primary" id="btn-locfix" onclick="fixLocs()">'
+        + locBad.length + ' 名を直す</button></div>'
+        + '<div class="hint">配属した現場の場所を足すだけです。いま入っている場所は消しません。</div>';
+    }
+    h += '</div>';
+  }
+
+  // --- 名簿をスプレッドシートに書き出す ---
+  if (apiOn()) {
+    h += '<div class="card"><div class="card-title">名簿をスプレッドシートに出す</div>'
+      + '<div class="card-desc">いまの全員を、人が読むための表にして Google ドライブに書き出します。'
+      + '入っている場所は <b>マイドライブ →「人事」フォルダ</b>。雇用契約書のフォルダも、そこにまとめます。<br />'
+      + '押すたびに最新の内容で作り直します。'
+      + '<b>表を直接書き換えても名簿には戻りません</b>ので、直すときはこのアプリの「編集」からお願いします。</div>'
+      + '<div class="row-actions"><button class="btn" id="btn-roster" onclick="exportRoster()">名簿を書き出す</button></div>'
+      + '<div id="roster-result" style="margin-top:.75rem"></div>'
+      + '</div>';
+  }
 
   if (!apiOn()) { el.innerHTML = h; return; }
 
@@ -1125,6 +1489,37 @@ function renderSetup() {
       + '</div>'
       + '<div class="row-actions" style="margin-top:0">'
       + '<button class="btn primary" id="btn-import" onclick="doImport()">' + restMain.length + ' 名を取り込む</button></div>';
+  }
+  h += '</div>';
+
+  // --- 2.2 社員を取り込む ---
+  const restStaff = SEED_STAFF.filter(function (x) { return !known[x.name]; });
+  h += '<div class="card"><div class="card-title">2-2. 社員を取り込む</div>'
+    + '<div class="card-desc">勤怠アプリ（index.html）に直接書かれている社員 '
+    + SEED_STAFF.length + ' 名を、共通名簿へ移します。'
+    + '<b>アプリごとに名前の書き方が違う</b>ので、揃え先もいっしょに入れます'
+    + '（勤怠は「宮川 玲奈」／シフトは「レナ」／出勤簿は「宮川玲奈」など）。</div>';
+  if (!restStaff.length) {
+    h += '<div class="alert ok"><b>取り込み済みです。</b>'
+      + SEED_STAFF.length + ' 名はすべて共通名簿に入っています。</div>';
+  } else {
+    h += '<div class="table-wrap"><table><thead><tr>'
+      + '<th>勤怠アプリ</th><th>シフト作成</th><th>出勤簿</th><th>所属</th><th>シフトの現場</th>'
+      + '</tr></thead><tbody>'
+      + restStaff.map(function (x) {
+          const sids = (x.storeIds || '').split(',').filter(Boolean);
+          return '<tr><td><b>' + esc(x.name) + '</b></td>'
+            + '<td>' + esc(x.shiftName) + '</td><td>' + esc(x.kyuyoName) + '</td>'
+            + '<td>' + esc(x.dept) + '</td>'
+            + '<td>' + (sids.length ? esc(sids.map(siteName).join('・'))
+                                    : '<span class="muted">入らない</span>') + '</td></tr>';
+        }).join('')
+      + '</tbody></table></div>'
+      + '<div class="row-actions">'
+      + '<button class="btn primary" id="btn-import-staff" onclick="doImportStaff()">'
+      + restStaff.length + ' 名を取り込む</button></div>'
+      + '<div class="hint">PINが空の人には、重ならない番号を自動で振ります。'
+      + '生年月日や住所は空のままなので、契約書はまだ作れません（名簿で「契約書 ⚠」と出ます）。</div>';
   }
   h += '</div>';
 
@@ -1192,7 +1587,7 @@ function renderSetup() {
   h += '<div class="card"><div class="card-title">5. 反映先のアプリ</div>'
     + '<div class="card-desc">登録した内容は、各アプリを開いたときに自動で読み込まれます。</div>'
     + '<ul class="done-list">'
-    + '<li>PA勤怠（kintai_part.html）… パート・アルバイトの打刻</li>'
+    + '<li>PA勤怠（kintai-pa）… パート・アルバイトの打刻</li>'
     + '<li>勤怠（index.html）… 社員の打刻</li>'
     + '<li>シフト作成（shift.html）… 配属した現場のスタッフに追加</li>'
     + '</ul></div>';
@@ -1203,9 +1598,18 @@ function renderSetup() {
 async function doImport() {
   const known = {};
   STAFF.forEach(function (r) { known[r.name] = true; });
-  const recs = SEED_MAIN.filter(function (x) { return !known[x.name]; }).map(seedToRec);
+  const recs = SEED_MAIN.filter(function (x) { return !known[x.name]; }).map(seedToRecFull);
   if (!recs.length) { alert('取り込む人がいません。'); return; }
   if (!confirm(recs.length + ' 名を共通名簿に取り込みます。よろしいですか？')) return;
+  await sendImport(recs);
+}
+
+async function doImportStaff() {
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = true; });
+  const recs = SEED_STAFF.filter(function (x) { return !known[x.name]; }).map(seedToRecFull);
+  if (!recs.length) { alert('取り込む人がいません。'); return; }
+  if (!confirm('社員 ' + recs.length + ' 名を共通名簿に取り込みます。\n\nよろしいですか？')) return;
   await sendImport(recs);
 }
 
@@ -1214,7 +1618,7 @@ async function doImportOnly() {
   STAFF.forEach(function (r) { known[r.name] = true; });
   const recs = SEED_SHIFT_ONLY
     .filter(function (x) { return seedPick[x.name] && !known[x.name]; })
-    .map(seedToRec);
+    .map(seedToRecFull);
   if (!recs.length) { alert('取り込む人を選んでください。'); return; }
   await sendImport(recs);
 }
@@ -1297,6 +1701,269 @@ async function checkLink() {
       + '<b>書き込みは通り、読み込みが通りません。</b>合言葉（TOKEN）が合っているか確認してください。</div>';
   }
   el.innerHTML = h;
+}
+
+/* =========================================================
+   雇用契約書
+
+   何をどう書くかは、ここで決めてGASに渡す。
+   GAS側は「ひな型を複製して {{…}} を差し替え、PDFにする」だけを受け持つので、
+   文面の言い回しを直したいときは、この下だけを見ればよい。
+   ========================================================= */
+
+const PAY_DAY      = '毎月25日';                       // 15日締め・25日払い
+const CONSULT_DESK = '本社　花見 朗子・飯田 純子';
+
+// 契約書に必ず要る欄。空なら作らせない
+const CONTRACT_NEED = [
+  ['birthday',  '生年月日'],
+  ['address',   '住所'],
+  ['jobDuties', '業務の内容'],
+];
+
+function contractMissing(r) {
+  const out = [];
+  CONTRACT_NEED.forEach(function (x) { if (!String(r[x[0]] || '').trim()) out.push(x[1]); });
+  if (r.contractType === 'fixed') {
+    if (!r.contractEnd) out.push('契約の終了日');
+    if (!String(r.renewalLimit || '').trim()) out.push('更新の上限');
+  }
+  return out;
+}
+
+function contractBtn(r) {
+  const miss = contractMissing(r);
+  if (miss.length) {
+    return '<button class="btn sm ghost" title="' + esc(miss.join('・')) + ' が空です" '
+      + 'onclick="alert(\'契約書を作るには、つぎの欄が要ります：\\n\\n' + esc(miss.join('\\n')) + '\\n\\n「編集」から入れてください。\')">契約書 ⚠</button> ';
+  }
+  if (r.contractUrl) {
+    return '<a class="btn sm" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">契約書 ✓</a> '
+      + '<button class="btn sm ghost" onclick="makeContract(\'' + r.id + '\')" title="作り直す">再作成</button> ';
+  }
+  return '<button class="btn sm" onclick="makeContract(\'' + r.id + '\')">契約書</button> ';
+}
+
+function jpDate(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (+m[1]) + '年' + (+m[2]) + '月' + (+m[3]) + '日' : String(iso);
+}
+function yen(n) { return (+n || 0).toLocaleString('ja-JP') + '円'; }
+
+function contractVars(r) {
+  const sids  = storeIdsOf(r);
+  const isFix = (r.contractType === 'fixed');
+
+  // 就業の場所
+  let place = sids.length ? sids.map(siteName).join('、') : (r.dept || '');
+  // 始業・終業
+  let time = '';
+  if (r.startTime && r.endTime) {
+    time = r.startTime + ' 〜 ' + r.endTime;
+    if (r.startTimeWeekend && (r.startTimeWeekend !== r.startTime || r.endTimeWeekend !== r.endTime)) {
+      time += '（土日祝は ' + r.startTimeWeekend + ' 〜 ' + r.endTimeWeekend + '）';
+    }
+  } else {
+    const first = sids.length ? site(sids[0]) : null;
+    time = first ? (first.start + ' 〜 ' + first.end + '（現場のシフトによる）') : 'シフトによる';
+  }
+  // 休日
+  const days = String(r.days || '').split(',').filter(function (x) { return x !== ''; }).map(Number);
+  let holiday = r.holidayRule || 'シフトによる';
+  if (days.length && days.length < 7) {
+    holiday += '（勤務できる曜日：' + days.map(function (d) { return DOW[d]; }).join('・') + '）';
+  }
+  if (r.holidayOk === false) holiday += '　祝日は休み';
+
+  // 諸手当
+  let allow = [];
+  try { (JSON.parse(r.allowances || '[]') || []).forEach(function (a) {
+    if (a.name) allow.push(a.name + ' ' + yen(a.amount));
+  }); } catch (e) { /* 壊れていたら無視 */ }
+  if (+r.commute > 0) {
+    allow.push('通勤手当 ' + yen(r.commute)
+      + (r.commuteKind === 'daily' ? '（出勤1日あたり）' : '（月額）'));
+  }
+
+  return {
+    '作成日':   jpDate(new Date().toISOString().slice(0, 10)),
+    '氏名':     r.name || '',
+    'フリガナ': r.kana || '',
+    '生年月日': jpDate(r.birthday),
+    '住所':     r.address || '',
+    '電話':     r.tel || '',
+
+    '契約期間': isFix
+      ? (jpDate(r.joinedAt) + ' から ' + jpDate(r.contractEnd) + ' まで')
+      : ('期間の定めなし（' + jpDate(r.joinedAt) + ' から）'),
+    '更新': r.renewal === 'none' ? '更新しない'
+          : r.renewal === 'auto' ? '自動的に更新する' : '更新する場合がある',
+    '更新の上限': r.renewalLimit || '上限なし',
+    '試用期間': (+r.trialMonths > 0)
+      ? ('採用日から ' + (+r.trialMonths) + " か月（この期間中の労働条件は本契約と同じ）")
+      : 'なし',
+
+    '就業場所': place,
+    '就業場所の変更の範囲': r.placeScope || '会社の定める事業所',
+    '業務内容': r.jobDuties || '',
+    '業務の変更の範囲': r.jobScope || '会社の定める業務',
+
+    '始業終業': time,
+    '休憩': (+r.breakMin > 0) ? ((+r.breakMin) + '分') : 'なし（1日の労働時間が6時間以内のため）',
+    '所定時間外労働': r.overtime ? '有' : '無',
+    '休日': holiday,
+
+    '賃金': (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen(r.payRate),
+    '諸手当': allow.length ? allow.join('、') : 'なし',
+    '支払日': PAY_DAY,
+    '昇給': r.raise ? '有（勤務成績等を考慮して決定する）' : '無',
+    '賞与': r.bonus ? '有（会社の業績等により支給する）' : '無',
+    '退職手当': r.severance ? '有（就業規則による）' : '無',
+
+    '社会保険': r.socialIns ? '健康保険・厚生年金保険に加入する' : '加入しない',
+    '雇用保険': r.empIns ? '適用あり' : '適用なし',
+    '相談窓口': CONSULT_DESK,
+  };
+}
+
+async function makeContract(id) {
+  const r = findRec(id);
+  if (!r) return;
+  const miss = contractMissing(r);
+  if (miss.length) { alert('つぎの欄が空です：\n\n' + miss.join('\n')); return; }
+  if (!confirm(r.name + ' さんの雇用契約書を作ります。\n\nよろしいですか？')) return;
+
+  setState('busy', '作成中…');
+  try {
+    const res = await apiPost({
+      action: 'contractMake', name: r.name, kind: r.kind || 'part',
+      vars: contractVars(r),
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '作れませんでした');
+    await reload();
+    if (confirm('契約書を作りました。\n\n' + res.title + '\n\n今すぐ開きますか？')) {
+      window.open(res.url, '_blank', 'noopener');
+    }
+  } catch (e) {
+    alert('作れませんでした：' + e.message);
+    setState('err', e.message);
+  }
+}
+
+/* 名簿をスプレッドシートに書き出す。
+   人が読むための表なので、見出しは日本語、値も「パート」「加入」のように書き下す。 */
+async function exportRoster() {
+  const btn = document.getElementById('btn-roster');
+  const out = document.getElementById('roster-result');
+  btn.disabled = true; btn.textContent = '書き出し中…';
+  out.innerHTML = '<div class="alert info">書き出しています…（30名ほどで10秒くらいかかります）</div>';
+  try {
+    const res = await apiPost({ action: 'rosterExport' });
+    if (res.status !== 'ok') throw new Error(res.message || '書き出せませんでした');
+    out.innerHTML = '<div class="alert ok"><b>書き出しました。</b><br />'
+      + '在籍 ' + res.active + ' 名／退職を含めて ' + res.count + ' 名　（' + esc(res.at) + '）<br />'
+      + '<a href="' + esc(res.url) + '" target="_blank" rel="noopener">スタッフ名簿をひらく</a></div>';
+  } catch (e) {
+    out.innerHTML = '<div class="alert err">書き出せませんでした：' + esc(e.message) + '</div>';
+  }
+  btn.disabled = false; btn.textContent = '名簿を書き出す';
+}
+
+/* 名簿から行ごと消す。退職にした人だけ。
+   テストで作った行を片付けるためのもの。打刻や給与の記録は別なので消えない。 */
+async function removeStaff(id) {
+  const r = findRec(id);
+  if (!r) return;
+  if (isActive(r)) { alert('在籍中の人は消せません。先に「退職」にしてください。'); return; }
+  if (!confirm(r.name + ' さんを、名簿から完全に消します。\n\n'
+    + '・元に戻せません\n'
+    + '・打刻の記録と給与一覧は、別のファイルなので消えません\n'
+    + '・各アプリからは、開き直したときに消えます\n\n'
+    + 'よろしいですか？')) return;
+  if (!confirm('本当に消してよろしいですか？\n\n' + r.name + '（PIN ' + (r.pin || 'なし') + '）')) return;
+
+  setState('busy', '削除中…');
+  try {
+    const res = await apiPost({ action: 'staffDelete', id: id });
+    if (res.status !== 'ok') throw new Error(res.message || '消せませんでした');
+    await reload();
+    alert(res.name + ' さんを名簿から消しました。');
+  } catch (e) {
+    alert('消せませんでした：' + e.message);
+    setState('err', e.message);
+  }
+}
+
+/* 配属した現場なのに、そこで打刻できない人を探す。
+   取り込んだときの元データに、打刻できる場所が1か所ぶんしか
+   入っていなかった人がいるため。 */
+function locMismatch() {
+  const out = [];
+  STAFF.forEach(function (r) {
+    if (!isActive(r)) return;
+    const ids = storeIdsOf(r);
+    if (!ids.length) return;
+    let have = [];
+    try { have = JSON.parse(r.locs || '[]') || []; } catch (e) { have = []; }
+    if (!have.length) return;              // 場所を問わない人は対象外
+    const haveNames = have.map(function (l) { return l.name; });
+    const miss = [];
+    ids.forEach(function (id) {
+      const st = site(id);
+      if (!st) return;
+      (st.locs || []).forEach(function (l) {
+        if (haveNames.indexOf(l.name) < 0 && miss.indexOf(l.name) < 0) miss.push(l.name);
+      });
+    });
+    if (miss.length) {
+      out.push({ id: r.id, name: r.name, pin: r.pin,
+                 sites: ids.map(siteName).join('、'), missing: miss.join('、') });
+    }
+  });
+  return out;
+}
+
+// 足りない場所を足す。いま入っている場所は消さない
+async function fixLocs() {
+  const bad = locMismatch();
+  if (!bad.length) { alert('直すものはありません。'); return; }
+  if (!confirm(bad.length + ' 名に、配属した現場の打刻場所を足します。\n\n'
+    + bad.map(function (x) { return '　' + x.name + '　+ ' + x.missing; }).join('\n')
+    + '\n\nいま入っている場所は消しません。よろしいですか？')) return;
+
+  const btn = document.getElementById('btn-locfix');
+  if (btn) { btn.disabled = true; btn.textContent = '直しています…'; }
+  setState('busy', '直しています…');
+  let done = 0;
+  try {
+    for (const x of bad) {
+      const r = findRec(x.id);
+      if (!r) continue;
+      let have = [];
+      try { have = JSON.parse(r.locs || '[]') || []; } catch (e) { have = []; }
+      const names = have.map(function (l) { return l.name; });
+      storeIdsOf(r).forEach(function (id) {
+        const st = site(id);
+        if (!st) return;
+        (st.locs || []).forEach(function (l) {
+          if (names.indexOf(l.name) < 0) { have.push(l); names.push(l.name); }
+        });
+      });
+      const rec = {};
+      Object.keys(r).forEach(function (k) { rec[k] = r[k]; });
+      rec.locs = JSON.stringify(have);
+      const res = await apiPost({ action: 'staffSave', rec: rec });
+      if (res.status !== 'ok') throw new Error(r.name + '：' + (res.message || '直せませんでした'));
+      done++;
+    }
+    await reload();
+    alert(done + ' 名を直しました。\n\nその方には、打刻アプリを開き直してもらってください。');
+  } catch (e) {
+    await reload();
+    alert('途中で止まりました：' + e.message + '\n\n（' + done + ' 名までは直っています）');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '直す'; }
 }
 
 async function doFill() {
@@ -1564,7 +2231,93 @@ function showTab(id) {
 
 function renderAll() { renderNew(); renderList(); renderSetup(); }
 
-reload();
+
+/* =========================================================
+   ログイン（この画面を開ける人を限る）
+
+   パスワードそのものは置かず、照合用に変換した値だけを持つ。
+   ソースを見てもパスワードは読めない。
+   ただし、このカギはブラウザの中にあるので、本気で外そうとする人は
+   外せる。身内の誤操作・のぞき見を防ぐためのもの。
+   ========================================================= */
+const GATE_SALT = 'prostyle-onboarding-2026';
+const GATE_LS   = 'prostyle_onboarding_login';
+const GATE_DAYS = 14;   // 「次回から省く」を選んだとき、覚えておく日数
+
+const ACCOUNTS = [
+  { id: 'sakae', name: '飯田栄（社長）', hash: 'fc055247aface0e39613adda05fa85b8e4167c583f41a364ab22653b2999d906' },
+  { id: 'akiko', name: '花見朗子', hash: 'ff96ae88e522c3af7d769298c3ed4a2d557e87857c651c4e05f75f9a8fea2cd7' },
+  { id: 'junko', name: '飯田純子', hash: '700457fa44444538e3b6789422e23013d47175353cef4f88fa22cf16636691fc' },
+];
+
+async function gateHash(id, pw) {
+  const data = new TextEncoder().encode(id + ':' + pw + ':' + GATE_SALT);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+function gateSession() {
+  try {
+    const o = JSON.parse(localStorage.getItem(GATE_LS) || 'null');
+    if (o && o.name && o.until > Date.now()) return o;
+  } catch (e) { /* 壊れていたら入り直してもらう */ }
+  return null;
+}
+
+function gateLogout() {
+  try { localStorage.removeItem(GATE_LS); } catch (e) {}
+  location.reload();
+}
+
+function startApp(who) {
+  CFG.userName = who.name;
+  saveCfg();
+  const g = document.getElementById('gate');
+  if (g) g.remove();
+  const chip = document.getElementById('who');
+  if (chip) {
+    chip.innerHTML = esc(who.name) + ' <button class="btn sm ghost" onclick="gateLogout()">ログアウト</button>';
+  }
+  reload();
+}
+
+(function () {
+  const saved = gateSession();
+  if (saved) { startApp(saved); return; }
+
+  const form = document.getElementById('gate-form');
+  const err  = document.getElementById('gate-err');
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const id = document.getElementById('gate-id').value.trim().toLowerCase();
+    const pw = document.getElementById('gate-pw').value;
+    err.textContent = '';
+    if (!id || !pw) { err.textContent = 'IDとパスワードを入れてください'; return; }
+    if (!window.crypto || !crypto.subtle) {
+      err.textContent = 'この画面は https で開いてください'; return;
+    }
+    let h;
+    try { h = await gateHash(id, pw); }
+    catch (e) { err.textContent = '確かめられませんでした'; return; }
+
+    const hit = ACCOUNTS.find(function (a) { return a.id === id && a.hash === h; });
+    if (!hit) {
+      err.textContent = 'IDかパスワードが違います';
+      document.getElementById('gate-pw').value = '';
+      return;
+    }
+    const keep = document.getElementById('gate-keep').checked;
+    const days = keep ? GATE_DAYS : 0.5;
+    try {
+      localStorage.setItem(GATE_LS, JSON.stringify({
+        id: hit.id, name: hit.name, until: Date.now() + days * 86400000,
+      }));
+    } catch (e) { /* 覚えられなくても、この回は使える */ }
+    startApp(hit);
+  });
+  document.getElementById('gate-id').focus();
+})();
 </script>
 </body>
 </html>

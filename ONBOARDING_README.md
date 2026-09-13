@@ -6,7 +6,7 @@
 
 | 直していた場所 | 何を足していたか |
 | --- | --- |
-| `kintai_part.html`（PA勤怠） | PIN・氏名・所属・打刻できる場所 |
+| `kintai-pa`（PA勤怠） | PIN・氏名・所属・打刻できる場所 |
 | `shift.html`（シフト作成） | 配属する現場のスタッフ一覧 |
 | `shift.html` の `PART_TIME_STAFF` | 出勤簿（給与）へ転記する人 |
 | 給与一覧のスプレッドシート | 出勤簿シートと、給与一覧表の行 |
@@ -28,7 +28,7 @@
               ▼                ▼                ▼
       ┌────────────────┐ ┌─────────────┐ ┌──────────────┐
       │ PA勤怠          │ │ 勤怠         │ │ シフト作成    │
-      │kintai_part.html│ │ index.html  │ │ shift.html   │
+      │  kintai-pa   │ │ index.html  │ │ shift.html   │
       │ パートの打刻    │ │ 社員の打刻   │ │ 現場へ配属    │
       └────────────────┘ └─────────────┘ └──────────────┘
                                               │
@@ -48,9 +48,44 @@
 | アプリ | URL |
 | --- | --- |
 | **入社登録** | https://prostyle0902-bot.github.io/kintai/onboarding.html |
-| PA勤怠（パート・アルバイト） | https://prostyle0902-bot.github.io/kintai/kintai_part.html |
+| PA勤怠（パート・アルバイト） | https://prostyle0902-bot.github.io/kintai-pa/ |
 | 勤怠（社員） | https://prostyle0902-bot.github.io/kintai/index.html |
 | シフト作成 | https://prostyle0902-bot.github.io/kintai/shift.html |
+
+## ログイン（ID・パスワード）
+
+入社登録アプリは、ID とパスワードを入れないと開けません。
+一度入れば、その端末では14日間は聞かれません（「この端末では次回から省く」を外すと12時間）。
+右上の「ログアウト」で切れます。
+
+使える人は `onboarding.html` の `ACCOUNTS` に書いてあります。
+
+```js
+const ACCOUNTS = [
+  { id: 'sakae', name: '飯田栄（社長）', hash: '…' },
+  { id: 'akiko', name: '花見朗子',       hash: '…' },
+  { id: 'junko', name: '飯田純子',       hash: '…' },
+];
+```
+
+**パスワードそのものは書いてありません。** `hash` は、
+`ID:パスワード:合言葉` を SHA-256 で変換した値です。ここから元のパスワードは戻せないので、
+ソースを見られてもパスワードは漏れません。
+
+ログインした名前は、名簿の「更新者」欄に入ります。誰が直したかが残ります。
+
+### 人を足す・パスワードを変える
+
+`hash` を計算し直す必要があるので、Claude に頼んでください。
+「○○さんのIDを足して」「××のパスワードを変えて」で作り直せます。
+
+### この鍵でできること・できないこと
+
+できること：URL を知っただけの人が、中を見たり書き換えたりするのを防ぐ。
+
+できないこと：**本気で外そうとする人は外せます。** 鍵の仕組みがブラウザの中にあるためです。
+もっと強くするなら、合言葉をページから消して、開くたびに人が打ち、
+Apps Script 側で照合する形にします（そのときは Apps Script の貼り替えが要ります）。
 
 ## 準備（最初に1回だけ）
 
@@ -139,7 +174,7 @@ PA勤怠・勤怠・シフト作成を一度読み込み直せば、名簿を読
 勤怠アプリのご案内です。
 
 ▼ 打刻はこちらから
-https://prostyle0902-bot.github.io/kintai/kintai_part.html
+https://prostyle0902-bot.github.io/kintai-pa/
 
 　PIN（4桁）：7788
 　所属：焼きたて屋
