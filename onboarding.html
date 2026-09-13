@@ -1340,7 +1340,8 @@ const SEED_MAIN = [
      shiftName … シフト作成での表記
      kyuyoName … 出勤簿（kintai_YYYYMM）のタブ名
    storeIds は「いまシフト作成に入っている現場」だけを入れてある。
-   空の人はシフトに入らない（勤怠と契約書だけ）。 */
+   空の人はシフトに入らない（勤怠と契約書だけ）。
+   社長は打刻もシフトもしないので、この一覧には入れていない。 */
 const SEED_STAFF = [
   { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課",        shiftName:"平野健雄",  kyuyoName:"平野健雄",  storeIds:"" },
   { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課",        shiftName:"安藤正樹",  kyuyoName:"安藤正樹",  storeIds:"" },
@@ -1354,7 +1355,6 @@ const SEED_STAFF = [
   { kind:"staff", name:"宮川 玲奈", pin:"3074", dept:"飲食事業部",     shiftName:"レナ",      kyuyoName:"宮川玲奈",  storeIds:"s_hana" },
   { kind:"staff", name:"ハルシャニ", pin:"6941", dept:"飲食事業部",    shiftName:"ハルシャニ", kyuyoName:"ハルシャニ", storeIds:"s_takohai,s_hana" },
   { kind:"staff", name:"ナディシャ", pin:"2385", dept:"飲食事業部",    shiftName:"ナディーシャ", kyuyoName:"ナディシャ", storeIds:"s_takohai,s_hana" },
-  { kind:"staff", name:"飯田 栄",   pin:"",     dept:"本社",          shiftName:"飯田栄",    kyuyoName:"飯田栄",    storeIds:"s_honsha" },
 ];
 
 const SEED_SHIFT_ONLY = [
