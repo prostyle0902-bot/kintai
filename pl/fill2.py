@@ -7,6 +7,7 @@ import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokoc
 import debits
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
+import kamei
 import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, inv05, airregi, tanaoroshi
 
 STAMP = "2026-08-20 06:40"
@@ -287,6 +288,19 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
           "／手数料", f"{sum(x[3] for x in demae_rows):,}",
           "／返金", f"{sum(x[3] for x in demae_refund):,}",
           "／売上（8月）", f"{sum(x[3] for x in demae_sales):,}")
+
+    # ===== カード決済（カメイ・テン・サービス）の加盟店手数料 =====
+    kamei.check(wb)
+    F_KAMEI = PatternFill("solid", fgColor="E2EFDA")
+    kamei_rows = list(kamei.rows())
+    for tab, plrow, m, val, _src, _note in kamei_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "カード決済手数料")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_KAMEI; c.number_format = build2.NUMFMT
+    print("カード決済手数料セル", len(kamei_rows),
+          "／計", f"{sum(x[3] for x in kamei_rows):,}",
+          "／精算書", len(kamei.entries()), "件 ／計上基準", kamei.BASIS)
 
     # ===== かめや（焼きたて屋のFC本部）=====
     kameya.check()                 # ロイヤリティの式が既存PLと合うことを確認
@@ -850,6 +864,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["口座引落", m, tab, item, "", reason])
     for m, tab, item, reason in debits.missing_months():
         hs.append(["口座引落", m, tab, item, "", reason])
+    for m, tab, item, reason in kamei.HOLD:
+        hs.append(["カード決済", m, tab, item, "", reason])
     for m, tab, item, reason in board.HOLD:
         hs.append(["board売掛", m, tab, item, "", reason])
     for m, tab, item, reason in board.unmapped():
