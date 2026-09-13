@@ -2014,9 +2014,219 @@ function renderRequests() {
 /* =========================================================
    画面：スタッフ
    ========================================================= */
+/* =========================================================
+   名簿と突き合わせる
+
+   シフト表の名前は手で入れてきたので、共通名簿と食い違うことがある。
+   （網代愛／綱代愛、山崎悠人／山﨑悠人、小金澤登美江／小金澤登美 など）
+   食い違ったままだと、名簿から「別人」が追加されて二重になる。
+   ここで見つけて、まとめて直せるようにする。
+   ========================================================= */
+
+// 名簿に載っている名前（シフト表での表記）
+function masterShiftNames() {
+  const out = {};
+  masterList.forEach(function (r) {
+    const nm = String(r.shiftName || r.name || '').trim();
+    if (nm) out[nm] = r;
+  });
+  return out;
+}
+
+// 2つの文字列がどれだけ違うか（1文字の違い＝1）
+function editDist(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = [];
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1,
+                        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// 表記ゆれを吸収してから比べる（異体字・中黒・空白）
+function normName(s) {
+  return String(s || '')
+    .replace(/[\s　・･]/g, '')
+    .replace(/﨑/g, '崎').replace(/髙/g, '高').replace(/濵/g, '浜')
+    .replace(/眞/g, '真').replace(/齊|齋/g, '斉');
+}
+
+/* シフト表に居るのに名簿と合わない人を探す。
+   似た名前が名簿にあれば、直し先の候補として出す。 */
+function staffAudit() {
+  const known = masterShiftNames();
+  const normKnown = {};
+  Object.keys(known).forEach(function (k) { normKnown[normName(k)] = k; });
+
+  const retiredNames = {};
+  masterList.forEach(function (r) {
+    if (r.status === 'retired') {
+      const nm = String(r.shiftName || r.name || '').trim();
+      if (nm) retiredNames[nm] = true;
+      retiredNames[normName(nm)] = true;
+    }
+  });
+
+  const seen = {};
+  DB.stores.forEach(function (st) {
+    (st.staff || []).forEach(function (u) {
+      const nm = String(u.name || '').trim();
+      if (!nm) return;
+      if (!seen[nm]) seen[nm] = { name: nm, stores: [] };
+      seen[nm].stores.push(st.name);
+    });
+  });
+
+  const mismatch = [], retired = [];
+  Object.keys(seen).forEach(function (nm) {
+    const item = seen[nm];
+    if (retiredNames[nm] || retiredNames[normName(nm)]) { retired.push(item); return; }
+    if (known[nm]) return;                       // そのまま合っている
+
+    // 表記ゆれだけの違いなら、そこに直す
+    const hitNorm = normKnown[normName(nm)];
+    if (hitNorm) { item.suggest = hitNorm; item.why = '表記のゆれ'; mismatch.push(item); return; }
+
+    // 1〜2文字違いの名前を探す
+    let best = null, bestD = 99;
+    Object.keys(known).forEach(function (k) {
+      const d = editDist(normName(nm), normName(k));
+      if (d < bestD) { bestD = d; best = k; }
+    });
+    const limit = normName(nm).length >= 5 ? 2 : 1;
+    if (best && bestD <= limit) { item.suggest = best; item.why = bestD + '文字ちがい'; }
+    mismatch.push(item);
+  });
+
+  return { mismatch: mismatch, retired: retired, total: mismatch.length + retired.length };
+}
+
+// 全部の現場で、この人の名前を変える。行き先に同じ人が居れば1つにまとめる
+function renameEverywhere(from, to) {
+  DB.stores.forEach(function (st) {
+    const list = st.staff || [];
+    const already = list.filter(function (u) { return u.name === to; });
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].name !== from) continue;
+      if (already.length) { list.splice(i, 1); }   // 二重になるので古いほうを消す
+      else { list[i].name = to; }
+    }
+  });
+  // 希望休など、名前で持っているものも合わせて直す
+  if (DB.requests) {
+    Object.keys(DB.requests).forEach(function (k) {
+      const r = DB.requests[k];
+      if (r && r[from] !== undefined && r[to] === undefined) { r[to] = r[from]; }
+      if (r && r[from] !== undefined) delete r[from];
+    });
+  }
+}
+
+function removeEverywhere(name) {
+  DB.stores.forEach(function (st) {
+    st.staff = (st.staff || []).filter(function (u) { return u.name !== name; });
+  });
+  if (DB.requests) {
+    Object.keys(DB.requests).forEach(function (k) {
+      if (DB.requests[k]) delete DB.requests[k][name];
+    });
+  }
+}
+
+function fixOne(name, to) {
+  if (!confirm(name + ' さんを「' + to + '」に直します。\n\nすべての現場と希望休が、この名前に揃います。')) return;
+  renameEverywhere(name, to);
+  saveDB(); renderAll();
+}
+function dropOne(name) {
+  if (!confirm(name + ' さんを、すべての現場から削除します。\n\n作成済みのシフトは変わりません。よろしいですか？')) return;
+  removeEverywhere(name);
+  saveDB(); renderAll();
+}
+
+function fixAllStaff() {
+  const a = staffAudit();
+  const ren = a.mismatch.filter(function (x) { return x.suggest; });
+  const del = a.retired;
+  if (!ren.length && !del.length) { alert('直すものはありません。'); return; }
+
+  const msg = []
+    .concat(ren.length ? ['【名前をそろえる】'].concat(ren.map(function (x) { return '　' + x.name + ' → ' + x.suggest; })) : [])
+    .concat(del.length ? ['', '【退職したので削除】'].concat(del.map(function (x) { return '　' + x.name; })) : [])
+    .join('\n');
+  if (!confirm('つぎのように直します。\n\n' + msg + '\n\nよろしいですか？')) return;
+
+  ren.forEach(function (x) { renameEverywhere(x.name, x.suggest); });
+  del.forEach(function (x) { removeEverywhere(x.name); });
+  saveDB(); renderAll();
+  alert('直しました。名前をそろえた人：' + ren.length + ' 名／削除した人：' + del.length + ' 名');
+}
+
+function auditCard() {
+  if (!masterList.length) return '';
+  const all = staffAudit();
+  // 直し先の候補があるものだけを前に出す。
+  // 候補が無い人は「まだ名簿に入っていないだけ」のことが多いので、数だけ知らせる。
+  const a = {
+    mismatch: all.mismatch.filter(function (x) { return x.suggest; }),
+    unknown:  all.mismatch.filter(function (x) { return !x.suggest; }),
+    retired:  all.retired
+  };
+  a.total = a.mismatch.length + a.retired.length;
+  if (!a.total) {
+    return '<div class="card" style="margin-bottom:1rem"><div class="p-hint" style="background:#E1F5EE;color:#0F6E56">'
+      + '✅ シフト表の名前は、共通名簿と揃っています。</div></div>';
+  }
+  let h = '<div class="card" style="margin-bottom:1rem">'
+    + '<div class="card-title">名簿と合っていない人（' + a.total + ' 名）</div>'
+    + '<div class="p-hint">このままだと、名簿から「別人」が足されて二重になります。'
+    + '直すと、すべての現場と希望休の名前が揃います。</div>'
+    + '<div class="table-wrap"><table><thead><tr>'
+    + '<th>シフト表の名前</th><th>出ている現場</th><th>どうする</th></tr></thead><tbody>';
+
+  a.mismatch.forEach(function (x) {
+    h += '<tr><td><b>' + esc(x.name) + '</b></td><td>' + esc(x.stores.join('、')) + '</td><td>'
+      + '<button class="btn sm" onclick="fixOne(' + JSON.stringify(x.name).replace(/"/g, '&quot;')
+      + ',' + JSON.stringify(x.suggest).replace(/"/g, '&quot;') + ')">「'
+      + esc(x.suggest) + '」に直す</button> <span class="muted">' + esc(x.why || '') + '</span> '
+      + '<button class="btn sm danger" onclick="dropOne(' + JSON.stringify(x.name).replace(/"/g, '&quot;') + ')">削除</button>'
+      + '</td></tr>';
+  });
+  a.retired.forEach(function (x) {
+    h += '<tr><td><b>' + esc(x.name) + '</b></td><td>' + esc(x.stores.join('、')) + '</td>'
+      + '<td><span class="muted">名簿では退職</span> '
+      + '<button class="btn sm danger" onclick="dropOne(' + JSON.stringify(x.name).replace(/"/g, '&quot;') + ')">削除</button>'
+      + '</td></tr>';
+  });
+
+  h += '</tbody></table></div>';
+
+  if (a.unknown.length) {
+    h += '<details style="margin-top:.75rem"><summary class="muted" style="cursor:pointer">'
+      + '名簿に載っていない人：' + a.unknown.length + ' 名（似た名前も見つかりません）</summary>'
+      + '<div class="p-hint" style="margin-top:.5rem">入社登録アプリで取り込んでいない人か、'
+      + 'シフト表だけで使っている名前です。<b>急いで直す必要はありません。</b></div>'
+      + '<div class="muted" style="margin-top:.5rem;line-height:2">'
+      + a.unknown.map(function (x) { return esc(x.name); }).join('、')
+      + '</div></details>';
+  }
+
+  h += '<div class="row-actions"><button class="btn primary" onclick="fixAllStaff()">まとめて直す</button>'
+    + '<button class="btn ghost" onclick="masterPull(true)">名簿を読み直す</button></div></div>';
+  return h;
+}
+
 function renderStaff() {
   const st = store();
-  let h = '';
+  let h = auditCard();
   st.staff.forEach((u, i) => {
     h += '<div class="staff-row ' + (u.active ? '' : 'inactive') + '">';
     h += '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name) + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
@@ -2947,6 +3157,7 @@ async function transferTest() {
    ・この画面で手で足した人は、名簿にいないので触らない
    ========================================================= */
 let masterRev = -1;
+let masterList = [];   // 最後に読めた共通名簿。名前の突き合わせに使う
 
 // 名簿から来た人かどうかの目印。異動で外すかどうかの判断に使う
 function markFromMaster(u) { if (!u.fromMaster) { u.fromMaster = true; } }
@@ -3021,6 +3232,7 @@ async function masterPull(force) {
     if (!res || res.status !== 'ok') return;
     if (!force && res.staffRev === masterRev) return;
     masterRev = res.staffRev;
+    masterList = res.staff || [];
     if (applyMaster(res.staff || [])) {
       saveDB();      // 共有にも送って、全員の画面を揃える
       renderAll();
