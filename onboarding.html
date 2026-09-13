@@ -1333,6 +1333,29 @@ const SEED_MAIN = [
 
 /* シフト作成にだけ名前があり、勤怠アプリには登録がない人。
    取り込むとPINを自動で作り、勤怠アプリでも打刻できるようになります。 */
+/* 社員（勤怠アプリ index.html に入っている12名）＋ 社長。
+   名前はアプリごとに書き方が違うので、揃え先をそれぞれ持たせる。
+     name      … 勤怠アプリの表記（姓名のあいだにスペース）
+     shiftName … シフト作成での表記
+     kyuyoName … 出勤簿（kintai_YYYYMM）のタブ名
+   storeIds は「いまシフト作成に入っている現場」だけを入れてある。
+   空の人はシフトに入らない（勤怠と契約書だけ）。 */
+const SEED_STAFF = [
+  { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課",        shiftName:"平野健雄",  kyuyoName:"平野健雄",  storeIds:"" },
+  { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課",        shiftName:"安藤正樹",  kyuyoName:"安藤正樹",  storeIds:"" },
+  { kind:"staff", name:"伏田 幸枝", pin:"2571", dept:"業務課",        shiftName:"伏田幸枝",  kyuyoName:"伏田幸枝",  storeIds:"" },
+  { kind:"staff", name:"小林 俊樹", pin:"9034", dept:"業務課",        shiftName:"小林俊樹",  kyuyoName:"小林俊樹",  storeIds:"" },
+  { kind:"staff", name:"石毛 貴英", pin:"4718", dept:"業務課",        shiftName:"石毛貴英",  kyuyoName:"石毛貴英",  storeIds:"s_beer" },
+  { kind:"staff", name:"石毛 拓海", pin:"7263", dept:"飲食事業部",     shiftName:"石毛拓海",  kyuyoName:"石毛拓海",  storeIds:"" },
+  { kind:"staff", name:"花見 朗子", pin:"5409", dept:"バックオフィス", shiftName:"花見朗子",  kyuyoName:"花見朗子",  storeIds:"" },
+  { kind:"staff", name:"土屋 芳広", pin:"1836", dept:"飲食事業部",     shiftName:"土屋芳広",  kyuyoName:"土屋芳広",  storeIds:"s_momo" },
+  { kind:"staff", name:"及川 晶雄", pin:"8527", dept:"飲食事業部",     shiftName:"及川晶雄",  kyuyoName:"及川晶雄",  storeIds:"" },
+  { kind:"staff", name:"宮川 玲奈", pin:"3074", dept:"飲食事業部",     shiftName:"レナ",      kyuyoName:"宮川玲奈",  storeIds:"s_hana" },
+  { kind:"staff", name:"ハルシャニ", pin:"6941", dept:"飲食事業部",    shiftName:"ハルシャニ", kyuyoName:"ハルシャニ", storeIds:"s_takohai,s_hana" },
+  { kind:"staff", name:"ナディシャ", pin:"2385", dept:"飲食事業部",    shiftName:"ナディーシャ", kyuyoName:"ナディシャ", storeIds:"s_takohai,s_hana" },
+  { kind:"staff", name:"飯田 栄",   pin:"",     dept:"本社",          shiftName:"飯田栄",    kyuyoName:"飯田栄",    storeIds:"s_honsha" },
+];
+
 const SEED_SHIFT_ONLY = [
   { kind:"part", name:"宮内眞知子", pin:"", dept:"神宮・亀甲堂・ゆう屋", kyuyo:true, storeIds:"s_jingu", payKind:"hourly", payRate:1200 },
   { kind:"part", name:"河野竜二", pin:"", dept:"りゅうちゃん", kyuyo:false, storeIds:"s_ryuchan" },
@@ -1349,6 +1372,7 @@ function seedToRec(x) {
     kind: x.kind, name: x.name, kana: '', pin: x.pin || '',
     dept: x.dept || (first ? first.dept : ''),
     storeIds: x.storeIds || '', shiftName: x.shiftName || '',
+    kyuyoName: x.kyuyoName || '',
     locs: JSON.stringify(locs || []),
     joinedAt: '', retiredAt: '', status: 'active',
     kyuyo: !!x.kyuyo, days: '0,1,2,3,4,5,6', holidayOk: true,
@@ -1356,6 +1380,17 @@ function seedToRec(x) {
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
     note: '既存の名簿から取り込み',
   };
+}
+
+/* 取り込むときも、区分に応じた契約条件の既定値を入れておく。
+   生年月日や住所は空のままなので、契約書はまだ作れない（画面で知らせる）。 */
+function seedToRecFull(x) {
+  const rec = seedToRec(x);
+  const d = contractDefaults(x.kind === 'staff' ? 'staff' : 'part');
+  Object.keys(d).forEach(function (k) { rec[k] = d[k]; });
+  rec.allowances = '[]';
+  rec.contractEnd = '';
+  return rec;
 }
 
 let seedPick = {};   // シフトにだけいる人のうち、取り込む人
@@ -1426,6 +1461,37 @@ function renderSetup() {
       + '</div>'
       + '<div class="row-actions" style="margin-top:0">'
       + '<button class="btn primary" id="btn-import" onclick="doImport()">' + restMain.length + ' 名を取り込む</button></div>';
+  }
+  h += '</div>';
+
+  // --- 2.2 社員を取り込む ---
+  const restStaff = SEED_STAFF.filter(function (x) { return !known[x.name]; });
+  h += '<div class="card"><div class="card-title">2-2. 社員を取り込む</div>'
+    + '<div class="card-desc">勤怠アプリ（index.html）に直接書かれている社員 '
+    + SEED_STAFF.length + ' 名を、共通名簿へ移します。'
+    + '<b>アプリごとに名前の書き方が違う</b>ので、揃え先もいっしょに入れます'
+    + '（勤怠は「宮川 玲奈」／シフトは「レナ」／出勤簿は「宮川玲奈」など）。</div>';
+  if (!restStaff.length) {
+    h += '<div class="alert ok"><b>取り込み済みです。</b>'
+      + SEED_STAFF.length + ' 名はすべて共通名簿に入っています。</div>';
+  } else {
+    h += '<div class="table-wrap"><table><thead><tr>'
+      + '<th>勤怠アプリ</th><th>シフト作成</th><th>出勤簿</th><th>所属</th><th>シフトの現場</th>'
+      + '</tr></thead><tbody>'
+      + restStaff.map(function (x) {
+          const sids = (x.storeIds || '').split(',').filter(Boolean);
+          return '<tr><td><b>' + esc(x.name) + '</b></td>'
+            + '<td>' + esc(x.shiftName) + '</td><td>' + esc(x.kyuyoName) + '</td>'
+            + '<td>' + esc(x.dept) + '</td>'
+            + '<td>' + (sids.length ? esc(sids.map(siteName).join('・'))
+                                    : '<span class="muted">入らない</span>') + '</td></tr>';
+        }).join('')
+      + '</tbody></table></div>'
+      + '<div class="row-actions">'
+      + '<button class="btn primary" id="btn-import-staff" onclick="doImportStaff()">'
+      + restStaff.length + ' 名を取り込む</button></div>'
+      + '<div class="hint">PINが空の人には、重ならない番号を自動で振ります。'
+      + '生年月日や住所は空のままなので、契約書はまだ作れません（名簿で「契約書 ⚠」と出ます）。</div>';
   }
   h += '</div>';
 
@@ -1504,9 +1570,18 @@ function renderSetup() {
 async function doImport() {
   const known = {};
   STAFF.forEach(function (r) { known[r.name] = true; });
-  const recs = SEED_MAIN.filter(function (x) { return !known[x.name]; }).map(seedToRec);
+  const recs = SEED_MAIN.filter(function (x) { return !known[x.name]; }).map(seedToRecFull);
   if (!recs.length) { alert('取り込む人がいません。'); return; }
   if (!confirm(recs.length + ' 名を共通名簿に取り込みます。よろしいですか？')) return;
+  await sendImport(recs);
+}
+
+async function doImportStaff() {
+  const known = {};
+  STAFF.forEach(function (r) { known[r.name] = true; });
+  const recs = SEED_STAFF.filter(function (x) { return !known[x.name]; }).map(seedToRecFull);
+  if (!recs.length) { alert('取り込む人がいません。'); return; }
+  if (!confirm('社員 ' + recs.length + ' 名を共通名簿に取り込みます。\n\nよろしいですか？')) return;
   await sendImport(recs);
 }
 
@@ -1515,7 +1590,7 @@ async function doImportOnly() {
   STAFF.forEach(function (r) { known[r.name] = true; });
   const recs = SEED_SHIFT_ONLY
     .filter(function (x) { return seedPick[x.name] && !known[x.name]; })
-    .map(seedToRec);
+    .map(seedToRecFull);
   if (!recs.length) { alert('取り込む人を選んでください。'); return; }
   await sendImport(recs);
 }
