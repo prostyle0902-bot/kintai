@@ -3228,7 +3228,8 @@ function applyMaster(list) {
 async function masterPull(force) {
   if (!syncOn()) return;
   try {
-    const res = await syncGet({ action: 'staffList' });
+    // 住所や単価は受け取らない。シフトに要る欄だけの staffShift を使う
+    const res = await syncGet({ action: 'staffShift' });
     if (!res || res.status !== 'ok') return;
     if (!force && res.staffRev === masterRev) return;
     masterRev = res.staffRev;

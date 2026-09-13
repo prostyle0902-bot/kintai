@@ -129,6 +129,8 @@ function handle_(p, cb) {
     if (p.action === 'staffList') return json_(staffList_(), cb);
     // 打刻アプリ向けの軽い名簿。必要な欄だけなので3分の1ほどの大きさになる
     if (p.action === 'staffPunch') return json_(staffPunch_(), cb);
+    // シフト作成向けの名簿。住所や単価は渡さない
+    if (p.action === 'staffShift') return json_(staffShift_(), cb);
 
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(20000)) {
@@ -1762,4 +1764,25 @@ function moveInto_(item, parent) {
   } catch (e) {
     // 移せなくても、作ること自体は続ける
   }
+}
+
+
+/* シフト作成アプリ向けの名簿。
+   シフトを組むのに要る欄だけを返す。
+   住所・生年月日・電話・緊急連絡先・単価は渡さない。
+   画面に出さなくても、渡せば相手の手元には届いてしまうため。 */
+function staffShift_() {
+  var sh = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+  var keep = ['name', 'shiftName', 'kyuyoName', 'status', 'kind', 'kyuyo', 'storeIds',
+              'days', 'holidayOk', 'startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend',
+              'targetDays', 'maxDays', 'maxPerWeek'];
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    if (!list[i].name) continue;
+    var o = {};
+    for (var k = 0; k < keep.length; k++) o[keep[k]] = list[i][keep[k]];
+    out.push(o);
+  }
+  return { status: 'ok', staffRev: staffRev_(), staff: out };
 }
