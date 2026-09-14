@@ -161,6 +161,9 @@
   .pat-row input[type=text] { text-align: center; font-weight: 600; }
   .need-sum { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-md);
     background: #FFF6E0; color: #92650a; font-size: 12.5px; line-height: 1.8; }
+  .staff-name { padding: 8px 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .from-master { font-size: 10px; color: var(--text-secondary); background: #f0efeb;
+    border-radius: 4px; padding: 1px 5px; }
   .dow-need { display: flex; gap: 3px; }
   .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
   .dow-need label span { font-size: 10px; color: var(--text-secondary); }
@@ -538,8 +541,13 @@
         <div>勤務可能曜日 ／ 入れる枠・勤務時間 ／ 曜日ごとの上限</div><div></div>
       </div>
       <div id="staff-list"></div>
-      <div class="row-actions">
-        <button class="btn" onclick="addStaff()">＋ スタッフを追加</button>
+      <div class="p-hint" style="margin-top:1rem">
+        <b>スタッフの登録・削除はここではできません。</b>
+        二重登録を防ぐため、人の出入りは
+        <a href="onboarding.html" target="_blank" rel="noopener">入社登録アプリ</a>にまとめています。<br />
+        入社・退職・配属の変更はあちらで行うと、この画面にも自動で反映されます
+        （すぐ反映したいときは上の「名簿を読み直す」）。<br />
+        この画面では、日数の上限・勤務できる曜日・勤務時間など<b>シフトの組み方</b>だけを決めます。
       </div>
     </div>
   </div>
@@ -2272,10 +2280,17 @@ function auditCard() {
 
 function renderStaff() {
   const st = store();
+  const inMaster = masterShiftNames();
   let h = auditCard();
   st.staff.forEach((u, i) => {
     h += '<div class="staff-row ' + (u.active ? '' : 'inactive') + '">';
-    h += '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name) + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
+    // 名簿に載っている人は名前を直せない。ずれると別人になり、二重に増えてしまう
+    const onMaster = !!inMaster[u.name];
+    h += onMaster
+      ? '<div><span class="lbl">氏名</span><div class="staff-name">' + esc(u.name)
+        + '<span class="from-master" title="入社登録アプリの名簿から取り込んだ人です">名簿</span></div></div>'
+      : '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name)
+        + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
     h += '<div><span class="lbl">希望日数</span><input type="number" min="0" max="31" value="' + u.targetDays + '" oninput="updStaff(' + i + ',\'targetDays\',+this.value)" /></div>';
     h += '<div><span class="lbl">上限</span><input type="number" min="0" max="31" value="' + u.maxDays + '" oninput="updStaff(' + i + ',\'maxDays\',+this.value)" /></div>';
     h += '<div><span class="lbl">週上限</span><input type="number" min="0" max="7" value="' + u.maxPerWeek + '" oninput="updStaff(' + i + ',\'maxPerWeek\',+this.value)" /></div>';
@@ -2309,7 +2324,7 @@ function renderStaff() {
       + ' onchange="updDowLimits(' + i + ',this.value)" />';
     h += '</div><div style="display:flex;gap:6px">'
       + '<button class="btn sm" onclick="toggleActive(' + i + ')">' + (u.active ? '休止' : '復帰') + '</button>'
-      + '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>'
+      + (onMaster ? '' : '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>')
       + '</div></div>';
   });
   if (!st.staff.length) h = '<div class="muted" style="padding:1rem 0">スタッフが登録されていません。</div>';
@@ -2366,11 +2381,10 @@ function delStaff(i) {
   store().staff.splice(i, 1);
   saveDB(); renderAll();
 }
+// スタッフの登録は入社登録アプリにまとめた。ここから足すと二重になる
 function addStaff() {
-  const name = prompt('スタッフの氏名を入力してください');
-  if (!name || !name.trim()) return;
-  store().staff.push(newStaff(name.trim()));
-  saveDB(); renderAll();
+  alert('スタッフの登録はこの画面ではできません。\n\n'
+    + '入社登録アプリで登録してください。配属した現場に自動で入ります。');
 }
 
 /* =========================================================
