@@ -16,8 +16,15 @@
     python3 ingest.py --record records.json
         records.json は [{file_id, name, path, local}, …]
 
-台帳 `ingest_ledger.json` は file_id で照合する。Dropbox でファイルが
-支払い済/ へ移動されても ID は変わらないので、二重取り込みにならない
+**二重取り込みの防止は「置き場所にもう同名があるか」で見る。** 置き場所の名前は
+ファイル名から決まる（下の表）ので、あればもう取り込んである。だから台帳に
+全件を積む必要がない。
+
+台帳 `ingest_ledger.json` が覚えるのは2つだけ:
+  - ingested … 実際に落としたもの（いつ・どこへ。あとで追える用）
+  - skipped  … 置き場所のルールが無く、利用者が「入れなくてよい」と決めたもの。
+               これを覚えておかないと毎回 unknown で報告してしまう
+照合は file_id。Dropbox で 支払い済/ へ移動されても ID は変わらない
 （furikomi/ledger.json と同じ考え方）。
 
 --- 置き場所のルール -----------------------------------------------------
@@ -136,6 +143,7 @@ def plan(listing_path):
     known = set(led["ingested"]) | set(led["skipped"])
 
     todo, unknown, mods = [], [], {}
+    have = 0
     for e in entries:
         if e["file_id"] in known:
             continue
@@ -144,13 +152,15 @@ def plan(listing_path):
             unknown.append({**e, "note": note})
             continue
         if os.path.exists(os.path.join(BASE, local)):
-            note += "（★同名がもう pl/ にある。中身が違えば上書きになる）"
+            have += 1          # もう取り込んである。落とし直さない
+            continue
         todo.append({**e, "local": local, "module": mod, "note": note})
         if mod:
             mods.setdefault(mod, []).append(e["name"])
 
     print(json.dumps({"todo": todo, "unknown": unknown}, ensure_ascii=False, indent=1))
-    print(f"\n--- 取り込む {len(todo)}件 ／ 置き場所不明 {len(unknown)}件", file=sys.stderr)
+    print(f"\n--- 取り込む {len(todo)}件 ／ もうある {have}件 "
+          f"／ 置き場所不明 {len(unknown)}件", file=sys.stderr)
     for mod, names in sorted(mods.items()):
         print(f"★{mod} に追記が要る: {'、'.join(names)}", file=sys.stderr)
     return 0
