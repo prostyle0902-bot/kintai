@@ -360,7 +360,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">シフト作成</span>
       </div>
-      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-15b</span></div>
+      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-15c</span></div>
       <div class="who" id="who"></div>
     </div>
     <div class="toolbar">
@@ -1859,6 +1859,7 @@ function renderTransferInfo(st, sh) {
   if (tr) {
     h += '<br /><span style="color:#0F6E56">最終転記：' + esc(new Date(tr.at).toLocaleString('ja-JP'))
       + '（追加 ' + tr.added + (tr.updated ? '・変更 ' + tr.updated : '')
+      + (tr.resent ? '・送り直し ' + tr.resent : '')
       + '・そのまま ' + tr.skipped + (tr.removed ? '・取消 ' + tr.removed : '') + '）</span>';
   }
   el.innerHTML = h;
@@ -3125,7 +3126,7 @@ async function transferStore(st, ym, report) {
   }
 
   const ids = {};
-  let added = 0, updated = 0, skipped = 0, removed = 0, kyuyoOk = 0, kyuyoNg = 0;
+  let added = 0, updated = 0, skipped = 0, removed = 0, resent = 0, kyuyoOk = 0, kyuyoNg = 0;
   // 失敗した人と、その理由（同じものはまとめる）
   const kyuyoNgList = [];
   const countKyuyo = function (k) {
@@ -3150,8 +3151,21 @@ async function transferStore(st, ym, report) {
       // すでに送ってある予定。中身が変わっていれば、同じ予定を書き換える
       const same = useCal ? sameEvent(st, mine, ev) : (was.sig === sig);
       if (same) {
+        const keep = was.ev || Object.assign({}, ev, { id: was.id });
+        /* シフトの中身が前と同じでも、出勤簿に届いたと確認できていないものは送り直す。
+           名簿で「出勤簿へ転記する」を後から入れた人は、シフトが変わらないため
+           いつまでも「そのまま」扱いになり、出勤簿にいつまでも入らなかった。 */
+        if (isKyuyoTarget(ev.staff) && was.k !== 'ok') {
+          ev.id = was.id;
+          const k = await kyuyoCall('writeShift', ev);
+          countKyuyo(k);
+          ids[p.key] = { id: was.id, sig: sig, ev: keep, k: k.state };
+          resent++;
+          report(st.name, i + 1, plan.length);
+          continue;
+        }
         // 送った内容を控えておく（取り消すときに必要になる）
-        ids[p.key] = { id: was.id, sig: sig, ev: was.ev || Object.assign({}, ev, { id: was.id }) };
+        ids[p.key] = { id: was.id, sig: sig, ev: keep, k: was.k };
         skipped++;
         report(st.name, i + 1, plan.length);
         continue;
@@ -3161,8 +3175,9 @@ async function transferStore(st, ym, report) {
         if (!ev.memo && mine.memo) ev.memo = mine.memo;   // 連携先で書かれたメモは残す
         await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
       }
-      countKyuyo(await kyuyoCall('writeShift', ev));
-      ids[p.key] = { id: ev.id, sig: sig, ev: ev };
+      const ku = await kyuyoCall('writeShift', ev);
+      countKyuyo(ku);
+      ids[p.key] = { id: ev.id, sig: sig, ev: ev, k: ku.state };
       updated++;
       report(st.name, i + 1, plan.length);
       continue;
@@ -3183,8 +3198,9 @@ async function transferStore(st, ym, report) {
     if (was && was.id) ev.id = was.id;
 
     if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
-    countKyuyo(await kyuyoCall('writeShift', ev));
-    ids[p.key] = { id: ev.id, sig: sig, ev: ev };
+    const ka = await kyuyoCall('writeShift', ev);
+    countKyuyo(ka);
+    ids[p.key] = { id: ev.id, sig: sig, ev: ev, k: ka.state };
     added++;
     report(st.name, i + 1, plan.length);
   }
@@ -3211,10 +3227,10 @@ async function transferStore(st, ym, report) {
   }
 
   DB.transfers[key] = { ids: ids, at: new Date().toISOString(),
-    added: added, updated: updated, skipped: skipped, removed: removed };
+    added: added, updated: updated, skipped: skipped, removed: removed, resent: resent };
   saveDB();
   return { added: added, updated: updated, skipped: skipped, removed: removed, total: plan.length,
-    kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg, kyuyoNgList: kyuyoNgList };
+    resent: resent, kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg, kyuyoNgList: kyuyoNgList };
 }
 
 async function runTransfer(stores, ym) {
@@ -3266,7 +3282,9 @@ async function runTransfer(stores, ym) {
       const r = await transferStore(st, ym, report);
       doneRows += r.total;
       results.push(st.name + '：追加 ' + r.added
-        + (r.updated ? '・変更 ' + r.updated : '') + '・そのまま ' + r.skipped
+        + (r.updated ? '・変更 ' + r.updated : '')
+        + (r.resent ? '・送り直し ' + r.resent : '')
+        + '・そのまま ' + r.skipped
         + (r.removed ? '・取消 ' + r.removed : '')
         + '／出勤簿 ' + r.kyuyoOk + '件'
         + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件：' + r.kyuyoNgList.join('、') + '）' : ''));
