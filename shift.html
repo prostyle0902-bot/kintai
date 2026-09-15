@@ -695,7 +695,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15g';
+const APP_VER = '2026-09-15h';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -2968,12 +2968,27 @@ function kyuyoWhereHtml() {
     + '</span>';
 }
 
+/* 出勤簿が返してくる理由コードを、日本語にする。
+   status:'skip' は「受け取らなかった」という意味なので失敗として扱う。
+   （これを成功と数えていたため、届いていないことに気づけなかった） */
+var KYUYO_REASON = {
+  not_part_time:  '出勤簿側の名簿（STAFF_MAP）に登録されていません',
+  no_ss_for_date: 'その日付の給与一覧ファイルが見つかりません',
+  sheet_not_found:'給与一覧にその人のシートがありません',
+  date_not_found: 'その日付の行が見つかりません',
+};
+
 function kyuyoError(res) {
   if (res === undefined || res === null) return '';   // 返事なし＝これまでどおり成功扱い
   if (typeof res === 'string') {
     return /エラー|ありません|失敗|error/i.test(res) ? res : '';
   }
   if (typeof res === 'object') {
+    // 打刻済みの取り消しを見送ったのは、わざとなので失敗ではない
+    if (res.reason === 'already_punched') return '';
+    if (res.status === 'skip') {
+      return KYUYO_REASON[res.reason] || ('受け取ってもらえませんでした（' + res.reason + '）');
+    }
     if (res.ok === false || res.success === false
         || res.status === 'error' || res.result === 'error') {
       return String(res.error || res.message || res.reason || '出勤簿が受け付けませんでした');
@@ -3010,7 +3025,7 @@ function kyuyoCall(action, ev) {
   let name = kyuyoNameOf(ev.staff);
   // 海事・横河の衣幡千明（2026-08-16以降）は、給与上は別の出勤簿へ転記する
   if (ev.staff === '衣幡千明' && ev.store === '海事・横河' && ev.date >= '2026-08-16') {
-    name = '衣幡千明（海事・横河）';
+    name = '衣幡千明_海事横河';   // 出勤簿側のシート名と同じにする
   }
   if (name !== ev.staff) {
     payload = {};
