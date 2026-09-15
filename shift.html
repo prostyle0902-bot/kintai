@@ -695,7 +695,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15i';
+const APP_VER = '2026-09-15j';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -1837,6 +1837,9 @@ function renderTransferInfo(st, sh) {
     + 'この期間のシフト：<b>' + n + '件</b>'
     + '（うち出勤簿へ送る対象者：<b>' + kyuyoN + '件</b>）。'
     // 名簿が読めていないと「出勤簿へ転記する」が効かない。まずそこを出す
+    + (masterNotes.length
+        ? '<br /><span style="color:#a32d2d"><b>' + masterNotes.map(esc).join('<br />') + '</b></span>'
+        : '')
     + (masterState.loaded
         ? '<br /><span style="opacity:.6">名簿：' + masterState.n + '人を読み込み済み'
           + (masterState.loading ? '（読み込み中…）' : '') + '</span>'
@@ -3500,6 +3503,8 @@ let masterList = [];   // 最後に読めた共通名簿。名前の突き合わ
 /* 名簿を読めたかどうか。読めていないと「出勤簿へ転記する」が効かず、
    だまって転記されない人が出るので、画面に出して気づけるようにする */
 let masterState = { loaded: false, loading: false, n: 0, reason: 'まだ読み込んでいません' };
+// 名簿を読んだときに、こちらで直したこと（退職にともなうシフトの取り消しなど）
+let masterNotes = [];
 
 // 名簿から来た人かどうかの目印。異動で外すかどうかの判断に使う
 function markFromMaster(u) { if (!u.fromMaster) { u.fromMaster = true; } }
@@ -3511,12 +3516,38 @@ function applyMaster(list) {
     const nm = String(rec.shiftName || rec.name || '').trim();
     if (!nm) return;
 
-    // 退職した人は、どの現場でも使わないようにする
+    /* 退職した人は、どの現場でも使わないようにする。
+       あわせて、退職日より後に入っているシフトからも外す。
+       外しておかないと、そのまま出勤簿へ転記され続けてしまう。
+       退職日までのシフトは、働いたぶんなので残す。 */
     if (rec.status === 'retired') {
+      const until = String(rec.retiredAt || '').slice(0, 10) || dateKey(new Date());
       DB.stores.forEach(function (st) {
-        (st.staff || []).forEach(function (u) {
-          if (u.name === nm && u.active !== false) { u.active = false; changed = true; }
+        let u = null;
+        (st.staff || []).forEach(function (x) {
+          if (x.name !== nm) return;
+          u = x;
+          if (x.active !== false) { x.active = false; changed = true; }
         });
+        if (!u) return;
+
+        let n = 0;
+        Object.keys(DB.shifts).forEach(function (key) {
+          if (key.indexOf(st.id + '|') !== 0) return;
+          const sh = DB.shifts[key];
+          if (!sh || !sh.days) return;
+          Object.keys(sh.days).forEach(function (d) {
+            if (d <= until) return;          // 退職日までは残す
+            const arr = sh.days[d] || [];
+            const i = arr.indexOf(u.id);
+            if (i >= 0) { arr.splice(i, 1); n++; changed = true; }
+          });
+        });
+        if (n) {
+          masterNotes.push(nm + ' さんは退職のため、' + st.name + ' の '
+            + until + ' より後のシフト ' + n + '件を外しました。'
+            + '転記を押すと、出勤簿からも取り消されます。');
+        }
       });
       return;
     }
@@ -3593,6 +3624,7 @@ async function masterPull(force) {
     masterList = res.staff || [];
     masterState = { loaded: true, loading: false, n: masterList.length, reason: '' };
     kyuyoIdx = null;   // 対象者の索引を作り直す
+    masterNotes = [];
     if (applyMaster(res.staff || [])) {
       saveDB();      // 共有にも送って、全員の画面を揃える
     }
