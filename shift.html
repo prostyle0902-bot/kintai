@@ -161,6 +161,9 @@
   .pat-row input[type=text] { text-align: center; font-weight: 600; }
   .need-sum { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-md);
     background: #FFF6E0; color: #92650a; font-size: 12.5px; line-height: 1.8; }
+  .staff-name { padding: 8px 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .from-master { font-size: 10px; color: var(--text-secondary); background: #f0efeb;
+    border-radius: 4px; padding: 1px 5px; }
   .dow-need { display: flex; gap: 3px; }
   .dow-need label { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
   .dow-need label span { font-size: 10px; color: var(--text-secondary); }
@@ -538,8 +541,13 @@
         <div>勤務可能曜日 ／ 入れる枠・勤務時間 ／ 曜日ごとの上限</div><div></div>
       </div>
       <div id="staff-list"></div>
-      <div class="row-actions">
-        <button class="btn" onclick="addStaff()">＋ スタッフを追加</button>
+      <div class="p-hint" style="margin-top:1rem">
+        <b>スタッフの登録・削除はここではできません。</b>
+        二重登録を防ぐため、人の出入りは
+        <a href="onboarding.html" target="_blank" rel="noopener">入社登録アプリ</a>にまとめています。<br />
+        入社・退職・配属の変更はあちらで行うと、この画面にも自動で反映されます
+        （すぐ反映したいときは上の「名簿を読み直す」）。<br />
+        この画面では、日数の上限・勤務できる曜日・勤務時間など<b>シフトの組み方</b>だけを決めます。
       </div>
     </div>
   </div>
@@ -2285,10 +2293,17 @@ function auditCard() {
 
 function renderStaff() {
   const st = store();
+  const inMaster = masterShiftNames();
   let h = auditCard();
   st.staff.forEach((u, i) => {
     h += '<div class="staff-row ' + (u.active ? '' : 'inactive') + '">';
-    h += '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name) + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
+    // 名簿に載っている人は名前を直せない。ずれると別人になり、二重に増えてしまう
+    const onMaster = !!inMaster[u.name];
+    h += onMaster
+      ? '<div><span class="lbl">氏名</span><div class="staff-name">' + esc(u.name)
+        + '<span class="from-master" title="入社登録アプリの名簿から取り込んだ人です">名簿</span></div></div>'
+      : '<div><span class="lbl">氏名</span><input type="text" value="' + esc(u.name)
+        + '" oninput="updStaff(' + i + ',\'name\',this.value)" /></div>';
     h += '<div><span class="lbl">希望日数</span><input type="number" min="0" max="31" value="' + u.targetDays + '" oninput="updStaff(' + i + ',\'targetDays\',+this.value)" /></div>';
     h += '<div><span class="lbl">上限</span><input type="number" min="0" max="31" value="' + u.maxDays + '" oninput="updStaff(' + i + ',\'maxDays\',+this.value)" /></div>';
     h += '<div><span class="lbl">週上限</span><input type="number" min="0" max="7" value="' + u.maxPerWeek + '" oninput="updStaff(' + i + ',\'maxPerWeek\',+this.value)" /></div>';
@@ -2322,7 +2337,7 @@ function renderStaff() {
       + ' onchange="updDowLimits(' + i + ',this.value)" />';
     h += '</div><div style="display:flex;gap:6px">'
       + '<button class="btn sm" onclick="toggleActive(' + i + ')">' + (u.active ? '休止' : '復帰') + '</button>'
-      + '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>'
+      + (onMaster ? '' : '<button class="btn sm danger" onclick="delStaff(' + i + ')">削除</button>')
       + '</div></div>';
   });
   if (!st.staff.length) h = '<div class="muted" style="padding:1rem 0">スタッフが登録されていません。</div>';
@@ -2379,11 +2394,10 @@ function delStaff(i) {
   store().staff.splice(i, 1);
   saveDB(); renderAll();
 }
+// スタッフの登録は入社登録アプリにまとめた。ここから足すと二重になる
 function addStaff() {
-  const name = prompt('スタッフの氏名を入力してください');
-  if (!name || !name.trim()) return;
-  store().staff.push(newStaff(name.trim()));
-  saveDB(); renderAll();
+  alert('スタッフの登録はこの画面ではできません。\n\n'
+    + '入社登録アプリで登録してください。配属した現場に自動で入ります。');
 }
 
 /* =========================================================
@@ -3318,6 +3332,8 @@ const SYNC_POLL = 60000;          // 誰かが更新していないか見にい�
 const SYNC_IDLE = 15 * 60 * 1000; // ずっと触っていなければ見にいくのをやめる
 
 let syncRev = 0;            // 最後にやりとりしたときの版数
+let syncBase = null;        // 最後にやりとりしたときの中身（突き合わせの土台）
+const BASE_KEY = LS_KEY + '_base';
 let syncTimer = null;
 let syncBusy = false;
 let syncDirty = false;      // まだ送っていない変更がある
@@ -3327,6 +3343,142 @@ let lastActive = Date.now();
 
 function syncUrl() { return (DB.syncUrl || SYNC_API || '').trim(); }
 function syncOn() { return !!syncUrl(); }
+
+/* ---------------------------------------------------------------
+   2人が同時に直したときの突き合わせ
+   「前に読み込んだ内容（base）」「この端末の内容（mine）」
+   「共有先の内容（theirs）」の3つを見比べて1つにまとめる。
+   片方しか触っていない項目は、そのまま両方とも残る。
+   同じ項目を2人が別々に直したときだけ、こちらを残して知らせる。
+   --------------------------------------------------------------- */
+function jclone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+function jsame(a, b) {
+  return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+}
+
+function pick3(base, mine, theirs, label, clashes) {
+  if (jsame(mine, theirs)) return jclone(mine);
+  if (jsame(base, mine)) return jclone(theirs);     // こちらは触っていない → 相手の内容
+  if (jsame(base, theirs)) return jclone(mine);     // 相手は触っていない → こちらの内容
+  if (label && clashes.indexOf(label) < 0) clashes.push(label);
+  return jclone(mine);                              // どちらも直した → こちらを残す
+}
+
+// キーごとに突き合わせる。deep を渡すと中身をさらに1段たどる
+function mergeMap(base, mine, theirs, label, clashes, deep) {
+  base = base || {}; mine = mine || {}; theirs = theirs || {};
+  const keys = {};
+  [base, mine, theirs].forEach(function (o) { Object.keys(o).forEach(function (k) { keys[k] = 1; }); });
+  const out = {};
+  Object.keys(keys).forEach(function (k) {
+    const lb = label ? label(k) : null;
+    const v = deep ? deep(base[k], mine[k], theirs[k], lb, clashes)
+                   : pick3(base[k], mine[k], theirs[k], lb, clashes);
+    if (v !== undefined) out[k] = v;
+  });
+  return out;
+}
+
+// 'storeId|2026-09' のようなキーを、人が読める形にする
+function niceKey(kind, key) {
+  const p = String(key).split('|');
+  const st = (DB.stores || []).find(function (s) { return s.id === p[0]; });
+  const nm = st ? st.name : p[0];
+  const ym = p[1] ? ' ' + p[1] : '';
+  if (kind === 'shift') return nm + ym + ' のシフト';
+  if (kind === 'req') return nm + ym + ' の希望休';
+  if (kind === 'ov') return nm + ' の営業日';
+  if (kind === 'tr') return nm + ym + ' の転記記録';
+  return nm;
+}
+
+// シフトは日ごとに突き合わせる。同じ現場でも、別の日を直したぶんは両方残る
+function mergeShift(b, m, t, label, clashes) {
+  if (m === undefined || t === undefined) return pick3(b, m, t, label, clashes);
+  b = b || {};
+  const out = {};
+  out.days = mergeMap(b.days, m.days, t.days, label ? function (k) { return label + '（' + k + '）'; } : null, clashes);
+  out.pat = mergeMap(b.pat, m.pat, t.pat, null, clashes);
+  const times = mergeMap(b.times, m.times, t.times, null, clashes);
+  if (Object.keys(times).length) out.times = times;
+  ['slotSig', 'generatedAt', 'manual'].forEach(function (k) {
+    const v = pick3(b[k], m[k], t[k], null, clashes);
+    if (v !== undefined) out[k] = v;
+  });
+  return out;
+}
+
+// 希望休はスタッフごとの入れ物。中の日付ごとに突き合わせる
+function mergeReq(b, m, t, label, clashes) {
+  if (m === undefined || t === undefined) return pick3(b, m, t, label, clashes);
+  return mergeMap(b, m, t, label ? function () { return label; } : null, clashes);
+}
+
+// 店舗・現場は id ごとに、さらに項目ごとに突き合わせる
+function mergeStores(base, mine, theirs, clashes) {
+  const byId = function (arr) { const o = {}; (arr || []).forEach(function (s) { if (s && s.id) o[s.id] = s; }); return o; };
+  const b = byId(base), m = byId(mine), t = byId(theirs);
+  const order = [];
+  (theirs || []).forEach(function (s) { if (s && s.id) order.push(s.id); });
+  (mine || []).forEach(function (s) { if (s && s.id && order.indexOf(s.id) < 0) order.push(s.id); });
+
+  const out = [];
+  order.forEach(function (id) {
+    const bs = b[id], ms = m[id], ts = t[id];
+    if (!ms && !ts) return;
+    if (!ms) { if (bs && jsame(bs, ts)) return; out.push(jclone(ts)); return; }   // こちらが消した
+    if (!ts) { if (bs && jsame(bs, ms)) return; out.push(jclone(ms)); return; }   // 相手が消した
+    const name = (ms.name || ts.name || id) + ' の設定';
+    const keys = {};
+    [bs || {}, ms, ts].forEach(function (o) { Object.keys(o).forEach(function (k) { keys[k] = 1; }); });
+    const o = {};
+    Object.keys(keys).forEach(function (k) {
+      const v = pick3((bs || {})[k], ms[k], ts[k], name, clashes);
+      if (v !== undefined) o[k] = v;
+    });
+    out.push(o);
+  });
+  return out;
+}
+
+function mergeSynced(base, mine, theirs) {
+  const clashes = [];
+  base = base || {};
+  const out = {};
+  out.stores = mergeStores(base.stores, mine.stores, theirs.stores, clashes);
+  out.dayOverrides = mergeMap(base.dayOverrides, mine.dayOverrides, theirs.dayOverrides,
+    function (k) { return niceKey('ov', k); }, clashes);
+  out.requests = mergeMap(base.requests, mine.requests, theirs.requests,
+    function (k) { return niceKey('req', k); }, clashes, mergeReq);
+  out.shifts = mergeMap(base.shifts, mine.shifts, theirs.shifts,
+    function (k) { return niceKey('shift', k); }, clashes, mergeShift);
+  out.transfers = mergeMap(base.transfers, mine.transfers, theirs.transfers,
+    function (k) { return niceKey('tr', k); }, clashes);
+  ['transferDest', 'lastBy', 'lastAt'].forEach(function (k) {
+    const v = pick3(base[k], mine[k], theirs[k], null, clashes);
+    if (v !== undefined) out[k] = v;
+  });
+  // 現場の条件を配った回数は、進んでいる方に合わせる
+  out.rosterSync = Math.max(num(mine.rosterSync, 0), num(theirs.rosterSync, 0));
+  return { data: out, clashes: clashes };
+}
+
+function loadBase() {
+  try { return JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); } catch (e) { return null; }
+}
+function setBase(o) {
+  syncBase = jclone(o);
+  try { localStorage.setItem(BASE_KEY, JSON.stringify(o)); } catch (e) { /* 入らなくても動く */ }
+}
+
+// 同じ項目を2人が別々に直したときだけ知らせる
+function reportClashes(clashes, who) {
+  if (!clashes || !clashes.length) return;
+  const list = clashes.slice(0, 8).map(function (x) { return '・' + x; }).join('\n')
+    + (clashes.length > 8 ? '\n・ほか ' + (clashes.length - 8) + '件' : '');
+  alert('同じところを ' + (who || '他の人') + ' も直していました。\n'
+    + 'こちらの内容を残しました。念のため確認してください。\n\n' + list);
+}
 
 function syncPayload() {
   const o = {};
@@ -3405,7 +3557,20 @@ async function syncPull(showAlert) {
     if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
     syncRev = res.rev || 0;
     if (res.data) {
-      applyPayload(JSON.parse(res.data));
+      const theirs = JSON.parse(res.data);
+      if (syncDirty && syncBase) {
+        // こちらに未保存の変更がある。消さずに突き合わせて、両方を残す
+        const r = mergeSynced(syncBase, syncPayload(), theirs);
+        applyPayload(r.data);
+        setBase(theirs);
+        renderAll();
+        setSyncInfo('ok', syncStamp(res));
+        reportClashes(r.clashes, res.updatedBy);
+        syncPush();                       // 合わせた結果を共有先にも戻す
+        return;
+      }
+      applyPayload(theirs);
+      setBase(theirs);
       renderAll();
     }
     setSyncInfo('ok', syncStamp(res));
@@ -3433,34 +3598,35 @@ function syncStamp(res) {
     ? '（' + res.updatedAt + (res.updatedBy ? ' ' + res.updatedBy : '') + '）' : '');
 }
 
-async function syncPush(force) {
+async function syncPush(force, tries) {
   if (!syncOn() || syncBusy) return;
+  tries = tries || 0;
   syncBusy = true;
   setSyncInfo('busy', '保存中…');
+  const mineNow = syncPayload();     // いま送る中身。ぶつかったときの突き合わせにも使う
   try {
     const res = await syncCall({
       action: 'save', baseRev: syncRev, force: force ? 'true' : 'false',
-      by: DB.userName || '', data: JSON.stringify(syncPayload()),
+      by: DB.userName || '', data: JSON.stringify(mineNow),
     });
     if (res.status === 'conflict') {
-      // 自分が読み込んだあとに他の人が保存していた
-      setSyncInfo('err', '他の人の変更があります');
-      const who = (res.updatedBy || '他の人') + '（' + (res.updatedAt || '') + '）';
-      if (confirm('この端末で編集している間に、' + who + ' が変更を保存しています。\n\n'
-        + 'OK  … 相手の内容を読み込む（こちらの変更は破棄）\n'
-        + 'キャンセル … こちらの内容で上書きする')) {
-        syncBusy = false;
-        syncDirty = false;      // こちらの変更は捨てるので、送るものは残っていない
-        await syncPull();
-        return;
-      }
+      // 送っている間に他の人が保存していた。どちらも消さずに突き合わせる
+      const theirs = res.data ? JSON.parse(res.data) : {};
+      const r = mergeSynced(syncBase || theirs, mineNow, theirs);
+      applyPayload(r.data);
+      renderAll();
+      syncRev = res.rev || syncRev;
+      setBase(theirs);
       syncBusy = false;
-      await syncPush(true);
+      reportClashes(r.clashes, res.updatedBy);
+      if (tries < 3) { await syncPush(false, tries + 1); return; }
+      setSyncInfo('err', '未保存：何度もぶつかりました。もう一度保存してください');
       return;
     }
     if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
     syncRev = res.rev || syncRev + 1;
     syncDirty = false;
+    setBase(mineNow);
     setSyncInfo('ok', syncStamp(res));
   } catch (e) {
     setSyncInfo('err', '未保存：' + e.message);
@@ -4169,6 +4335,7 @@ function startApp(who) {
   // 共有リンク（#sync=...）で開かれたときは、その共有先につなぐ
   if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
   // 共有が設定されていれば、開いたときに最新を読み込み、続けて共通スタッフ名簿も取り込む
+  syncBase = loadBase();
   if (syncOn()) syncPull().then(function () { return masterPull(true); }).then(renderWho);
   // あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
   startSyncWatch();
