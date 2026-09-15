@@ -360,7 +360,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">シフト作成</span>
       </div>
-      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-15c</span></div>
+      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em" id="app-ver"></span></div>
       <div class="who" id="who"></div>
     </div>
     <div class="toolbar">
@@ -415,6 +415,7 @@
       <div class="transfer-status"></div>
       <div class="row-actions" style="margin-top:0">
         <button class="btn primary" onclick="transferCurrent()">確定して転記</button>
+        <button class="btn" onclick="resendKyuyo()">出勤簿へ送り直す</button>
         <button class="btn" onclick="transferTest()">1件だけテスト送信</button>
       </div>
     </div>
@@ -692,6 +693,10 @@ const GYOMU_SHEET = 'シフト';
    設定・希望休・作成したシフトを Google スプレッドシートに置いて全員で共有する。
    SYNC_API に Apps Script のウェブアプリURLを入れると有効になる（空なら端末内だけ）。
    作り方は同じフォルダの shift-sync.gs を参照。 */
+/* この画面の版。ヘッダーにも転記の結果にも出す。
+   「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
+const APP_VER = '2026-09-15d';
+
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
 
@@ -3155,7 +3160,7 @@ async function transferStore(st, ym, report) {
         /* シフトの中身が前と同じでも、出勤簿に届いたと確認できていないものは送り直す。
            名簿で「出勤簿へ転記する」を後から入れた人は、シフトが変わらないため
            いつまでも「そのまま」扱いになり、出勤簿にいつまでも入らなかった。 */
-        if (isKyuyoTarget(ev.staff) && was.k !== 'ok') {
+        if (isKyuyoTarget(ev.staff) && (forceKyuyo || was.k !== 'ok')) {
           ev.id = was.id;
           const k = await kyuyoCall('writeShift', ev);
           countKyuyo(k);
@@ -3289,7 +3294,9 @@ async function runTransfer(stores, ym) {
         + '／出勤簿 ' + r.kyuyoOk + '件'
         + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件：' + r.kyuyoNgList.join('、') + '）' : ''));
     }
-    setTransferStatus('<div class="alert ok"><b>転記しました。</b><br />' + results.map(esc).join('<br />')
+    setTransferStatus('<div class="alert ok"><b>転記しました。</b>'
+      + '<span style="opacity:.55;font-size:.85em">　版 ' + APP_VER + '</span><br />'
+      + results.map(esc).join('<br />')
       + '<br />' + (useCal ? 'シフト管理アプリと出勤簿を開いて確認してください。'
                            : '出勤簿を開いて確認してください。') + '</div>');
   } catch (e) {
@@ -3300,7 +3307,21 @@ async function runTransfer(stores, ym) {
   renderAll();
 }
 
+/* 出勤簿へ送り直すモード。
+   「送信済み」の控えを無視して、対象者ぶんをもう一度送る。
+   控えの上では送ったことになっているのに、出勤簿には入っていない、
+   という食い違いが起きたときの逃げ道。 */
+let forceKyuyo = false;
+
 function transferCurrent() { runTransfer([store()], currentYM); }
+
+function resendKyuyo() {
+  if (!confirm('この現場の ' + periodLabel() + ' ぶんを、出勤簿へもう一度すべて送り直します。\n\n'
+    + '同じ予定は同じ番号で送るため、二重には入りません。\n'
+    + '出勤簿に入っていない人がいるときに使ってください。よろしいですか？')) return;
+  forceKyuyo = true;
+  runTransfer([store()], currentYM).finally(function () { forceKyuyo = false; });
+}
 function transferAll() {
   runTransfer(DB.stores.filter(function (st) { return st.configured; }), currentYM);
 }
@@ -4449,6 +4470,9 @@ function startApp(who) {
   ME = who.name;
   const g = document.getElementById('gate');
   if (g) g.remove();
+
+  const vEl = document.getElementById('app-ver');
+  if (vEl) vEl.textContent = '版 ' + APP_VER;
 
   renderAll();
   renderWho();
