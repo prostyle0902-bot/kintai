@@ -360,7 +360,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">シフト作成</span>
       </div>
-      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-13a</span></div>
+      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-15a</span></div>
       <div class="who" id="who"></div>
     </div>
     <div class="toolbar">
@@ -1814,13 +1814,13 @@ function renderTransferInfo(st, sh) {
       + '／土日祝 ' + esc(st.startTimeWeekend) + '〜' + esc(timeLabel(st.endTimeWeekend, st.openHour))
       + '（スタッフごとの指定があればそちらを使います）';
   const plan = sh ? buildTransferPlan(st) : [];
-  const kyuyoN = plan.filter(function (p) {
-    return PART_TIME_STAFF.indexOf(p.staff) >= 0;
-  }).length;
+  const kyuyoN = plan.filter(function (p) { return isKyuyoTarget(p.staff); }).length;
   // 出勤簿へ送らない人。名簿の「出勤簿へ転記する」が入っていないと、ここに出る
   const notKyuyo = [];
   plan.forEach(function (p) {
-    if (PART_TIME_STAFF.indexOf(p.staff) < 0 && notKyuyo.indexOf(p.staff) < 0) notKyuyo.push(p.staff);
+    if (isKyuyoTarget(p.staff)) return;
+    const txt = p.staff + '（' + kyuyoWhy(p.staff) + '）';
+    if (notKyuyo.indexOf(txt) < 0) notKyuyo.push(txt);
   });
 
   let h = '<div class="chip-row" style="margin-bottom:.6rem">転記先：'
@@ -2874,13 +2874,76 @@ function apiParams(st, params) {
   return params;
 }
 
-// 出勤簿（給与側）への転記。連携先アプリと同じ条件・同じ形で送る
-// 戻り値：'skip'（対象外）／'ok'（送れた）／'ng'（送れなかった）
+/* 出勤簿へ送る対象者かどうか。
+   空白の有無や異体字（山崎／山﨑 など）の違いだけで外れてしまうと、
+   だまって転記されない人が出るため、ならしてから比べる。 */
+let kyuyoIdx = null;
+function kyuyoIndex() {
+  if (!kyuyoIdx || kyuyoIdx.__n !== PART_TIME_STAFF.length) {
+    kyuyoIdx = { __n: PART_TIME_STAFF.length };
+    PART_TIME_STAFF.forEach(function (n) { kyuyoIdx[normName(n)] = n; });
+  }
+  return kyuyoIdx;
+}
+function isKyuyoTarget(name) { return !!kyuyoIndex()[normName(name)]; }
+
+/* 出勤簿での名前。
+   出勤簿のシートは勤怠アプリの表記で作られているので、
+   シフト表の書き方（空白の有無など）のまま送ると別人扱いになって届かない。
+   名簿の氏名 → 対象者リストの表記 → シフト表の名前、の順に探す。 */
+function kyuyoNameOf(name) {
+  if (KYUYO_NAME[name]) return KYUYO_NAME[name];
+  const t = normName(name);
+  const hit = Object.keys(KYUYO_NAME).find(function (k) { return normName(k) === t; });
+  if (hit) return KYUYO_NAME[hit];
+  const rec = masterList.find(function (r) {
+    return normName(r.shiftName || r.name) === t || normName(r.name) === t;
+  });
+  if (rec && rec.kyuyoName) return String(rec.kyuyoName).trim();
+  if (rec && rec.name) return String(rec.name).trim();
+  return kyuyoIndex()[t] || name;
+}
+
+/* 出勤簿から返ってきた中身が「失敗」なら、その理由を返す（成功なら空文字）。
+   JSONP は通信できた時点で成功扱いになるので、中身を見ないと
+   「社員マスタにありません」のような断りに気づけない。 */
+function kyuyoError(res) {
+  if (res === undefined || res === null) return '';   // 返事なし＝これまでどおり成功扱い
+  if (typeof res === 'string') {
+    return /エラー|ありません|失敗|error/i.test(res) ? res : '';
+  }
+  if (typeof res === 'object') {
+    if (res.ok === false || res.success === false
+        || res.status === 'error' || res.result === 'error') {
+      return String(res.error || res.message || res.reason || '出勤簿が受け付けませんでした');
+    }
+    if (res.error) return String(res.error);
+  }
+  return '';
+}
+
+/* その人が出勤簿へ送られない理由を、名簿を見て言い当てる。
+   （名簿にいない／「出勤簿へ転記する」が入っていない／社員） */
+function kyuyoWhy(name) {
+  const t = normName(name);
+  const rec = masterList.find(function (r) {
+    return normName(r.shiftName || r.name) === t || normName(r.name) === t;
+  });
+  if (!rec) return '名簿にいません';
+  if (rec.kind === 'staff') return '社員';
+  if (!rec.kyuyo) return '名簿の「出勤簿へ転記する」が入っていません';
+  return '名簿では対象ですが、シフト表の名前と合っていません';
+}
+
+// 出勤簿（給与）への転記。連携先アプリと同じ条件・同じ形で送る
+// 戻り値：{ state: 'skip' | 'ok' | 'ng', name, reason }
 function kyuyoCall(action, ev) {
-  if (PART_TIME_STAFF.indexOf(ev.staff) < 0) return Promise.resolve('skip');
+  if (!isKyuyoTarget(ev.staff)) {
+    return Promise.resolve({ state: 'skip', name: ev.staff, reason: kyuyoWhy(ev.staff) });
+  }
   let payload = ev;
   // 出勤簿での名前がシフト表と違う人は、そちらの名前で送る
-  let name = KYUYO_NAME[ev.staff] || ev.staff;
+  let name = kyuyoNameOf(ev.staff);
   // 海事・横河の衣幡千明（2026-08-16以降）は、給与上は別の出勤簿へ転記する
   if (ev.staff === '衣幡千明' && ev.store === '海事・横河' && ev.date >= '2026-08-16') {
     name = '衣幡千明（海事・横河）';
@@ -2891,8 +2954,14 @@ function kyuyoCall(action, ev) {
     payload.staff = name;
   }
   return jsonpCall(KYUYO_API, { action: action, data: payload })
-    .then(function () { return 'ok'; })
-    .catch(function () { return 'ng'; });   // 出勤簿が失敗しても本体の転記は続ける
+    .then(function (res) {
+      const ng = kyuyoError(res);
+      // 出勤簿が失敗しても本体の転記は続ける。理由だけ持ち帰る
+      return ng ? { state: 'ng', name: name, reason: ng } : { state: 'ok', name: name };
+    })
+    .catch(function (e) {
+      return { state: 'ng', name: name, reason: (e && e.message) || '通信できませんでした' };
+    });
 }
 
 function newRemoteId() {
@@ -3049,7 +3118,16 @@ async function transferStore(st, ym, report) {
 
   const ids = {};
   let added = 0, updated = 0, skipped = 0, removed = 0, kyuyoOk = 0, kyuyoNg = 0;
-  const countKyuyo = function (k) { if (k === 'ok') kyuyoOk++; else if (k === 'ng') kyuyoNg++; };
+  // 失敗した人と、その理由（同じものはまとめる）
+  const kyuyoNgList = [];
+  const countKyuyo = function (k) {
+    if (!k) return;
+    if (k.state === 'ok') { kyuyoOk++; return; }
+    if (k.state !== 'ng') return;
+    kyuyoNg++;
+    const msg = k.name + (k.reason ? '（' + k.reason + '）' : '');
+    if (kyuyoNgList.indexOf(msg) < 0) kyuyoNgList.push(msg);
+  };
 
   for (let i = 0; i < plan.length; i++) {
     if (transferCancelled) throw new Error('中止しました');
@@ -3128,7 +3206,7 @@ async function transferStore(st, ym, report) {
     added: added, updated: updated, skipped: skipped, removed: removed };
   saveDB();
   return { added: added, updated: updated, skipped: skipped, removed: removed, total: plan.length,
-    kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg };
+    kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg, kyuyoNgList: kyuyoNgList };
 }
 
 async function runTransfer(stores, ym) {
@@ -3145,14 +3223,16 @@ async function runTransfer(stores, ym) {
   const dest = useCal ? '出勤簿と' + cals : '出勤簿';
   // 出勤簿へ実際に送るのは対象者だけ。待ち時間の目安はその件数で見る
   const kyuyoRows = targets.reduce(function (a, st) {
-    return a + buildTransferPlan(st).filter(function (p) { return PART_TIME_STAFF.indexOf(p.staff) >= 0; }).length;
+    return a + buildTransferPlan(st).filter(function (p) { return isKyuyoTarget(p.staff); }).length;
   }, 0);
   const sendRows = useCal ? totalRows : kyuyoRows;
   // 出勤簿へ送らない人を、押す前に名指しで見せる
   const skipNames = [];
   targets.forEach(function (st) {
     buildTransferPlan(st).forEach(function (p) {
-      if (PART_TIME_STAFF.indexOf(p.staff) < 0 && skipNames.indexOf(p.staff) < 0) skipNames.push(p.staff);
+      if (isKyuyoTarget(p.staff)) return;
+      const txt = p.staff + '（' + kyuyoWhy(p.staff) + '）';
+      if (skipNames.indexOf(txt) < 0) skipNames.push(txt);
     });
   });
   if (!confirm(targets.map(function (s) { return s.name; }).join('、') + '\n'
@@ -3180,7 +3260,8 @@ async function runTransfer(stores, ym) {
       results.push(st.name + '：追加 ' + r.added
         + (r.updated ? '・変更 ' + r.updated : '') + '・そのまま ' + r.skipped
         + (r.removed ? '・取消 ' + r.removed : '')
-        + '／出勤簿 ' + r.kyuyoOk + '件' + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件）' : ''));
+        + '／出勤簿 ' + r.kyuyoOk + '件'
+        + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件：' + r.kyuyoNgList.join('、') + '）' : ''));
     }
     setTransferStatus('<div class="alert ok"><b>転記しました。</b><br />' + results.map(esc).join('<br />')
       + '<br />' + (useCal ? 'シフト管理アプリと出勤簿を開いて確認してください。'
@@ -3215,9 +3296,11 @@ async function transferTest() {
     if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
     // 本番の転記と同じく、対象者は出勤簿へ送る
     const k = await kyuyoCall('writeShift', ev);
-    const kyuyoTxt = k === 'ok' ? '出勤簿に送信しました。'
-      : k === 'skip' ? esc(p.staff) + ' さんは出勤簿の転記対象ではないため、出勤簿には送っていません。'
-      : '<span style="color:#a32d2d">出勤簿への送信は失敗しました。</span>';
+    const kyuyoTxt = k.state === 'ok' ? '出勤簿に送信しました。'
+      : k.state === 'skip'
+        ? esc(p.staff) + ' さんは出勤簿へ送りません（' + esc(k.reason || '対象外') + '）。'
+        : '<span style="color:#a32d2d">出勤簿への送信は失敗しました：'
+          + esc(k.reason || '理由が返ってきませんでした') + '</span>';
     setTransferStatus('<div class="alert ok"><b>テスト送信できました。</b><br />'
       + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end) + '<br />'
       + kyuyoTxt + (useCal ? '　シフト管理アプリにも入っているか確認してください。' : '') + '</div>');
