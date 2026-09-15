@@ -129,6 +129,29 @@ function checkRoster() {
     var onlyRoster = !STAFF_MAP[names[i]] ? '　← 名簿だけにいる人' : '';
     Logger.log('  ' + names[i] + ' → ' + map[names[i]] + onlyRoster);
   }
+  /* 名簿では在籍なのに、GAS側の一覧で「退職」や「対象外」になっている人を探す。
+     ここが食い違うと、集計表から外れたり、シートを消されたりする。 */
+  Logger.log('―――― GAS側の一覧と食い違っていないか ――――');
+  var inStore = {};
+  for (var st in STORE_STAFF) {
+    for (var si = 0; si < STORE_STAFF[st].length; si++) inStore[STORE_STAFF[st][si]] = st;
+  }
+  var ng = 0;
+  for (var k = 0; k < names.length; k++) {
+    var sheetNm = map[names[k]];
+    if (typeof RETIRED_STAFF !== 'undefined' && RETIRED_STAFF.indexOf(sheetNm) >= 0) {
+      Logger.log('【要対応】' + sheetNm + ' は名簿では在籍ですが、RETIRED_STAFF に入っています');
+      Logger.log('    → このまま fixAllKyuyoIchiran() を流すと、給与一覧の集計から外れます');
+      ng++;
+    }
+    if (!inStore[sheetNm]) {
+      Logger.log('【要対応】' + sheetNm + ' が STORE_STAFF のどの現場にも入っていません');
+      Logger.log('    → 給与一覧の集計表に出ません（出勤簿シートへの転記はされます）');
+      ng++;
+    }
+  }
+  if (!ng) Logger.log('食い違いはありません。');
+
   Logger.log('―――― 出勤簿に実際のシートがあるかも見る（今の期間から先を全部） ――――');
   var books = booksFromNow_();
   if (!books.length) { Logger.log('見にいける給与一覧がありませんでした'); return; }
