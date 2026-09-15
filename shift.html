@@ -360,7 +360,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">シフト作成</span>
       </div>
-      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-15a</span></div>
+      <div class="logo-sub">店舗・現場別 自動シフト作成<span style="opacity:.55;margin-left:.5em">版 2026-09-15b</span></div>
       <div class="who" id="who"></div>
     </div>
     <div class="toolbar">
@@ -1831,6 +1831,13 @@ function renderTransferInfo(st, sh) {
     + timeTxt + '<br />'
     + 'この期間のシフト：<b>' + n + '件</b>'
     + '（うち出勤簿へ送る対象者：<b>' + kyuyoN + '件</b>）。'
+    // 名簿が読めていないと「出勤簿へ転記する」が効かない。まずそこを出す
+    + (masterState.loaded
+        ? '<br /><span style="opacity:.6">名簿：' + masterState.n + '人を読み込み済み</span>'
+        : '<br /><span style="color:#a32d2d"><b>名簿を読み込めていません（'
+          + esc(masterState.reason) + '）。</b>'
+          + 'この状態では、入社登録アプリで登録した人が出勤簿へ転記されません。'
+          + '画面を再読み込みしても直らないときは知らせてください。</span>')
     + (notKyuyo.length
         ? '<br /><span style="color:#a32d2d"><b>出勤簿へ送らない人：'
           + notKyuyo.map(esc).join('、') + '</b>　'
@@ -2925,6 +2932,7 @@ function kyuyoError(res) {
 /* その人が出勤簿へ送られない理由を、名簿を見て言い当てる。
    （名簿にいない／「出勤簿へ転記する」が入っていない／社員） */
 function kyuyoWhy(name) {
+  if (!masterState.loaded) return '名簿を読み込めていません';
   const t = normName(name);
   const rec = masterList.find(function (r) {
     return normName(r.shiftName || r.name) === t || normName(r.name) === t;
@@ -3322,6 +3330,9 @@ async function transferTest() {
    ========================================================= */
 let masterRev = -1;
 let masterList = [];   // 最後に読めた共通名簿。名前の突き合わせに使う
+/* 名簿を読めたかどうか。読めていないと「出勤簿へ転記する」が効かず、
+   だまって転記されない人が出るので、画面に出して気づけるようにする */
+let masterState = { loaded: false, n: 0, reason: 'まだ読み込んでいません' };
 
 // 名簿から来た人かどうかの目印。異動で外すかどうかの判断に使う
 function markFromMaster(u) { if (!u.fromMaster) { u.fromMaster = true; } }
@@ -3394,15 +3405,29 @@ async function masterPull(force) {
   try {
     // 住所や単価は受け取らない。シフトに要る欄だけの staffShift を使う
     const res = await syncGet({ action: 'staffShift' });
-    if (!res || res.status !== 'ok') return;
+    if (!res) {
+      masterState = { loaded: false, n: 0, reason: 'Apps Script から返事がありません' };
+      renderAll();
+      return;
+    }
+    if (res.status !== 'ok') {
+      masterState = { loaded: false, n: 0,
+        reason: res.message || 'Apps Script が名簿を返しませんでした（staffShift）' };
+      renderAll();
+      return;
+    }
     if (!force && res.staffRev === masterRev) return;
     masterRev = res.staffRev;
     masterList = res.staff || [];
+    masterState = { loaded: true, n: masterList.length, reason: '' };
+    kyuyoIdx = null;   // 対象者の索引を作り直す
     if (applyMaster(res.staff || [])) {
       saveDB();      // 共有にも送って、全員の画面を揃える
-      renderAll();
     }
-  } catch (e) { /* つながらないときは次の機会に */ }
+    renderAll();
+  } catch (e) {
+    masterState = { loaded: false, n: 0, reason: (e && e.message) || '読み込めませんでした' };
+  }
 }
 
 /* =========================================================
