@@ -695,7 +695,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15e';
+const APP_VER = '2026-09-15f';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -2923,6 +2923,19 @@ function kyuyoNameOf(name) {
 /* 出勤簿から返ってきた中身が「失敗」なら、その理由を返す（成功なら空文字）。
    JSONP は通信できた時点で成功扱いになるので、中身を見ないと
    「社員マスタにありません」のような断りに気づけない。 */
+/* 出勤簿から返ってきた中身を、そのまま1件だけ控えておく。
+   受け取り側のスクリプトが手元に無いため、何と返しているのかを
+   画面から確かめられるようにする。 */
+let kyuyoLastReply = null;
+function kyuyoReplyText() {
+  if (!kyuyoLastReply) return '';
+  let t;
+  try { t = JSON.stringify(kyuyoLastReply.res); } catch (e) { t = String(kyuyoLastReply.res); }
+  if (t === undefined) t = '（何も返ってきませんでした）';
+  if (t.length > 300) t = t.slice(0, 300) + '…';
+  return kyuyoLastReply.name + ' → ' + t;
+}
+
 function kyuyoError(res) {
   if (res === undefined || res === null) return '';   // 返事なし＝これまでどおり成功扱い
   if (typeof res === 'string') {
@@ -2974,6 +2987,7 @@ function kyuyoCall(action, ev) {
   }
   return jsonpCall(KYUYO_API, { action: action, data: payload })
     .then(function (res) {
+      if (!kyuyoLastReply) kyuyoLastReply = { name: name, res: res };
       const ng = kyuyoError(res);
       // 出勤簿が失敗しても本体の転記は続ける。理由だけ持ち帰る
       return ng ? { state: 'ng', name: name, reason: ng } : { state: 'ok', name: name };
@@ -3296,6 +3310,7 @@ async function runTransfer(stores, ym) {
     + '1件ずつ送るため ' + Math.max(1, Math.ceil(sendRows * 0.7 / 60)) + '分ほどかかります。よろしいですか？')) return;
 
   transferCancelled = false;
+  kyuyoLastReply = null;
   let doneRows = 0;
   const report = function (name, i, n) {
     const pct = totalRows ? Math.round((doneRows + i) / totalRows * 100) : 100;
@@ -3317,9 +3332,12 @@ async function runTransfer(stores, ym) {
         + '／出勤簿 ' + r.kyuyoOk + '件'
         + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件：' + r.kyuyoNgList.join('、') + '）' : ''));
     }
+    const reply = kyuyoReplyText();
     setTransferStatus('<div class="alert ok"><b>転記しました。</b>'
       + '<span style="opacity:.55;font-size:.85em">　版 ' + APP_VER + '</span><br />'
       + results.map(esc).join('<br />')
+      + (reply ? '<br /><span style="opacity:.6;font-size:.9em">出勤簿の返事：'
+                 + esc(reply) + '</span>' : '')
       + '<br />' + (useCal ? 'シフト管理アプリと出勤簿を開いて確認してください。'
                            : '出勤簿を開いて確認してください。') + '</div>');
   } catch (e) {
@@ -3361,16 +3379,20 @@ async function transferTest() {
     + (p.pattern ? p.pattern + '　' : '') + p.start + '〜' + p.end + '\n\n'
     + 'よろしいですか？（うまくいかない場合は送り先の画面で削除してください）')) return;
   setTransferStatus('<div class="alert info">テスト送信中…</div>');
+  kyuyoLastReply = null;
   try {
     const ev = buildEvent(st, p);
     if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
     // 本番の転記と同じく、対象者は出勤簿へ送る
     const k = await kyuyoCall('writeShift', ev);
-    const kyuyoTxt = k.state === 'ok' ? '出勤簿に送信しました。'
+    const reply = kyuyoReplyText();
+    const kyuyoTxt = (k.state === 'ok' ? '出勤簿に送信しました。'
       : k.state === 'skip'
         ? esc(p.staff) + ' さんは出勤簿へ送りません（' + esc(k.reason || '対象外') + '）。'
         : '<span style="color:#a32d2d">出勤簿への送信は失敗しました：'
-          + esc(k.reason || '理由が返ってきませんでした') + '</span>';
+          + esc(k.reason || '理由が返ってきませんでした') + '</span>')
+      + (reply ? '<br /><span style="opacity:.6;font-size:.9em">出勤簿の返事：'
+                 + esc(reply) + '</span>' : '');
     setTransferStatus('<div class="alert ok"><b>テスト送信できました。</b><br />'
       + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end) + '<br />'
       + kyuyoTxt + (useCal ? '　シフト管理アプリにも入っているか確認してください。' : '') + '</div>');
