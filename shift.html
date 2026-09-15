@@ -695,7 +695,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15h';
+const APP_VER = '2026-09-15i';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -3032,16 +3032,39 @@ function kyuyoCall(action, ev) {
     Object.keys(ev).forEach(function (k) { payload[k] = ev[k]; });
     payload.staff = name;
   }
-  return jsonpCall(KYUYO_API, { action: action, data: payload })
-    .then(function (res) {
-      kyuyoNoteReply(name, res);
-      const ng = kyuyoError(res);
-      // 出勤簿が失敗しても本体の転記は続ける。理由だけ持ち帰る
-      return ng ? { state: 'ng', name: name, reason: ng } : { state: 'ok', name: name };
-    })
-    .catch(function (e) {
-      return { state: 'ng', name: name, reason: (e && e.message) || '通信できませんでした' };
-    });
+  return kyuyoSend_(action, payload, name);
+}
+
+/* 出勤簿へ1件送る。つながらなかったときは少し待ってやり直す。
+   一度に何百件も送ると Apps Script が受けきれず、
+   タイムアウトや通信エラーがまとまって出ることがある。
+   同じ日・同じ人は同じマスに書くので、送り直しても二重にはならない。 */
+const KYUYO_WAITS = [0, 1200, 3500];   // すぐ → 1.2秒後 → 3.5秒後
+
+function kyuyoSend_(action, payload, name) {
+  let attempt = 0;
+  let lastErr = '';
+
+  const once = function () {
+    return jsonpCall(KYUYO_API, { action: action, data: payload })
+      .then(function (res) {
+        kyuyoNoteReply(name, res);
+        const ng = kyuyoError(res);
+        // 断られたときは、送り直しても同じなのでここで終わりにする
+        return ng ? { state: 'ng', name: name, reason: ng } : { state: 'ok', name: name };
+      })
+      .catch(function (e) {
+        // 届かなかっただけ。少し待ってもう一度
+        lastErr = (e && e.message) || '通信できませんでした';
+        attempt++;
+        if (attempt >= KYUYO_WAITS.length || transferCancelled) {
+          return { state: 'ng', name: name,
+                   reason: lastErr + '（' + attempt + '回試しました）' };
+        }
+        return new Promise(function (r) { setTimeout(r, KYUYO_WAITS[attempt]); }).then(once);
+      });
+  };
+  return once();
 }
 
 function newRemoteId() {
@@ -3381,12 +3404,21 @@ async function runTransfer(stores, ym) {
         + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件：' + r.kyuyoNgList.join('、') + '）' : ''));
     }
     const reply = kyuyoReplyText();
+    // 通信で届かなかったもの（出勤簿に断られたのではない）があるか
+    const netFail = results.join('／').indexOf('タイムアウト') >= 0
+                 || results.join('／').indexOf('通信') >= 0;
     setTransferStatus('<div class="alert ok"><b>転記しました。</b>'
       + '<span style="opacity:.55;font-size:.85em">　版 ' + APP_VER + '</span><br />'
       + results.map(esc).join('<br />')
       + kyuyoWhereHtml()
       + (reply ? '<br /><span style="opacity:.5;font-size:.85em">出勤簿の返事（1件目）：'
                  + esc(reply) + '</span>' : '')
+      + (netFail
+          ? '<br /><b style="color:#a32d2d">通信で届かなかったぶんがあります。'
+            + 'もう一度「出勤簿へ送り直す」を押してください。</b>'
+            + '<br /><span style="opacity:.7">届いたぶんは送り直しません。'
+            + '失敗したぶんだけ送るので、すぐ終わります。</span>'
+          : '')
       + '<br />' + (useCal ? 'シフト管理アプリと出勤簿を開いて確認してください。'
                            : '出勤簿を開いて確認してください。') + '</div>');
   } catch (e) {
