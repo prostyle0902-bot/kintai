@@ -4,19 +4,26 @@
    ※ 先に kyuyo-roster-patch.gs（名簿パッチ）を入れてください。
       このファイルは、その中の関数を使います。
 
-   ―――― 抜けが出る理由 ――――
-   集計タブは、一人ひとりの出勤簿シートを参照して作られています。
-       ='松本めぐみ'!D37   のような式
-   その人の出勤簿シートがそのブックに無いと、式が作られず、
-   氏名だけ書かれて出勤日数・実働・支給額が空になります。
-   新しく入った人は、まだシートが無い期間があるので、そこが抜けます。
+   ―――― 抜けが出る理由（2種類）――――
+   集計タブは、一人ひとりの出勤簿シートを参照する式で作られています。
+       ='松本めぐみ'!D37 ←出勤日数     ='松本めぐみ'!G48 ←支給額
+
+   (A) 出勤簿シートが無い人は、式が作られず、氏名だけ書かれて全部空になる。
+       退職して出勤簿シートを消した人（田村あつ子さんなど）がこれ。
+
+   (B) 支給額だけ空になる人がいる。
+       集計を組む処理が、明細の「差引支給額」を"完全一致"で探しているため。
+       衣幡千明さんは海事・横河との合算を入れたときに
+       「差引支給額（トータルステイ）」に名前が変わり、見つからなくなった。
+       同じ書き方のシートを写して作られた岡田梨沙さんも同じ。
 
    ―――― このファイルがやること ――――
-   ① 名簿の在籍者で、出勤簿シートが無い人のシートを作る（抜けの元を断つ）
+   ① 名簿の在籍者で、出勤簿シートが無い人のシートを作る
    ② 名簿で退職になっている人を、集計タブから外す
       ただし、その期間に出勤がある人は外しません（給与が消えるため）
    ③ 集計タブを組み直し、通し番号を振り直す
-      （「コイララ　マダバ」のような空の重複行も、ここで消えます）
+   ④ そのあと、空いている項目に式を入れ直す
+      「差引支給額（…）」のように名前が違っても見つけられるようにする
 
    出勤簿シートそのものは消しません。過去の記録が失われるためです。
    タブが多くて見づらいときは hideRetiredSheets() で隠せます（戻せます）。
@@ -26,6 +33,15 @@
    2. previewKyuyoList() を実行して、何が変わるかログで確かめる
    3. fixKyuyoList() を実行する（1回で2冊ずつ。完了と出るまで繰り返す）
    ============================================================= */
+
+
+/* 名簿には無いが、集計に載せたい出勤簿シート。
+   ひとりが2つの現場で別々のシートを持つ場合など。
+   桜庭京子さんのシートを作り替えた「衣幡千明_海事横河」がこれにあたる。
+   ここに入れておかないと、その現場の支給額が総合計から抜ける。 */
+var EXTRA_SHEETS = {
+  '海事・横河': ['衣幡千明_海事横河']
+};
 
 
 // ① 何が変わるかを見るだけ（書き換えなし）
@@ -53,7 +69,9 @@ function previewKyuyoList() {
       if (days > 0) keep.push(rn + '（' + days + '日出勤）'); else out.push(rn);
     }
 
+    var blank = blankRows_(ss);
     Logger.log(books[b].label
+      + '\n    いま項目が空の行：' + (blank.length ? blank.join('、') : 'なし')
       + '\n    シートが無い人（抜けの元）：' + (lack.length ? lack.join('、') : 'なし')
       + '\n    集計から外す退職者：' + (out.length ? out.join('、') : 'なし')
       + '\n    出勤があるので残す退職者：' + (keep.length ? keep.join('、') : 'なし'));
@@ -102,14 +120,22 @@ function fixKyuyoList() {
         removed.push(rn);
       }
 
-      // (4) 集計タブを組み直す
+      // (4) 名簿に無い特別なシートを載せる（衣幡千明_海事横河 など）
+      var extra = mergeExtraSheets_(ss);
+
+      // (5) 集計タブを組み直す
       fixKyuyoIchiranInSS(t.id);
 
+      // (6) 空いている項目に式を入れ直す
+      var patched = patchKyuyoFormulas_(ss);
+
+      var all = added.concat(extra);
       Logger.log(t.label
         + '｜シート作成 ' + made + '枚'
-        + '／集計に追加 ' + (added.length ? added.join('、') : 'なし')
+        + '／集計に追加 ' + (all.length ? all.join('、') : 'なし')
         + '／集計から外した退職者 ' + (removed.length ? removed.join('、') : 'なし')
-        + (kept.length ? '／出勤があるので残した退職者 ' + kept.join('、') : ''));
+        + (kept.length ? '／出勤があるので残した退職者 ' + kept.join('、') : '')
+        + '／式を入れ直した行 ' + patched);
     } catch (e) {
       Logger.log('エラー: ' + t.label + ' / ' + e.message);
     }
@@ -241,4 +267,99 @@ function deepCopyStoreStaff_() {
 function restoreStoreStaff_(base) {
   for (var st in STORE_STAFF) delete STORE_STAFF[st];
   for (var k in base) STORE_STAFF[k] = base[k].slice();
+}
+
+
+/* 名簿に無い特別なシートを、集計に載せる */
+function mergeExtraSheets_(ss) {
+  var out = [];
+  for (var g in EXTRA_SHEETS) {
+    if (!STORE_STAFF[g]) STORE_STAFF[g] = [];
+    var list = EXTRA_SHEETS[g];
+    for (var i = 0; i < list.length; i++) {
+      if (!ss.getSheetByName(list[i])) continue;   // そのブックに無ければ何もしない
+      if (inStoreStaff_(list[i])) continue;
+      STORE_STAFF[g].push(list[i]);
+      out.push(list[i] + ' \u2192 ' + g);
+    }
+  }
+  return out;
+}
+
+/* 集計タブの、空いている項目に式を入れ直す。
+
+   組み直す処理は明細の「差引支給額」を完全一致で探すため、
+   「差引支給額（トータルステイ）」のように名前が違うと見つからず、
+   支給額だけ空になる。ここでは前方一致で探して入れ直す。
+   合算支給額は使わない。海事・横河分は別の行で計上されるため、
+   合算を使うと二重に足されてしまう。 */
+function patchKyuyoFormulas_(ss) {
+  var sheet = kyuyoSheetOf_(ss);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+
+  var vals = sheet.getRange(1, 1, sheet.getLastRow(), 6).getValues();
+  var fixed = 0;
+
+  for (var r = 0; r < vals.length; r++) {
+    var nm = String(vals[r][1] || '').trim();
+    if (!nm || !isNo_(vals[r][0])) continue;
+    if (nm.indexOf("'") >= 0) continue;   // 式に使えない名前は触らない
+
+    var st = ss.getSheetByName(nm);
+    if (!st) continue;
+
+    var sd = st.getRange(1, 2, Math.max(st.getLastRow(), 1), 1).getValues();
+    var totalRow = -1, detailRow = -1;
+    for (var k = 0; k < sd.length; k++) {
+      var b = String(sd[k][0]).trim();
+      if (b === '合計' && totalRow < 0) totalRow = k + 1;
+      if (b.indexOf('差引支給額') === 0 && detailRow < 0) detailRow = k + 1;
+    }
+
+    var row = r + 1, did = false;
+    if (totalRow > 0) {
+      if (vals[r][2] === '') { sheet.getRange(row, 3).setFormula("='" + nm + "'!D" + totalRow); did = true; }
+      if (vals[r][3] === '') { sheet.getRange(row, 4).setFormula("='" + nm + "'!G" + totalRow); did = true; }
+      if (vals[r][4] === '') { sheet.getRange(row, 5).setFormula("='" + nm + "'!H" + totalRow); did = true; }
+    }
+    if (detailRow > 0 && vals[r][5] === '') {
+      sheet.getRange(row, 6).setFormula("='" + nm + "'!G" + detailRow).setNumberFormat('#,##0');
+      did = true;
+    }
+    if (did) { fixed++; Logger.log('  式を入れ直しました: ' + nm); }
+  }
+  return fixed;
+}
+
+/* いま集計タブで項目が空になっている人を挙げる（確認用） */
+function blankRows_(ss) {
+  var sheet = kyuyoSheetOf_(ss);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var vals = sheet.getRange(1, 1, sheet.getLastRow(), 6).getValues();
+  var out = [];
+  for (var r = 0; r < vals.length; r++) {
+    var nm = String(vals[r][1] || '').trim();
+    if (!nm || !isNo_(vals[r][0])) continue;
+    var miss = [];
+    if (vals[r][2] === '') miss.push('出勤日数');
+    if (vals[r][3] === '') miss.push('実働');
+    if (vals[r][4] === '') miss.push('深夜');
+    if (vals[r][5] === '') miss.push('支給額');
+    if (miss.length) out.push(nm + '（' + miss.join('・') + '）');
+  }
+  return out;
+}
+
+function kyuyoSheetOf_(ss) {
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getName().indexOf('給与一覧') >= 0) return sheets[i];
+  }
+  return null;
+}
+
+// A列が通し番号（1,2,3…）の行かどうか
+function isNo_(v) {
+  if (typeof v === 'number') return v > 0;
+  return /^[0-9]+$/.test(String(v).trim());
 }
