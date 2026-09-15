@@ -695,7 +695,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15f';
+const APP_VER = '2026-09-15g';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -2927,6 +2927,23 @@ function kyuyoNameOf(name) {
    受け取り側のスクリプトが手元に無いため、何と返しているのかを
    画面から確かめられるようにする。 */
 let kyuyoLastReply = null;
+// 人ごとの書き込み先（出勤簿が返してくる sheet と row）
+let kyuyoWhere = {};
+
+function kyuyoNoteReply(name, res) {
+  if (!kyuyoLastReply) kyuyoLastReply = { name: name, res: res };
+  let where;
+  if (res && typeof res === 'object' && res.sheet) {
+    where = res.sheet + (res.row ? ' ' + res.row + '行目' : '');
+  } else {
+    let t;
+    try { t = JSON.stringify(res); } catch (e) { t = String(res); }
+    where = '書き込み先が返ってきません（' + (t === undefined ? 'からっぽ' : t) + '）';
+  }
+  if (!kyuyoWhere[name]) kyuyoWhere[name] = { where: where, n: 0, odd: !(res && res.sheet) };
+  kyuyoWhere[name].n++;
+}
+
 function kyuyoReplyText() {
   if (!kyuyoLastReply) return '';
   let t;
@@ -2934,6 +2951,21 @@ function kyuyoReplyText() {
   if (t === undefined) t = '（何も返ってきませんでした）';
   if (t.length > 300) t = t.slice(0, 300) + '…';
   return kyuyoLastReply.name + ' → ' + t;
+}
+
+/* 誰のぶんが、出勤簿のどのシートに入ったか。
+   名前が合っていないと別のシートに入ってしまうため、一覧で見せる。 */
+function kyuyoWhereHtml() {
+  const names = Object.keys(kyuyoWhere);
+  if (!names.length) return '';
+  return '<br /><span style="font-size:.9em">出勤簿の書き込み先：'
+    + names.map(function (nm) {
+        const w = kyuyoWhere[nm];
+        const txt = nm + ' → ' + w.where + '（' + w.n + '件）';
+        return w.odd ? '<span style="color:#a32d2d"><b>' + esc(txt) + '</b></span>'
+                     : '<span style="opacity:.7">' + esc(txt) + '</span>';
+      }).join('　/　')
+    + '</span>';
 }
 
 function kyuyoError(res) {
@@ -2987,7 +3019,7 @@ function kyuyoCall(action, ev) {
   }
   return jsonpCall(KYUYO_API, { action: action, data: payload })
     .then(function (res) {
-      if (!kyuyoLastReply) kyuyoLastReply = { name: name, res: res };
+      kyuyoNoteReply(name, res);
       const ng = kyuyoError(res);
       // 出勤簿が失敗しても本体の転記は続ける。理由だけ持ち帰る
       return ng ? { state: 'ng', name: name, reason: ng } : { state: 'ok', name: name };
@@ -3311,6 +3343,7 @@ async function runTransfer(stores, ym) {
 
   transferCancelled = false;
   kyuyoLastReply = null;
+  kyuyoWhere = {};
   let doneRows = 0;
   const report = function (name, i, n) {
     const pct = totalRows ? Math.round((doneRows + i) / totalRows * 100) : 100;
@@ -3336,7 +3369,8 @@ async function runTransfer(stores, ym) {
     setTransferStatus('<div class="alert ok"><b>転記しました。</b>'
       + '<span style="opacity:.55;font-size:.85em">　版 ' + APP_VER + '</span><br />'
       + results.map(esc).join('<br />')
-      + (reply ? '<br /><span style="opacity:.6;font-size:.9em">出勤簿の返事：'
+      + kyuyoWhereHtml()
+      + (reply ? '<br /><span style="opacity:.5;font-size:.85em">出勤簿の返事（1件目）：'
                  + esc(reply) + '</span>' : '')
       + '<br />' + (useCal ? 'シフト管理アプリと出勤簿を開いて確認してください。'
                            : '出勤簿を開いて確認してください。') + '</div>');
@@ -3380,6 +3414,7 @@ async function transferTest() {
     + 'よろしいですか？（うまくいかない場合は送り先の画面で削除してください）')) return;
   setTransferStatus('<div class="alert info">テスト送信中…</div>');
   kyuyoLastReply = null;
+  kyuyoWhere = {};
   try {
     const ev = buildEvent(st, p);
     if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
@@ -3391,7 +3426,8 @@ async function transferTest() {
         ? esc(p.staff) + ' さんは出勤簿へ送りません（' + esc(k.reason || '対象外') + '）。'
         : '<span style="color:#a32d2d">出勤簿への送信は失敗しました：'
           + esc(k.reason || '理由が返ってきませんでした') + '</span>')
-      + (reply ? '<br /><span style="opacity:.6;font-size:.9em">出勤簿の返事：'
+      + kyuyoWhereHtml()
+      + (reply ? '<br /><span style="opacity:.5;font-size:.85em">出勤簿の返事：'
                  + esc(reply) + '</span>' : '');
     setTransferStatus('<div class="alert ok"><b>テスト送信できました。</b><br />'
       + esc(p.date + '　' + p.staff + '　' + p.start + '〜' + p.end) + '<br />'
