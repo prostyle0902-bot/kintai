@@ -1805,9 +1805,15 @@ function renderTransferInfo(st, sh) {
     : '　勤務時間：平日 ' + esc(st.startTime) + '〜' + esc(timeLabel(st.endTime, st.openHour))
       + '／土日祝 ' + esc(st.startTimeWeekend) + '〜' + esc(timeLabel(st.endTimeWeekend, st.openHour))
       + '（スタッフごとの指定があればそちらを使います）';
-  const kyuyoN = sh ? buildTransferPlan(st).filter(function (p) {
+  const plan = sh ? buildTransferPlan(st) : [];
+  const kyuyoN = plan.filter(function (p) {
     return PART_TIME_STAFF.indexOf(p.staff) >= 0;
-  }).length : 0;
+  }).length;
+  // 出勤簿へ送らない人。名簿の「出勤簿へ転記する」が入っていないと、ここに出る
+  const notKyuyo = [];
+  plan.forEach(function (p) {
+    if (PART_TIME_STAFF.indexOf(p.staff) < 0 && notKyuyo.indexOf(p.staff) < 0) notKyuyo.push(p.staff);
+  });
 
   let h = '<div class="chip-row" style="margin-bottom:.6rem">転記先：'
     + '<span class="chip' + (!useCal ? ' on' : '') + '" onclick="setTransferDest(\'kyuyo\')">出勤簿だけ</span>'
@@ -1817,6 +1823,13 @@ function renderTransferInfo(st, sh) {
     + timeTxt + '<br />'
     + 'この期間のシフト：<b>' + n + '件</b>'
     + '（うち出勤簿へ送る対象者：<b>' + kyuyoN + '件</b>）。'
+    + (notKyuyo.length
+        ? '<br /><span style="color:#a32d2d"><b>出勤簿へ送らない人：'
+          + notKyuyo.map(esc).join('、') + '</b>　'
+          + '社員はこれで正しいです。パート・アルバイトの方が出ているときは、'
+          + '入社登録アプリの名簿で<b>「出勤簿（給与）へ転記する」が入っているか</b>を確かめてください。'
+          + '</span>'
+        : '')
     + 'こちらで直したぶん（時間・担当者・取り消し）は、'
     + '<b>もう一度この転記を押したときに</b>送り先へ反映されます。'
     + (useCal ? '' : '<br /><span class="muted">シフト管理アプリ（prostyle-calendar）へは送っていません。'
@@ -3121,10 +3134,18 @@ async function runTransfer(stores, ym) {
     return a + buildTransferPlan(st).filter(function (p) { return PART_TIME_STAFF.indexOf(p.staff) >= 0; }).length;
   }, 0);
   const sendRows = useCal ? totalRows : kyuyoRows;
+  // 出勤簿へ送らない人を、押す前に名指しで見せる
+  const skipNames = [];
+  targets.forEach(function (st) {
+    buildTransferPlan(st).forEach(function (p) {
+      if (PART_TIME_STAFF.indexOf(p.staff) < 0 && skipNames.indexOf(p.staff) < 0) skipNames.push(p.staff);
+    });
+  });
   if (!confirm(targets.map(function (s) { return s.name; }).join('、') + '\n'
     + periodLabel() + ' のシフト（のべ ' + totalRows + '件）を\n'
     + dest + ' へ転記します。\n\n'
     + (useCal ? '' : '出勤簿の対象者は ' + kyuyoRows + '件です。\n')
+    + (skipNames.length ? '\n出勤簿へ送らない人：' + skipNames.join('、') + '\n\n' : '')
     + '前に送ったぶんは二重登録せず、直したところだけ書き換えます。\n'
     + '1件ずつ送るため ' + Math.max(1, Math.ceil(sendRows * 0.7 / 60)) + '分ほどかかります。よろしいですか？')) return;
 
