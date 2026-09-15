@@ -111,7 +111,8 @@ function normName_(s) {
 }
 
 /* 名簿が読めているか、誰が転記対象になっているかを確かめる。
-   エディタでこの関数を選んで実行し、実行ログを見る。 */
+   エディタでこの関数を選んで実行し、実行ログを見る。
+   今の期間から先の給与一覧を全部見て、シートが足りない人を挙げる。 */
 function checkRoster() {
   clearRosterCache();
   var map = rosterMap_();
@@ -128,16 +129,114 @@ function checkRoster() {
     var onlyRoster = !STAFF_MAP[names[i]] ? '　← 名簿だけにいる人' : '';
     Logger.log('  ' + names[i] + ' → ' + map[names[i]] + onlyRoster);
   }
-  Logger.log('―――― 出勤簿に実際のシートがあるかも見る ――――');
-  var ssId = findSSIdForDate(Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd'));
-  if (!ssId) { Logger.log('今日の日付に対応する給与一覧が見つかりません'); return; }
-  var ss = SpreadsheetApp.openById(ssId);
-  for (var j = 0; j < names.length; j++) {
-    if (!ss.getSheetByName(map[names[j]])) {
-      Logger.log('【要対応】シートがありません：' + map[names[j]] + '（' + ss.getName() + '）');
+  Logger.log('―――― 出勤簿に実際のシートがあるかも見る（今の期間から先を全部） ――――');
+  var books = booksFromNow_();
+  if (!books.length) { Logger.log('見にいける給与一覧がありませんでした'); return; }
+  var missing = 0;
+  for (var b = 0; b < books.length; b++) {
+    var ss = SpreadsheetApp.openById(books[b].id);
+    var lack = [];
+    for (var j = 0; j < names.length; j++) {
+      if (!ss.getSheetByName(map[names[j]])) lack.push(map[names[j]]);
     }
+    if (lack.length) {
+      Logger.log('【要対応】' + books[b].label + '：シートがありません → ' + lack.join('、'));
+      missing += lack.length;
+    }
+    Utilities.sleep(300);
   }
+  if (!missing) Logger.log('シートは全期間そろっています。');
   Logger.log('確認おわり。【要対応】が出ていなければ大丈夫です。');
+  if (missing) {
+    Logger.log('※ シートを作るには addStaffSheetToBooks() を使ってください。');
+  }
+}
+
+/* 今の期間から先の給与一覧を、期間の新しい順ではなく古い順に並べて返す */
+function booksFromNow_() {
+  var today = new Date();
+  var todayNum = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  var idSheet = getOrCreateIdSheet();
+  var out = [];
+  for (var i = 0; i < PERIODS.length; i++) {
+    var p = PERIODS[i];
+    var e = p.end.split('/');
+    var eNum = (+e[0]) * 10000 + (+e[1]) * 100 + (+e[2]);
+    if (eNum < todayNum) continue;          // もう終わった期間は見ない
+    var id = getSSIdForPeriod(idSheet, p.label);
+    if (id) out.push({ label: p.label, id: id });
+  }
+  return out;
+}
+
+/* =============================================================
+   新しく入った人の出勤簿シートを、今の期間から先にまとめて作る
+
+   使い方（エディタでこの関数の中身を書き換えて実行）：
+     name     … 出勤簿でのシート名（名簿の「給与一覧での表記」と同じにする）
+     hourly   … 時給（円）
+     commute  … 通勤手当（1日あたりの円）。無いときは 0
+     template … 同じ現場の人のシート名。書式と手当の作りをそのまま写す
+
+   すでにシートがある期間は、何もしません（上書きしません）。
+   ============================================================= */
+function addStaffSheetToBooks() {
+  var name     = '岡田 梨沙';
+  var hourly   = 1080;
+  var commute  = 1;
+  var template = '松本めぐみ';   // 同じトータルステイの人
+
+  var books = booksFromNow_();
+  var made = 0, skipped = 0;
+  for (var b = 0; b < books.length; b++) {
+    var ss = SpreadsheetApp.openById(books[b].id);
+    if (ss.getSheetByName(name)) {
+      Logger.log('あるのでそのまま: ' + books[b].label);
+      skipped++;
+      continue;
+    }
+    var tmpl = ss.getSheetByName(template);
+    if (!tmpl) {
+      Logger.log('【要対応】雛形が見つかりません: ' + books[b].label + ' / ' + template);
+      continue;
+    }
+    var sheet = tmpl.copyTo(ss);
+    sheet.setName(name);
+
+    sheet.getRange(3, 11).setValue(hourly);    // K3 時給
+    sheet.getRange(3, 13).setValue(commute);   // M3 通勤手当
+    sheet.getRange(3, 2).setValue('時給：' + hourly + '円');
+    sheet.getRange(3, 6).setValue(
+      (commute > 0 ? '通勤手当：' + commute + '円×出勤日数' : '通勤手当：なし')
+      + '　深夜割増：22:00〜翌5:00（法定）');
+
+    // 1行目の見出しの氏名を差し替える
+    var title = String(sheet.getRange(1, 2).getValue())
+      .replace(/出勤簿　.*?（/, '出勤簿　' + name + '（');
+    sheet.getRange(1, 2).setValue(title);
+
+    // 出退勤の中身だけ消す（日付と曜日はその期間のまま使う）
+    var vals = sheet.getDataRange().getValues();
+    for (var r = 0; r < vals.length; r++) {
+      var cell = vals[r][1];
+      var isDateRow = (cell instanceof Date) || /^\d+\/\d+$/.test(String(cell).trim());
+      if (!isDateRow) continue;
+      sheet.getRange(r + 1, 4).setValue('');   // 出勤
+      sheet.getRange(r + 1, 5).setValue('');   // 退勤
+      sheet.getRange(r + 1, 6).setValue(0);    // 休憩
+      sheet.getRange(r + 1, 9).setValue('');   // 備考
+    }
+
+    // 雛形にした人の隣に置く
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(tmpl.getIndex() + 1);
+
+    Logger.log('作成: ' + books[b].label + ' → ' + name);
+    made++;
+    Utilities.sleep(800);
+  }
+  Logger.log('■完了: ' + made + '件作成 / ' + skipped + '件はもうありました');
+  if (made) Logger.log('※ このあと fixAllKyuyoIchiran() を流すと、給与一覧の集計にも出ます。');
 }
 
 // 名簿を直したあと、5分待たずに反映させたいとき
