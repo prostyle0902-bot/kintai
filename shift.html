@@ -695,7 +695,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15d';
+const APP_VER = '2026-09-15e';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -1838,7 +1838,10 @@ function renderTransferInfo(st, sh) {
     + '（うち出勤簿へ送る対象者：<b>' + kyuyoN + '件</b>）。'
     // 名簿が読めていないと「出勤簿へ転記する」が効かない。まずそこを出す
     + (masterState.loaded
-        ? '<br /><span style="opacity:.6">名簿：' + masterState.n + '人を読み込み済み</span>'
+        ? '<br /><span style="opacity:.6">名簿：' + masterState.n + '人を読み込み済み'
+          + (masterState.loading ? '（読み込み中…）' : '') + '</span>'
+        : masterState.loading
+        ? '<br /><span style="opacity:.6">名簿を読み込んでいます…</span>'
         : '<br /><span style="color:#a32d2d"><b>名簿を読み込めていません（'
           + esc(masterState.reason) + '）。</b>'
           + 'この状態では、入社登録アプリで登録した人が出勤簿へ転記されません。'
@@ -2938,7 +2941,9 @@ function kyuyoError(res) {
 /* その人が出勤簿へ送られない理由を、名簿を見て言い当てる。
    （名簿にいない／「出勤簿へ転記する」が入っていない／社員） */
 function kyuyoWhy(name) {
-  if (!masterState.loaded) return '名簿を読み込めていません';
+  if (!masterState.loaded) {
+    return masterState.loading ? '名簿を読み込み中です' : '名簿を読み込めていません';
+  }
   const t = normName(name);
   const rec = masterList.find(function (r) {
     return normName(r.shiftName || r.name) === t || normName(r.name) === t;
@@ -3244,6 +3249,24 @@ async function runTransfer(stores, ym) {
   });
   if (!targets.length) { alert('転記できるシフトがありません。先にシフトを作成してください。'); return; }
 
+  /* 名簿がまだ読めていないうちに転記すると、名簿で「出勤簿へ転記する」を
+     入れた人が対象から外れたまま送られてしまう。読めるまで待ち、
+     どうしても読めないときは転記しない。 */
+  if (!masterState.loaded) {
+    setTransferStatus('<div class="alert info">名簿を読み込んでいます…</div>');
+    await masterPull(true);
+    if (!masterState.loaded) {
+      setTransferStatus('');
+      alert('名簿を読み込めていないため、転記できません。\n\n'
+        + '理由：' + masterState.reason + '\n\n'
+        + 'このまま転記すると、名簿で「出勤簿へ転記する」を入れた人が\n'
+        + '出勤簿に入らないまま「送信済み」になってしまいます。\n'
+        + '少し待ってからもう一度押すか、画面を開き直してください。');
+      return;
+    }
+    setTransferStatus('');
+  }
+
   const totalRows = targets.reduce(function (a, st) { return a + buildTransferPlan(st).length; }, 0);
   const useCal = toCalendar();
   const cals = targets.some(function (s) { return s.dept === 'gyomu'; })
@@ -3371,7 +3394,7 @@ let masterRev = -1;
 let masterList = [];   // 最後に読めた共通名簿。名前の突き合わせに使う
 /* 名簿を読めたかどうか。読めていないと「出勤簿へ転記する」が効かず、
    だまって転記されない人が出るので、画面に出して気づけるようにする */
-let masterState = { loaded: false, n: 0, reason: 'まだ読み込んでいません' };
+let masterState = { loaded: false, loading: false, n: 0, reason: 'まだ読み込んでいません' };
 
 // 名簿から来た人かどうかの目印。異動で外すかどうかの判断に使う
 function markFromMaster(u) { if (!u.fromMaster) { u.fromMaster = true; } }
@@ -3440,32 +3463,38 @@ function applyMaster(list) {
 
 // 名簿を読みにいく。版数が変わっていなければ何もしない
 async function masterPull(force) {
-  if (!syncOn()) return;
+  if (!syncOn()) return false;
+  // 読めなかったとき用。すでに読めている名簿は捨てない
+  const fail = function (why) {
+    masterState = { loaded: masterList.length > 0, loading: false,
+      n: masterList.length, reason: why };
+    renderAll();
+    return false;
+  };
+  masterState = { loaded: masterState.loaded, loading: true,
+    n: masterState.n, reason: masterState.reason };
   try {
     // 住所や単価は受け取らない。シフトに要る欄だけの staffShift を使う
     const res = await syncGet({ action: 'staffShift' });
-    if (!res) {
-      masterState = { loaded: false, n: 0, reason: 'Apps Script から返事がありません' };
-      renderAll();
-      return;
-    }
+    if (!res) return fail('Apps Script から返事がありません');
     if (res.status !== 'ok') {
-      masterState = { loaded: false, n: 0,
-        reason: res.message || 'Apps Script が名簿を返しませんでした（staffShift）' };
-      renderAll();
-      return;
+      return fail(res.message || 'Apps Script が名簿を返しませんでした（staffShift）');
     }
-    if (!force && res.staffRev === masterRev) return;
+    if (!force && res.staffRev === masterRev) {
+      masterState = { loaded: true, loading: false, n: masterList.length, reason: '' };
+      return true;
+    }
     masterRev = res.staffRev;
     masterList = res.staff || [];
-    masterState = { loaded: true, n: masterList.length, reason: '' };
+    masterState = { loaded: true, loading: false, n: masterList.length, reason: '' };
     kyuyoIdx = null;   // 対象者の索引を作り直す
     if (applyMaster(res.staff || [])) {
       saveDB();      // 共有にも送って、全員の画面を揃える
     }
     renderAll();
+    return true;
   } catch (e) {
-    masterState = { loaded: false, n: 0, reason: (e && e.message) || '読み込めませんでした' };
+    return fail((e && e.message) || '読み込めませんでした');
   }
 }
 
