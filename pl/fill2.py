@@ -3,10 +3,12 @@
 """確定データを v2 ワークブックへ転記"""
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Border, Side
-import build2, sales, inv6, inv7, inv8, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
+import build2, sales, inv6, inv7, payroll, cards, board, demaekan, kameya, yokocho, fixed_costs, shokaihi
+import debits
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
-import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll8
-import jimu
+import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
+import kamei
+import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, inv05, airregi, tanaoroshi
 
 STAMP = "2026-08-20 06:40"
 
@@ -29,8 +31,9 @@ INV = [
   "水道50,655＋下水道33,836（7月分）"),
  ("神栖横丁","NTTファイナンス","通信費",7534,753,"横丁/NTTファイアンス　横丁振替.pdf",
   "ファイル名「ファイアンス」は誤記。マスタのNTTファイナンスと同一（確認済）"),
- ("神栖横丁","USEN","通信費（USEN）",1280,128,"横丁/USEN 横丁振替.pdf","請求書No F-1-20260804-104412-01"),
- ("神栖横丁","USEN","通信費（USEN）",1280,128,"横丁/USEN　横丁振替.pdf","請求書No F-1-20260804-105743-01（別契約）"),
+ # ★USEN NETWORKS（USEN NET）は「通信費（有線ネット）」。inv6.py と同じ（2026-09-01）
+ ("神栖横丁","USEN NETWORKS","通信費（有線ネット）",1280,128,"横丁/USEN 横丁振替.pdf","請求書No F-1-20260804-104412-01"),
+ ("神栖横丁","USEN NETWORKS","通信費（有線ネット）",1280,128,"横丁/USEN　横丁振替.pdf","請求書No F-1-20260804-105743-01（別契約）"),
  ("神栖横丁","アルソック","ALSOK",20500,2050,"横丁/アルソック　横丁振替.pdf","既存スプシ20,500と一致"),
  ("神栖横丁","ウゴーク","ウゴーク",30000,3000,"横丁/ウゴーク　横丁8月末.pdf","既存スプシ30,000と一致"),
  ("神栖横丁","業務（グリスト清掃）","グリスト清掃業務課",40000,4000,"横丁/業務　横丁.pdf",
@@ -140,12 +143,78 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
     # 2608月 → 8月列（21期の最終月。届いたぶんから順に入れていく）
-    fixed_costs.check_bank8()
     inv8.check(wb)
     for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
         if plrow not in build2.RIDX[tab]:
             missing.append((tab, plrow, "請求書8月")); continue
         c = wb[tab][f"{build2.MCOL['8月']}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+
+    # 2509月の請求書で直すぶん（新設した行・請求書のほうが正だった行）
+    inv2509.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2509月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+
+    # 2511月の請求書で直すぶん（スポットの年間保守料を12か月に按分ほか）
+    inv11.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv11.INV11:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2511月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+
+    # 2512月の請求書で入れるぶん
+    inv12.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv12.INV12:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2512月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+    # 2601月の請求書で入れるぶん
+    inv01.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv01.INV01:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2601月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+    # 2602月の請求書で入れるぶん
+    inv02.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv02.INV02:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2602月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+    # 2603月の請求書で入れるぶん
+    inv03.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv03.INV03:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2603月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+    # 2604月の請求書で入れるぶん
+    inv04.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv04.INV04:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2604月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
+        posted += 1
+    # 2605月の請求書で入れるぶん
+    inv05.check(wb)
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv05.INV05:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "請求書2605月")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + ex; c.fill = F_POST; c.number_format = build2.NUMFMT
         posted += 1
 
@@ -207,9 +276,31 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
             missing.append((tab, plrow, "出前館返金")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
-    print("出前館セル", len(demae_rows) + len(demae_refund),
+    # 既存PLに無い月（8月）の 出前館売上（税込）・出前館消費税 は支払通知書から
+    demae_sales = list(demaekan.sales_rows())
+    for tab, plrow, m, val, src, _note in demae_sales:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "出前館売上")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_DEMAE; c.number_format = build2.NUMFMT
+    demae_owned = {(t, r, m) for t, r, m, *_ in demae_sales}
+    print("出前館セル", len(demae_rows) + len(demae_refund) + len(demae_sales),
           "／手数料", f"{sum(x[3] for x in demae_rows):,}",
-          "／返金", f"{sum(x[3] for x in demae_refund):,}")
+          "／返金", f"{sum(x[3] for x in demae_refund):,}",
+          "／売上（8月）", f"{sum(x[3] for x in demae_sales):,}")
+
+    # ===== カード決済（カメイ・テン・サービス）の加盟店手数料 =====
+    kamei.check(wb)
+    F_KAMEI = PatternFill("solid", fgColor="E2EFDA")
+    kamei_rows = list(kamei.rows())
+    for tab, plrow, m, val, _src, _note in kamei_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "カード決済手数料")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_KAMEI; c.number_format = build2.NUMFMT
+    print("カード決済手数料セル", len(kamei_rows),
+          "／計", f"{sum(x[3] for x in kamei_rows):,}",
+          "／精算書", len(kamei.entries()), "件 ／計上基準", kamei.BASIS)
 
     # ===== かめや（焼きたて屋のFC本部）=====
     kameya.check()                 # ロイヤリティの式が既存PLと合うことを確認
@@ -372,19 +463,6 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
     print("新設行セル", len(nr_rows), "／計", f"{sum(x[3] for x in nr_rows):,}")
 
-    # ===== 地域活性舎からの事務代行手数料 → 本部「その他売上」=====
-    # 利用者指示 2026-09-03「本部のその他売上で」。千葉銀行3351509への
-    # 毎月33,000円の入金8件（計264,000・税込）。boardにも売掛にも請求書が無く、
-    # 記録は銀行明細だけ。★入金側なので bank.reconcile() の①②には出てこない。
-    jimu.check(wb)                 # 銀行明細の実額・取りこぼし・書き込み先が空か
-    jm_rows = list(jimu.rows())
-    for tab, plrow, m, val, src, note in jm_rows:
-        if plrow not in build2.RIDX[tab]:
-            missing.append((tab, plrow, "事務手数料")); continue
-        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
-        c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
-    print("事務手数料セル", len(jm_rows), "／計", f"{sum(x[3] for x in jm_rows):,}")
-
     # ===== 椎名環境整備の産廃処分（大口2件）→ 本部 =====
     # 銀行に242,000（2025/11）と221,100（2026/05）の大きな支払いがあり、
     # 毎月の13,200とは桁が違った。業務フォルダに請求書があり、場所は
@@ -413,6 +491,23 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     print("陸事総合＋ENEOSセル", len(car_rows),
           "／陸事総合", f"{sum(x[3] for x in rikuji.rows()):,}",
           "／ENEOS", f"{sum(x[3] for x in eneos.rows()):,}")
+
+    # ===== 請求書が来ない口座引落（銀行明細CSVから12か月）=====
+    # ★利用者指示 2026-09-02「銀行口座のCSV見て…引き落としの案件…口座見て入れて」
+    #   fixed_costs より前・請求書より後に置く。inv01 のリヴィン1月10,000の上に
+    #   引落45,486を足すため（debits.ADD_ON）。
+    debits.check(wb)
+    F_DEBIT = PatternFill("solid", fgColor="EDE7F6")
+    debit_same = list(debits.skipped(wb))   # 請求書と重なったセル（金額一致を確認済み）
+    debit_rows = list(debits.rows(wb))
+    for tab, plrow, m, ex, tax, name, src, note in debit_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "口座引落")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + ex; c.fill = F_DEBIT; c.number_format = build2.NUMFMT
+    print("口座引落セル", len(debit_rows), "／計", f"{sum(x[3] for x in debit_rows):,}",
+          "／", len({(t, r) for t, r, *_ in debits.rows()}), "行",
+          "／請求書と重なって飛ばしたセル", len(debit_same), "（金額は全部一致）")
 
     # ===== 毎月定額の自動引落・自動振込（請求書なし・全タブ）=====
     # ★請求書・カード明細・横丁の社内請求より後に置くこと。check() が
@@ -453,32 +548,56 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         pay_cells += 1
     print("人件費セル", pay_cells)
 
-    # ===== 8月の給与（給料一覧表PDFから直に組む）=====
-    # 4〜7月は給与集計スプレッドシート由来（payroll.py）だが、8月分のスプシは無い。
-    # 利用者指示 2026-08-23「8月は書類から」に沿って、PDFだけで組んでいる。
-    # 割り振りは 名簿（roster.py）→ 引けなければ部門コード、
-    # 行は社員番号 0002-xxxx が店長・それ以外がアルバイト。
-    # ★同じ規則で7月を組み直すと会計士の既存PLと一致することを check() が毎回見ている。
-    payroll8.check(wb)
-    pr8 = list(payroll8.rows())
-    for tab, plrow, m, val, note in pr8:
+    # ===== 給与（給料一覧表PDFから直に組む）9月〜3月 と 8月 =====
+    # 利用者確認 2026-08-27「21期も無視していい。俺が作ってたから」を受けて、
+    # 21期PLシート由来だった9月〜3月の給与を書類（PDF）から組み直した。
+    # 4月〜7月は payroll.py（給与集計スプレッドシート＝人ごと・月ごとの割り当て）
+    # のまま。そちらのほうが月別の配属という点で根拠が強いため。
+    # 割り振りの規則は kyuyo_split.py。7月を組み直すと payroll.py と一致することを
+    # check() が毎回確かめている。
+    payroll_pdf.check(wb)
+    pr8 = list(payroll_pdf.rows())
+    for tab, plrow, m, val, note, src in pr8:
         if plrow not in build2.RIDX[tab]:
-            missing.append((tab, plrow, "給与8月")); continue
+            missing.append((tab, plrow, "給与PDF")); continue
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         c.value = int(c.value or 0) + val; c.fill = F_POST; c.number_format = build2.NUMFMT
-    print("給与8月セル", len(pr8), "／計", f"{sum(x[3] for x in pr8):,}")
+    print("給与（PDF）セル", len(pr8), "／計", f"{sum(x[3] for x in pr8):,}",
+          "／", len({x[2] for x in pr8}), "か月ぶん")
 
-    # ===== 売上（既存スプシから転記） =====
+    # ===== 棚卸し（期首・期末）=====
+    # ★exist_fill より前に置くこと。既存21期PLは「最初に数えた月の値」を
+    #   9月まで遡って置いていただけで、本当の期首は21期_棚卸し表（2025/8/31）。
+    tanaoroshi.check(wb)
+    tana_cells = 0
+    for tab, plrow, m, val, _src, _note in tanaoroshi.rows():
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(val); c.fill = F_POST; c.number_format = build2.NUMFMT
+        tana_cells += 1
+    print("棚卸しセル", tana_cells, "／期首",
+          f"{sum(v for _t, r, m, v, _s, _n in tanaoroshi.rows() if r == '期首棚卸し' and m == '9月'):,}",
+          "（9月＝21期の期首の合計）／8月の実地",
+          "・".join(sorted({t for t, _r, m, *_ in tanaoroshi.rows() if m == "8月"})),
+          ("／★8月が空のタブ " + "・".join(sorted(tanaoroshi.NO_AUG))
+           + "（棚卸表がSAに未共有）") if tanaoroshi.NO_AUG else "／8月は全タブ入った")
+
+    # ===== 売上 =====
     F_SALES = PatternFill("solid", fgColor="FDE9D9")
+    # ★エアレジ（会計明細）を先に入れる。書類なので既存スプシより優先。
+    airregi.check(wb)
+    air_cells = 0
+    for tab, plrow, m, val, _src, _note in airregi.rows():
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(val); c.fill = F_POST; c.number_format = build2.NUMFMT
+        air_cells += 1
+    air_owned = {(t, r, m) for t, r, m, _v, _s, _n in airregi.rows()}
+    print("エアレジ売上セル", air_cells, "／計",
+          f"{sum(v for _t, r, _m, v, _s, _n in airregi.rows() if r != '消費税'):,}",
+          "／", len({m for _t, _r, m, _v, _s, _n in airregi.rows()}), "か月ぶん")
+
     sales_cells = 0
     for tab, rows in sales.SALES.items():
         for rowname, vals in rows.items():
-            # 期で売上行の名前が変わることがある（22期の さわら十三里屋 は
-            # 「売上」→「売上（税込）＋消費税」）。SALES 側を直し忘れたら止める。
-            if rowname not in build2.RIDX[tab]:
-                raise KeyError(
-                    f"{tab} に『{rowname}』の行が無い（{build2.PERIOD}）。"
-                    f"sales.SALES を {build2.PERIOD} の行名に合わせること")
             r = build2.RIDX[tab][rowname]
             for i, m in enumerate(build2.MONTHS):
                 if vals[i] is None:
@@ -487,6 +606,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                     continue          # boardを正とするので既存スプシ値は使わない
                 if (tab, rowname, m) in kame_owned:
                     continue          # かめや精算書を正とする（焼きたて屋の売上・消費税）
+                if (tab, rowname, m) in air_owned:
+                    continue          # ★エアレジの会計明細を正とする（書類なので優先）
+                if (tab, rowname, m) in demae_owned:
+                    continue          # 出前館の支払通知書を正とする（8月）
                 c = wb[tab][f"{build2.MCOL[m]}{r}"]
                 c.value = int(vals[i]); c.fill = F_SALES; c.number_format = build2.NUMFMT
                 sales_cells += 1
@@ -539,6 +662,36 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, vendor, plrow, ex, tax, src, biko in inv8.INV8:
         ws.append(["2026-08", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, "8月",
                    f"買掛/21期/{src}", STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv2509.INV2509:
+        ws.append(["2025-09", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv11.INV11:
+        ws.append(["2025-11", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv12.INV12:
+        ws.append(["2025-12", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv01.INV01:
+        ws.append(["2026-01", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv02.INV02:
+        ws.append(["2026-02", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv03.INV03:
+        ws.append(["2026-03", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv04.INV04:
+        ws.append(["2026-04", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, ex, tax, vendor, src, biko in inv05.INV05:
+        ws.append(["2026-05", tab, vendor, "請求書", ex + tax, "", ex, tax, plrow, m,
+                   src, STAMP, biko])
+    for tab, plrow, m, val, src, note in airregi.rows():
+        ws.append([f"21期 {m}", tab, "エアレジ", "会計明細", "", "", val, "", plrow, m,
+                   src, STAMP, note])
+    for tab, plrow, m, val, src, note in tanaoroshi.rows():
+        ws.append([f"21期 {m}", tab, "（棚卸し）", "棚卸表", "", "", val, "", plrow, m,
+                   src, STAMP, note])
     for tab, plrow, m, val, src, note in nihonshokken.rows():
         ws.append([f"21期 {m}", tab, "日本食研", "請求書", "", 8, val, "", plrow, m,
                    src, STAMP, note])
@@ -558,10 +711,15 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         ws.append(["", tab, "出前館", "支払通知書", fee, 10, val, fee_tax, plrow, m, src, STAMP,
                    "出前館利用料⑥の税抜（サービス利用料10%＋配達代行25%＋振込手数料＋決済手数料）。"
                    "既存PLと11か月とも一致することを確認済み（demaekan.EXIST_21_FEE）"])
+    for tab, plrow, m, val, src, note in demae_sales:
+        ws.append(["", tab, "出前館", "支払通知書", "", 8, val, "", plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, back in demae_refund:
         ws.append(["", tab, "出前館", "支払通知書", back, "", val, "", plrow, m, src, STAMP,
                    "お戻し金額⑦（商品代金補填・不課税）を費用のマイナスで計上。"
                    "既存PLも同じ扱い（年計 ▲20,890）"])
+    for tab, plrow, m, ex, tax, name, src, note in debit_rows:
+        ws.append(["", tab, name, "口座引落", ex + tax, 10 if tax else "", ex, tax,
+                   plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src in kame_rows:
         ws.append(["", tab, "かめや", "本部請求", "", "", val, "", plrow, m, src, STAMP, ""])
     for tab, plrow, m, val, src, note in kame_cash:
@@ -611,10 +769,6 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
                    "請求書" if "MEG" in plrow else "銀行明細",
                    "", 10 if "MEG" in plrow else "", int(val), "",
                    plrow, m, src, STAMP, note])
-    for tab, plrow, m, val, src, note in jm_rows:
-        ws.append([f"21期 {m}", tab, "地域活性舎", "銀行明細（入金）",
-                   jimu.INC, jimu.RATE, int(val), jimu.INC - int(val),
-                   plrow, m, src, STAMP, note])
     for tab, plrow, m, val, src, note in car_rows:
         ws.append([f"21期 {m}", tab, "陸事総合協同組合" if "陸自" in plrow else "トヨタファイナンス",
                    "請求書", "", "", int(val), "", plrow, m, src, STAMP, note])
@@ -635,10 +789,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, plrow, m, v, why in exist_fill.not_posted_rows():
         ws.append(["", tab, "（既存21期PL）", "既存PL", "", "", "", "", plrow, m,
                    f"既存21期PL {tab}", STAMP, why])
-    for tab, plrow, m, val, note in pr8:
-        ws.append(["2026-08", tab, "（給与）",
+    for tab, plrow, m, val, note, src in pr8:
+        ws.append(["", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
-                   val, "", val, 0, plrow, m, payroll8.SRC, STAMP, note])
+                   val, "", val, 0, plrow, m, src, STAMP, note])
     for tab, plrow, m, val, note in payroll.rows():
         ws.append([f"2026-{ {'4月':'04','5月':'05','6月':'06','7月':'07'}[m] }", tab, "（給与）",
                    "人件費" if plrow.startswith("人件費") else "社会保険料",
@@ -674,26 +828,48 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["産廃", m, tab, item, "", reason])
     for m, tab, item, reason in norow.hold_rows():
         hs.append(["新設行", m, tab, item, "", reason])
-    for m, tab, item, reason in fixed_costs.hold_rows():
-        hs.append(["定額（8月）", m, tab, item, "", reason])
-    for m, tab, item, reason in inv8.hold_rows():
-        hs.append(["2608月請求書", m, tab, item, "", reason])
-    for m, tab, item, reason in board.hold_rows():
-        hs.append(["board売掛", m, tab, item, "", reason])
-    for m, tab, item, reason in jimu.hold_rows():
-        hs.append(["事務手数料", m, tab, item, "", reason])
     # ★8月は書類だけで組む（利用者指示 2026-08-23「既存は無視してくださいね」）。
     #   まだ届いていない元データを保留リストに出して、何を待っているかを見えるようにする。
     for m, tab, item, reason in status8.hold_rows():
         hs.append(["8月待ち", m, tab, item, "", reason])
-    for m, tab, item, reason in payroll8.hold_rows():
-        hs.append(["給与8月", m, tab, item, "", reason])
+    for m, tab, item, reason in payroll_pdf.hold_rows():
+        hs.append(["給与PDF", m, tab, item, "", reason])
     for m, tab, item, reason in exist_fill.hold_rows(wb):
         hs.append(["既存PL", m, tab, item, "", reason])
     for m, tab, item, reason in transfers.hold_rows():
         hs.append(["振込", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
         hs.append(["陸事総合", m, tab, item, "", reason])
+    for m, tab, item, reason in inv2509.HOLD:
+        hs.append(["請求書2509月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv11.HOLD:
+        hs.append(["請求書2511月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv12.HOLD:
+        hs.append(["請求書2512月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv01.HOLD:
+        hs.append(["請求書2601月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv02.HOLD:
+        hs.append(["請求書2602月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv03.HOLD:
+        hs.append(["請求書2603月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv04.HOLD:
+        hs.append(["請求書2604月", m, tab, item, "", reason])
+    for m, tab, item, reason in inv05.HOLD:
+        hs.append(["請求書2605月", m, tab, item, "", reason])
+    for m, tab, item, reason in tanaoroshi.hold_rows():
+        hs.append(["棚卸し", m, tab, item, "", reason])
+    for m, tab, item, reason in inv8.HOLD:
+        hs.append(["請求書2608月", m, tab, item, "", reason])
+    for m, tab, item, reason in debits.HOLD:
+        hs.append(["口座引落", m, tab, item, "", reason])
+    for m, tab, item, reason in debits.missing_months():
+        hs.append(["口座引落", m, tab, item, "", reason])
+    for m, tab, item, reason in kamei.HOLD:
+        hs.append(["カード決済", m, tab, item, "", reason])
+    for m, tab, item, reason in board.HOLD:
+        hs.append(["board売掛", m, tab, item, "", reason])
+    for m, tab, item, reason in board.unmapped():
+        hs.append(["board売掛", m, tab, item, "", reason])
     for tab, m, vendor, amount, reason in EXTRA_HOLD:
         hs.append(["請求書", m, tab, vendor, amount, reason])
     for iss, merch, ex, used in card_hold:
@@ -707,13 +883,16 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.column_dimensions[col].width = w
     hs.freeze_panes = "A3"
 
-    # ===== 既存PLとの食い違い（2026-08-21 新設）==============================
+    # ===== 書類で置き換えたセル（2026-08-21 新設 / 2026-08-27 位置づけ変更）=====
+    # ★21期PLシートは会計士ではなく社長ご自身が手で作ったもの（2026-08-27 確認）。
+    #   正ではないので「食い違い＝要調査」ではなく「書類で置き換えた記録」として出す。
     # 新シートは書類（請求書・カード明細・銀行明細）から作った値を正としている。
     # 既存21期PLと金額が違うセルはここに全部出す。上書きはしていない。
     # 「差」がプラス＝新シートのほうが大きい。
     cs = wb.create_sheet("既存PLとの食い違い")
-    cs.cell(1, 1, "既存21期PLと金額が違うセル（新シートは書類の値を採っている。"
-                  "上書きはしていない）").font = Font(bold=True, size=12)
+    cs.cell(1, 1, "書類で置き換えたセル（21期PLシートは社長ご自身が手で作った"
+                  "暫定値なので、書類がある月は書類が勝つ。間違い探しの表ではない）"
+            ).font = Font(bold=True, size=12)
     for j, h in enumerate(["タブ", "行", "月", "新シート（書類）", "既存21期PL", "差",
                            "備考"], 1):
         c = cs.cell(2, j, h); c.font = Font(bold=True, color="FFFFFF")

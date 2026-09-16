@@ -96,11 +96,11 @@ def source(src):
     if s.startswith("既存21期PL"):
         tab = s.replace("既存21期PL", "").strip()
         u = EXIST_SHEET.get(tab)
-        return ("会計士さんの既存21期PLスプレッドシート"
+        return ("21期PLシート（社長ご自身が手で作ったもの。書類が入るまでの暫定値）"
                 + (f"「{tab}」タブ" if tab else "")
                 + (f"（ID {u}…）" if u else ""))
     if s.startswith("既存PLスプシ"):
-        return "会計士さんの既存21期PLスプレッドシート（毎月同額の自動引落・自動振込）"
+        return "21期PLシート（社長ご自身が手で作ったもの）＋毎月同額の自動引落・自動振込"
     if s.startswith("かめや"):
         return DROPBOX + "/※請求書※/" + s.replace("かめや（焼きたて屋本部）", "かめや")
     if s.startswith("Drive "):

@@ -9,5 +9,6 @@ sa*.json
 .env
 rikuji_pdf/
 # 給料一覧表PDF（個人ごとの給与額が載る）。絶対にコミットしない
+# ※ルートの .gitignore の pl/kyuyo/ と二重に効かせている
 kyuyo/
 meg/*.pdf
