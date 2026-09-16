@@ -84,6 +84,12 @@ Dropbox のファイル追加を Claude に push する仕組み（webhook）が
 
 1. `mcp Dropbox list_folder` で `買掛/21期`（2607月以降の月フォルダ）と
    `買掛/22期` を再帰リスト。新しい月フォルダも自動で対象に入る。
+   ★**`object_types: ["file"]` を付けること**（2026-09-16 に分かった）。
+   付けないとフォルダ行（店舗フォルダ・支払い済フォルダが数百件）まで返ってきて
+   1回のリストが300件ずつ4ページに割れ、毎回カーソルを繰る羽目になる。
+   ファイルだけなら `買掛/22期` は0件・`買掛/21期/2608月` も1ページで収まる。
+   ※`recursive: true` と併用できるのは `object_types` まで。`max_results` を
+   一緒に渡すと INVALID_ARGUMENT で落ちる。
 2. `furikomi/ledger.json` の baseline / processed に無い file_id を抽出。
    （**file_id で照合**。支払い後に `支払い済/` へ移動されてもIDは同じなので
    二重転記にならない）
