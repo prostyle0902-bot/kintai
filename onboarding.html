@@ -193,7 +193,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-16a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-16b</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1509,7 +1509,7 @@ function renderSetup() {
 
     h += '<div class="card"><div class="card-title">給与一覧の単価を、名簿に合わせる</div>'
       + '<div class="card-desc">'
-      + '在籍していて「出勤簿へ転記する」が入っている人の<b>時給・通勤手当</b>を、'
+      + '在籍していて「出勤簿へ転記する」が入っている人の<b>時給・通勤手当・諸手当</b>を、'
       + 'まだ支払いの済んでいない期間の出勤簿にまとめて入れ直します。<br />'
       + '編集で保存したときにも自動で入りますが、通信の失敗などで入らないことがあります。'
       + '<b>給与を確定する前に一度押して</b>、ずれていないか確かめてください。<br />'
@@ -2073,7 +2073,8 @@ async function autoRateSync(before, after) {
   if (!before || !after) return null;                    // 新しく登録した人は「給与一覧にも作る」で作る
   if (!after.kyuyo || !after.payRate) return null;       // 給与の対象外、または単価が未設定
   const keys = ['payKind', 'payRate', 'commute', 'commuteKind'];
-  const changed = keys.some(function (k) { return String(before[k] || '') !== String(after[k] || ''); });
+  const changed = keys.some(function (k) { return String(before[k] || '') !== String(after[k] || ''); })
+    || JSON.stringify(before.allowances || []) !== JSON.stringify(after.allowances || []);
   if (!changed) return null;
 
   try {
@@ -2092,7 +2093,8 @@ async function autoRateSync(before, after) {
     const res = await apiPost({
       action: 'payrollRate', fileIds: ids,
       rec: { name: after.kyuyoName || after.name, payKind: after.payKind, payRate: after.payRate,
-             commute: after.commute, commuteKind: after.commuteKind },
+             commute: after.commute, commuteKind: after.commuteKind,
+             allowances: JSON.stringify(after.allowances || []) },
     });
     if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
     return res;

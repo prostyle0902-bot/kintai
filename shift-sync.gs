@@ -877,6 +877,113 @@ function payrollFillSheet_(sheet, fromName, toName, rec) {
    そのため「ラベルの右にある最初の数値」を探すやり方だと、
    通勤手当の値を単価のセルに書いてしまう。
    同じ行の数値セルを左から順に見て、1つめを単価、2つめを手当として入れる。 */
+/* 名簿の「諸手当」を、[{name, amount}] の形にして返す。
+   名簿にはJSONの文字で入っている。壊れていたら空にする（触らない側に倒す）。 */
+function payrollAllowList_(raw) {
+  var arr = raw;
+  if (typeof arr === 'string') {
+    var t = arr.trim();
+    if (!t) return [];
+    try { arr = JSON.parse(t); } catch (e) { return null; }   // null＝読めない。触らない
+  }
+  if (!arr || Object.prototype.toString.call(arr) !== '[object Array]') return [];
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var a = arr[i] || {};
+    var nm = String(a.name || '').trim();
+    if (!nm) continue;
+    out.push({ name: nm, amount: Number(a.amount) || 0 });
+  }
+  return out;
+}
+
+/* 給与明細の作りを調べる。
+   手当の行は「深夜割増」の次から「通勤手当／修正給与／差引支給額」の手前まで。 */
+function payrollDetailRows_(sheet) {
+  var last = Math.min(sheet.getLastRow(), 90);
+  var out = { total: -1, kihon: -1, yakan: -1, allow: [], end: -1, diff: -1 };
+  if (last < 2) return out;
+
+  var names = sheet.getRange(1, 2, last, 1).getValues();
+  var money = sheet.getRange(1, 7, last, 1).getValues();
+
+  for (var r = 0; r < last; r++) {
+    var b = String(names[r][0]).trim();
+    if (!b) continue;
+    if (out.total < 0) { if (b === '合計') out.total = r + 1; continue; }
+    if (out.kihon < 0) { if (b.indexOf('基本賃金') === 0) out.kihon = r + 1; continue; }
+
+    if (b.indexOf('深夜割増') === 0) { out.yakan = r + 1; continue; }
+    if (b.indexOf('土曜') === 0 || b.indexOf('日曜') === 0 || b.indexOf('有給賃金') === 0) continue;
+
+    if (b.indexOf('通勤手当') === 0 || b.indexOf('修正給与') === 0 || b.indexOf('差引支給額') === 0) {
+      if (out.end < 0) out.end = r + 1;
+      if (out.diff < 0 && b.indexOf('差引支給額') === 0) out.diff = r + 1;
+      continue;
+    }
+    if (out.end < 0) out.allow.push({ row: r + 1, name: b, amount: Number(money[r][0]) || 0 });
+  }
+  return out;
+}
+
+/* 給与明細の手当の行を、名簿の諸手当に合わせる。
+
+   これまで手当は出勤簿GASの STAFF_WAGES に直接書かれていて、
+   社長が名簿を見ても「誰にいくら付いているか」が分からなかった。
+   名簿を正にして、そこだけ見れば分かるようにする。
+
+   土曜・祝日加算や日曜加算のような現場ごとの行には触らない。
+   行を足したり減らしたりしたときは、差引支給額の合計の範囲も直す。 */
+function payrollFixAllowances_(sheet, want) {
+  if (want === null) return '';             // 名簿が読めない形。触らない
+  var pos = payrollDetailRows_(sheet);
+  if (pos.kihon < 0 || pos.end < 0) return '';   // 明細の形が分からない。触らない
+
+  var have = pos.allow;
+  if (have.length === want.length) {
+    var same = true;
+    for (var k = 0; k < want.length; k++) {
+      if (have[k].name !== want[k].name || have[k].amount !== want[k].amount) { same = false; break; }
+    }
+    if (same) return '';
+  }
+
+  var startRow = (pos.yakan > 0 ? pos.yakan : pos.kihon) + 1;
+
+  if (want.length < have.length) {
+    sheet.deleteRows(startRow + want.length, have.length - want.length);
+  } else if (want.length > have.length) {
+    var add = want.length - have.length;
+    sheet.insertRowsAfter(startRow + have.length - 1 >= startRow ? startRow + have.length - 1 : startRow - 1, add);
+    // 足した行の見た目を、基本賃金の行に合わせる
+    for (var a = 0; a < add; a++) {
+      sheet.getRange(pos.kihon, 2, 1, 8).copyTo(
+        sheet.getRange(startRow + have.length + a, 2, 1, 8),
+        SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    }
+  }
+
+  for (var i = 0; i < want.length; i++) {
+    var row = startRow + i;
+    sheet.getRange(row, 2).setValue(want[i].name);
+    sheet.getRange(row, 7).setValue(want[i].amount).setNumberFormat('#,##0');
+    sheet.getRange(row, 9).setValue('月額固定');
+  }
+
+  // 差引支給額の合計の範囲を引き直す
+  var after = payrollDetailRows_(sheet);
+  if (after.kihon > 0 && after.diff > after.kihon) {
+    sheet.getRange(after.diff, 7)
+      .setFormula('=SUM(G' + after.kihon + ':G' + (after.diff - 1) + ')')
+      .setNumberFormat('#,##0');
+  }
+
+  var txt = want.length
+    ? want.map(function (x) { return x.name + ' ' + x.amount + '円'; }).join('・')
+    : 'なし';
+  return '手当→' + txt;
+}
+
 /* 給与明細の「通勤手当」の行を、通勤手当の出し方に合わせて直す。
 
    単価の欄（M3）だけ直しても、明細の行が前のままだと金額が大きくずれる。
@@ -1081,6 +1188,7 @@ function payrollRateAll_(p) {
     var ck = String(r.commuteKind || 'none');
     var commute = (ck === 'none') ? 0 : (Number(r.commute) || 0);
     var payKind = (r.payKind === 'daily') ? '日給' : '時給';
+    var allow = payrollAllowList_(r.allowances);
 
     var hitAny = false;
     for (var k = 0; k < ids.length; k++) {
@@ -1094,11 +1202,13 @@ function payrollRateAll_(p) {
 
       var nowRate = Number(sheet.getRange(3, 11).getValue()) || 0;
       var nowCom  = Number(sheet.getRange(3, 13).getValue()) || 0;
-      if (nowRate === rate && nowCom === commute) { same++; continue; }
+      var allowMsg = payrollAllowDiff_(sheet, allow);
+      if (nowRate === rate && nowCom === commute && !allowMsg) { same++; continue; }
 
       changed.push(name + '：' + ss.getName()
         + '／' + payKind + ' ' + nowRate + '→' + rate
-        + '／通勤手当 ' + nowCom + '→' + commute);
+        + '／通勤手当 ' + nowCom + '→' + commute
+        + (allowMsg ? '／' + allowMsg : ''));
       if (dryRun) continue;
 
       sheet.getRange(3, 11).setValue(rate);
@@ -1106,6 +1216,7 @@ function payrollRateAll_(p) {
       sheet.getRange(3, 2).setValue(payKind + '：' + rate + '円');
       sheet.getRange(3, 6).setValue(payrollCommuteText_(ck, commute)
         + '　深夜割増：22:00〜翌5:00（法定）');
+      payrollFixAllowances_(sheet, allow);
       payrollFixDetail_(sheet, payKind, rate, ck, commute);
     }
     if (!hitAny) missing.push(name);
@@ -1113,6 +1224,24 @@ function payrollRateAll_(p) {
 
   return { status: 'ok', dryRun: dryRun, files: ids.length,
            changed: changed, same: same, missing: missing };
+}
+
+/* いまの明細の手当と、名簿の諸手当が違うかどうかだけ見る（書き換えない） */
+function payrollAllowDiff_(sheet, want) {
+  if (want === null) return '';
+  var pos = payrollDetailRows_(sheet);
+  if (pos.kihon < 0 || pos.end < 0) return '';
+  var have = pos.allow;
+  if (have.length === want.length) {
+    var same = true;
+    for (var k = 0; k < want.length; k++) {
+      if (have[k].name !== want[k].name || have[k].amount !== want[k].amount) { same = false; break; }
+    }
+    if (same) return '';
+  }
+  var now = have.length ? have.map(function (x) { return x.name + ' ' + x.amount + '円'; }).join('・') : 'なし';
+  var to  = want.length ? want.map(function (x) { return x.name + ' ' + x.amount + '円'; }).join('・') : 'なし';
+  return '手当 ' + now + '→' + to;
 }
 
 function payrollCommuteText_(ck, commute) {
@@ -1169,7 +1298,8 @@ function payrollRate_(p) {
       var okCells = payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute);
       if (!okCells) { failed.push(ss.getName() + '：単価の欄が見つかりませんでした'); continue; }
 
-      // 給与明細の「通勤手当」の行も、出し方に合わせて直す
+      // 給与明細の手当と「通勤手当」の行も、名簿に合わせて直す
+      payrollFixAllowances_(sheet, payrollAllowList_(rec.allowances));
       payrollFixDetail_(sheet, payKind, rate, ck, commute);
 
       done.push(ss.getName());
