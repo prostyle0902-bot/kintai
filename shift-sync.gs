@@ -150,6 +150,7 @@ function handle_(p, cb) {
       if (p.action === 'payrollFiles') return json_(payrollFiles_(), cb);
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
       if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
+      if (p.action === 'payrollRateAll') return json_(payrollRateAll_(p), cb);
       return json_({ status: 'error', message: '不明な操作です: ' + p.action }, cb);
     } finally {
       lock.releaseLock();
@@ -1041,6 +1042,85 @@ function fixSheetNames() {
 /* すでにある出勤簿の、単価と通勤手当だけを入れ直す。
    昇給したときや、登録の内容を直したときに使う。
    出勤・退勤の記録には触らない。 */
+/* 名簿にある人全員の単価を、給与一覧に合わせる。
+
+   1人ずつ保存のたびに直す作りだと、押し忘れ・通信の失敗・
+   古い版のままなどで、だまってずれたままになる。
+   ここで名簿を正として、いちどに合わせ直せるようにする。
+
+   直すのは「まだ終わっていない期間」だけ。支払いの済んだ過去には触らない。
+   p.dryRun が true のときは、何も書かずに違いだけ返す。 */
+function payrollRateAll_(p) {
+  var dryRun = String(p && p.dryRun) === 'true' || (p && p.dryRun === true);
+
+  var files = payrollFiles_();
+  if (files.status !== 'ok' || !files.files.length) {
+    return { status: 'error', message: '給与一覧のファイルが見つかりません' };
+  }
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var ids = [];
+  for (var f = 0; f < files.files.length; f++) {
+    if (files.files[f].end >= today) ids.push(files.files[f].id);
+  }
+  if (!ids.length) return { status: 'ok', changed: [], same: 0, missing: [], files: 0 };
+
+  var sh = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+
+  var changed = [], missing = [], same = 0;
+
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i];
+    if (!r.name) continue;
+    if (String(r.status) !== 'active') continue;
+    if (!r.kyuyo) continue;
+    if (!Number(r.payRate)) continue;
+
+    var name = String(r.kyuyoName || r.name).trim();
+    var rate = Number(r.payRate) || 0;
+    var ck = String(r.commuteKind || 'none');
+    var commute = (ck === 'none') ? 0 : (Number(r.commute) || 0);
+    var payKind = (r.payKind === 'daily') ? '日給' : '時給';
+
+    var hitAny = false;
+    for (var k = 0; k < ids.length; k++) {
+      var ss, sheet;
+      try {
+        ss = SpreadsheetApp.openById(ids[k]);
+        sheet = payrollStaffSheet_(ss, name);
+      } catch (e) { continue; }
+      if (!sheet) continue;
+      hitAny = true;
+
+      var nowRate = Number(sheet.getRange(3, 11).getValue()) || 0;
+      var nowCom  = Number(sheet.getRange(3, 13).getValue()) || 0;
+      if (nowRate === rate && nowCom === commute) { same++; continue; }
+
+      changed.push(name + '：' + ss.getName()
+        + '／' + payKind + ' ' + nowRate + '→' + rate
+        + '／通勤手当 ' + nowCom + '→' + commute);
+      if (dryRun) continue;
+
+      sheet.getRange(3, 11).setValue(rate);
+      sheet.getRange(3, 13).setValue(commute);
+      sheet.getRange(3, 2).setValue(payKind + '：' + rate + '円');
+      sheet.getRange(3, 6).setValue(payrollCommuteText_(ck, commute)
+        + '　深夜割増：22:00〜翌5:00（法定）');
+      payrollFixDetail_(sheet, payKind, rate, ck, commute);
+    }
+    if (!hitAny) missing.push(name);
+  }
+
+  return { status: 'ok', dryRun: dryRun, files: ids.length,
+           changed: changed, same: same, missing: missing };
+}
+
+function payrollCommuteText_(ck, commute) {
+  if (ck === 'none' || !commute) return '通勤手当：なし';
+  if (ck === 'monthly') return '通勤手当：' + commute + '円（月固定）';
+  return '通勤手当：' + commute + '円×出勤日数';
+}
+
 function payrollRate_(p) {
   var rec = p.rec;
   if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch (e) { rec = null; } }
