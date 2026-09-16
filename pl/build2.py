@@ -234,6 +234,36 @@ LABOR_ROWS = {t: ["人件費（店長）", "人件費（アルバイト）"] for
 LABOR_ROWS["本部"] = ["人件費　社長", "人件費　純子"]
 
 
+# ===== 合算タブ（利用者指示 2026-09-16）=====
+# 「22期からは、ハナとタコハイを今のシートの他に、2店舗合わせたシートも1枚作って
+#   ほしい。スタッフを2店舗で交代で入れてるので。」
+#
+# 中身は【2店舗の足し算の数式】。値を持たないので、もとの2タブを直せば自動で
+# 追いかける。転記の仕組み（inv22.py など）は一切触らない＝二重計上にならない。
+#
+# ★TABS には入れない。入れると全体サマリーが2店舗を二重に数えてしまう。
+#   そのかわり new_wb が TABS のうしろに1枚足す。
+# ★21期には作らない（利用者指示「22期からは」）。
+COMBINED = {
+    "ハナ＋タコハイ": ("韓国酒場ハナ", "タコとハイボール"),
+}
+
+for _t, _srcs in COMBINED.items():
+    # 行は2店舗の【合併】。片方にしか無い行も残す（順番は1店舗目→2店舗目）
+    EXTRA_COGS[_t] = list(dict.fromkeys(sum((EXTRA_COGS[x] for x in _srcs), [])))
+    EXTRA_SGA[_t] = list(dict.fromkeys(sum((EXTRA_SGA[x] for x in _srcs), [])))
+    # 落とす行は【両方で落ちているものだけ】。片方が使っていれば残す
+    UNUSED_COGS[_t] = sorted(set.intersection(
+        *[set(UNUSED_COGS.get(x, [])) for x in _srcs]))
+    # 鹿島食品の8%/10%切り替えも2店舗と同じ扱いにそろえる
+    if all(x in KASHIMA_LUMP for x in _srcs):
+        assert len({KASHIMA_LUMP[x] for x in _srcs}) == 1, _t
+        KASHIMA_LUMP[_t] = KASHIMA_LUMP[_srcs[0]]
+    LABOR_ROWS[_t] = ["人件費（店長）", "人件費（アルバイト）"]
+
+ALL_TABS = TABS + list(COMBINED)
+
+
 def layout_for(tab):
     """店舗ごとの行レイアウトを組み立てる"""
     if tab in NO_COMMON:
@@ -287,8 +317,8 @@ def ridx_for(L):
     return idx
 
 
-LAYOUTS = {t: layout_for(t) for t in TABS}
-RIDX = {t: ridx_for(LAYOUTS[t]) for t in TABS}
+LAYOUTS = {t: layout_for(t) for t in ALL_TABS}
+RIDX = {t: ridx_for(LAYOUTS[t]) for t in ALL_TABS}
 
 F_SEC = PatternFill("solid", fgColor="1F3864"); F_IN = PatternFill("solid", fgColor="FFF7D6")
 F_FM = PatternFill("solid", fgColor="E8EDF5"); F_HDR = PatternFill("solid", fgColor="305496")
@@ -341,6 +371,58 @@ def build_pl_tab(ws, tab):
     ws.freeze_panes = "C3"
 
 
+def build_combined_tab(ws, tab):
+    """合算タブ。値は持たず、もとの2タブを足す数式だけを書く。
+
+    ・入力行（IN）… ='韓国酒場ハナ'!C12+'タコとハイボール'!C14 の形。
+      片方にしか無い行は、その片方だけを参照する。
+    ・小計・利益・比率（FM）… ふつうの店舗タブと同じ式で、この中で計算する。
+      2店舗の小計どうしを足すのではなくこの表の中で積み上げるので、
+      Food比率・Labor比率も2店舗合算の比率として正しく出る。
+    """
+    srcs = COMBINED[tab]
+    L, ridx = LAYOUTS[tab], RIDX[tab]
+    ws.cell(1, 1, f"{tab}　損益計算書　{PERIODS[PERIOD]}／単位：円・税抜（円未満切り捨て）"
+            ).font = Font(bold=True, size=13)
+    ws.cell(2, 1, "　".join(srcs) + " を足したものです。"
+            "数式で参照しているので、もとの2タブを直せばここも直ります（手入力しないでください）"
+            ).font = Font(italic=True, color="808080")
+    for j, h in enumerate(["勘定科目", "年計"] + MONTHS, start=1):
+        c = ws.cell(3, j, h); c.font = Font(bold=True, color="FFFFFF")
+        c.fill = F_HDR; c.alignment = Alignment(horizontal="center"); c.border = BORD
+    off = 1                      # 2行目に説明を入れたぶん、1行ずつ下にずれる
+    rx = {k: v + off for k, v in ridx.items()}
+    for kind, label, tpl in L:
+        r = ridx[label] + off
+        a = ws.cell(r, 1, label); a.border = BORD
+        if kind == SEC:
+            a.font = Font(bold=True, color="FFFFFF"); a.fill = F_SEC
+            for j in range(2, 15):
+                cc = ws.cell(r, j); cc.fill = F_SEC; cc.border = BORD
+            continue
+        a.font = Font(bold=(kind == FM))
+        ratio = "比率" in label
+        b = ws.cell(r, 2)
+        b.value = f'=IFERROR(AVERAGE(C{r}:N{r}),"")' if ratio else f"=SUM(C{r}:N{r})"
+        b.fill = F_YR; b.font = Font(bold=True); b.border = BORD
+        b.number_format = PCTFMT if ratio else NUMFMT
+        for m in MONTHS:
+            col = MCOL[m]; cc = ws[f"{col}{r}"]
+            cc.border = BORD; cc.number_format = PCTFMT if ratio else NUMFMT
+            if kind == FM:
+                cc.value = render(tpl, col, rx); cc.fill = F_FM; cc.font = Font(bold=True)
+            else:
+                # その行を持っている店舗だけを足す
+                parts = [f"'{x}'!{col}{RIDX[x][label]}" for x in srcs if label in RIDX[x]]
+                assert parts, f"{tab} の「{label}」がどちらの店舗にも無い"
+                cc.value = "=" + "+".join(parts)
+                cc.fill = F_FM
+    ws.column_dimensions["A"].width = 28; ws.column_dimensions["B"].width = 12
+    for m in MONTHS:
+        ws.column_dimensions[MCOL[m]].width = 11
+    ws.freeze_panes = "C4"
+
+
 def build_summary(ws):
     ws.cell(1, 1, f"全体サマリー　{PERIODS[PERIOD]}／単位：円・税抜").font = Font(bold=True, size=14)
     ws.cell(2, 1, "各店舗タブを参照しています（手入力しないでください）").font = Font(italic=True, color="808080")
@@ -385,12 +467,16 @@ def new_wb(period="21期"):
     # ★LAYOUTS/RIDX はインポート時に21期で組んである。期を変えたら組み直す。
     #   これが無いと22期でも21期のレイアウトが使われ、鹿島食品が
     #   8%/10%に切り替わらない（2026-08-22 に踏んだ）。
-    LAYOUTS = {t: layout_for(t) for t in TABS}
-    RIDX = {t: ridx_for(LAYOUTS[t]) for t in TABS}
+    LAYOUTS = {t: layout_for(t) for t in ALL_TABS}
+    RIDX = {t: ridx_for(LAYOUTS[t]) for t in ALL_TABS}
     wb = Workbook(); wb.remove(wb.active)
     build_summary(wb.create_sheet("全体サマリー"))
     for t in TABS:
         build_pl_tab(wb.create_sheet(t), t)
+    # 合算タブは22期から（利用者指示 2026-09-16）。全体サマリーには入れない
+    if period != "21期":
+        for t in COMBINED:
+            build_combined_tab(wb.create_sheet(t), t)
     return wb
 
 
