@@ -976,6 +976,9 @@ async function submitNew() {
   if (F.pin) rec.pin = F.pin;
   if (F.id) rec.id = F.id;   // 編集のときは同じ人を書き換える
 
+  // 時給・通勤手当が変わったかを見るため、直す前の内容を控えておく
+  const before = F.id ? findRec(F.id) : null;
+
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.textContent = '登録中…';
   try {
@@ -983,6 +986,9 @@ async function submitNew() {
     if (res.status !== 'ok') throw new Error(res.message || '登録できませんでした');
     lastDone = res.rec;
     lastDone._created = res.created !== false;
+    // 時給・通勤手当を直したときは、これから支払う期間の出勤簿にも反映する
+    btn.textContent = '給与一覧に反映中…';
+    lastDone._rateSync = await autoRateSync(before, lastDone);
     await reload();
   } catch (e) {
     /* 返事が届かなかっただけで、実は保存できていることがある。
@@ -1033,6 +1039,36 @@ function doneHtml(rec) {
   }
   h += '<li>出勤簿（給与）への転記 … ' + (rec.kyuyo ? '対象にしました' : '対象外です') + '</li>';
   h += '</ul>';
+
+  // 時給・通勤手当を直したときの、給与一覧への反映結果
+  const rs = rec._rateSync;
+  if (rs) {
+    if (rs.status === 'error') {
+      h += '<div class="alert err" style="margin-top:1.25rem">'
+        + '<b>給与一覧の単価は直せませんでした。</b>' + esc(rs.message || '') + '<br />'
+        + '名簿は直っています。下の「給与一覧にも作る」→「単価だけ入れ直す」から、もう一度お試しください。</div>';
+    } else if (rs.status === 'none' || !(rs.done || []).length) {
+      h += '<div class="alert info" style="margin-top:1.25rem">'
+        + '<b>給与一覧に直す対象がありませんでした。</b><br />'
+        + 'この人の出勤簿がまだ無いか、これから支払う期間のファイルが無い状態です。'
+        + '支払いの済んだ過去の期間には触っていません。</div>';
+    } else {
+      h += '<div class="alert ok" style="margin-top:1.25rem">'
+        + '<b>給与一覧の単価も直しました（' + rs.done.length + '件）。</b><br />'
+        + esc(rateText(rec)) + '<br />'
+        + rs.done.map(esc).join('<br />')
+        + '<br /><span class="muted">出勤・退勤の記録と、支払いの済んだ過去の期間には触っていません。</span></div>';
+      if ((rs.skipped || []).length) {
+        h += '<div class="alert warn"><b>手つかずの期間：' + rs.skipped.length + '件</b><br />'
+          + rs.skipped.map(esc).join('<br />') + '</div>';
+      }
+      if ((rs.failed || []).length) {
+        h += '<div class="alert err"><b>直せなかった期間：' + rs.failed.length + '件</b><br />'
+          + rs.failed.map(esc).join('<br />')
+          + '<br />「給与一覧にも作る」→「単価だけ入れ直す」から、もう一度お試しください。</div>';
+      }
+    }
+  }
   if (rec.kyuyo && sids.length) {
     h += '<div class="alert warn" style="margin-top:1.25rem">'
       + '<b>給与一覧のスプレッドシートには、まだ作っていません。</b><br />'
@@ -2018,6 +2054,49 @@ async function sendImport(recs) {
    期間ごとのスプレッドシートに、その人の出勤簿シートと
    給与一覧表の行を作る。給与に触るので、押したときだけ動かす。
    ========================================================= */
+/* 時給・通勤手当を直したときに、出勤簿の単価も自動で合わせる。
+   直すのは「まだ終わっていない期間」だけ。支払いの済んだ過去の月には触らない。 */
+async function autoRateSync(before, after) {
+  if (!before || !after) return null;                    // 新しく登録した人は「給与一覧にも作る」で作る
+  if (!after.kyuyo || !after.payRate) return null;       // 給与の対象外、または単価が未設定
+  const keys = ['payKind', 'payRate', 'commute', 'commuteKind'];
+  const changed = keys.some(function (k) { return String(before[k] || '') !== String(after[k] || ''); });
+  if (!changed) return null;
+
+  try {
+    if (!payrollFiles) {
+      const list = await apiGet({ action: 'payrollFiles' });
+      if (list.status !== 'ok') throw new Error(list.message || '給与一覧のファイルを読めませんでした');
+      payrollFiles = list.files || [];
+      payrollErrors = list.errors || [];
+    }
+    const t = new Date();
+    const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
+      + '-' + String(t.getDate()).padStart(2, '0');
+    const ids = payrollFiles.filter(function (f) { return f.end >= today; }).map(function (f) { return f.id; });
+    if (!ids.length) return { status: 'none' };
+
+    const res = await apiPost({
+      action: 'payrollRate', fileIds: ids,
+      rec: { name: after.kyuyoName || after.name, payKind: after.payKind, payRate: after.payRate,
+             commute: after.commute, commuteKind: after.commuteKind },
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
+    return res;
+  } catch (e) {
+    return { status: 'error', message: e.message };
+  }
+}
+
+// 単価の出し方（画面に出す用）
+function rateText(r) {
+  const pay = (r.payKind === 'daily' ? '日給 ' : '時給 ') + Number(r.payRate || 0).toLocaleString() + '円';
+  const com = r.commuteKind === 'monthly' ? '通勤手当 ' + Number(r.commute || 0).toLocaleString() + '円（月ぎめ）'
+    : r.commuteKind === 'daily' ? '通勤手当 ' + Number(r.commute || 0).toLocaleString() + '円 × 出勤日数'
+    : '通勤手当なし';
+  return pay + '／' + com;
+}
+
 let payrollFiles = null;   // 給与一覧のファイル一覧（読み込むまで null）
 let payrollErrors = [];    // 読み込めなかった理由
 let payrollPick = {};
