@@ -193,7 +193,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-16b</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-16c</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1262,6 +1262,9 @@ function openRetire(id) {
   openSheet('<div class="card-title">' + esc(r.name) + ' さんを退職にする</div>'
     + '<div class="card-desc">名簿から消さずに「退職」にします。'
     + 'PA勤怠・勤怠アプリのPINは使えなくなり、シフト作成でも割り当てなくなります。'
+    + '<b>給与一覧からも、退職日より後の期間は自動で外します</b>'
+    + '（出勤簿のタブと一覧の行を隠します。消さないので戻せます）。<br />'
+    + 'その期間に出勤がある場合は外しません。働いたぶんのお給料は、これまでどおり出ます。'
     + '過去の記録はそのまま残ります。</div>'
     + '<div class="field"><label>退職日</label>'
     + '<input type="date" id="retire-date" value="' + today + '" /></div>'
@@ -1272,13 +1275,45 @@ function openRetire(id) {
 
 async function doRetire(id) {
   const d = document.getElementById('retire-date').value;
+  const r = findRec(id);
   closeSheet();
   setState('busy', '保存中…');
   try {
     const res = await apiPost({ action: 'staffRetire', id: id, retiredAt: d });
     if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+
+    // 給与一覧からも片づける。名簿は保存できているので、ここで失敗しても止めない
+    let tidy = null;
+    if (r && r.kyuyo) {
+      setState('busy', '給与一覧を片づけています…');
+      try {
+        tidy = await apiPost({ action: 'payrollRetire',
+          name: (r.kyuyoName || r.name), retiredAt: d });
+      } catch (e) { tidy = { status: 'error', message: e.message }; }
+    }
     await reload();
+    alert(retireDoneText(r, d, tidy));
   } catch (e) { alert('保存できませんでした：' + e.message); setState('err', e.message); }
+}
+
+function retireDoneText(r, d, tidy) {
+  let t = (r ? r.name + ' さん' : 'その人') + 'を ' + d + ' 付けで退職にしました。\n';
+  if (!tidy) return t + '\n給与一覧の対象ではないので、そちらは触っていません。';
+  if (tidy.status !== 'ok') {
+    return t + '\n給与一覧は片づけられませんでした：' + (tidy.message || '')
+      + '\n名簿は退職になっています。';
+  }
+  if ((tidy.done || []).length) {
+    t += '\n給与一覧から外しました（' + tidy.done.length + '件）。\n'
+      + '出勤簿のタブと一覧の行を隠しました。消していないので、在籍に戻せば元どおりです。';
+  } else {
+    t += '\n給与一覧に外す対象はありませんでした。';
+  }
+  if ((tidy.kept || []).length) {
+    t += '\n\n出勤があるので残した期間：\n  ' + tidy.kept.join('\n  ')
+      + '\nこの期間のお給料は、これまでどおり出ます。';
+  }
+  return t;
 }
 
 async function reinstate(id) {
@@ -1290,6 +1325,12 @@ async function reinstate(id) {
     const rec = Object.assign({}, r, { status: 'active', retiredAt: '' });
     const res = await apiPost({ action: 'staffSave', rec: rec });
     if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+    // 退職のときに隠した出勤簿のタブと一覧の行を、元に戻す
+    if (r.kyuyo) {
+      setState('busy', '給与一覧を元に戻しています…');
+      try { await apiPost({ action: 'payrollReinstate', name: (r.kyuyoName || r.name) }); }
+      catch (e) { /* 名簿は戻っている。給与一覧は手で戻せる */ }
+    }
     await reload();
   } catch (e) { alert('保存できませんでした：' + e.message); setState('err', e.message); }
 }

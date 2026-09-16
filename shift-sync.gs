@@ -151,6 +151,8 @@ function handle_(p, cb) {
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
       if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
       if (p.action === 'payrollRateAll') return json_(payrollRateAll_(p), cb);
+      if (p.action === 'payrollRetire') return json_(payrollRetire_(p), cb);
+      if (p.action === 'payrollReinstate') return json_(payrollReinstate_(p), cb);
       return json_({ status: 'error', message: '不明な操作です: ' + p.action }, cb);
     } finally {
       lock.releaseLock();
@@ -666,6 +668,13 @@ function staffRetire_(p) {
   return { status: 'ok', staffRev: bumpStaffRev_(), rec: target };
 }
 
+/* 在籍に戻したときに、給与一覧で隠したぶんを元に戻す */
+function payrollReinstate_(p) {
+  var name = String((p && p.name) || '').trim();
+  if (!name) return { status: 'error', message: '誰を戻すのかが分かりません' };
+  return payrollUnretire_(name);
+}
+
 /* =========================================================
    給与一覧への登録
    新しく入った人の「出勤簿」シートを作り、「給与一覧表」にも行を足す。
@@ -877,6 +886,102 @@ function payrollFillSheet_(sheet, fromName, toName, rec) {
    そのため「ラベルの右にある最初の数値」を探すやり方だと、
    通勤手当の値を単価のセルに書いてしまう。
    同じ行の数値セルを左から順に見て、1つめを単価、2つめを手当として入れる。 */
+/* 退職にした人を、給与一覧から片づける。
+
+   出勤簿のタブと、まとめの表のその人の行を「隠す」。消さずに隠すのは、
+   ・給与台帳は3年間の保存義務があり、記録そのものを失いたくない
+   ・行を消すと、店舗別合計の計算式が壊れることがある
+     （その現場にひとりしか居ない場合、範囲が無くなって #REF! になる）
+   ためです。隠しても合計は変わりません（0円のため）。戻すこともできます。
+
+   退職日より後の期間だけを片づけます。
+   その期間に出勤がある人は、給与が消えるので片づけません。 */
+function payrollRetire_(p) {
+  var name = String((p && p.name) || '').trim();
+  if (!name) return { status: 'error', message: '誰を片づけるのかが分かりません' };
+  var from = String((p && p.retiredAt) || '').slice(0, 10)
+    || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  var files = payrollFiles_();
+  if (files.status !== 'ok') return { status: 'error', message: '給与一覧のファイルが見つかりません' };
+
+  var done = [], kept = [], missing = 0;
+  for (var i = 0; i < files.files.length; i++) {
+    var f = files.files[i];
+    if (f.end < from) continue;                 // 退職日より前に終わった期間は触らない
+
+    var ss, sheet;
+    try {
+      ss = SpreadsheetApp.openById(f.id);
+      sheet = payrollStaffSheet_(ss, name);
+    } catch (e) { continue; }
+    if (!sheet) { missing++; continue; }
+
+    var days = payrollWorkedDays_(sheet);
+    if (days > 0) { kept.push(ss.getName() + '（' + days + '日出勤）'); continue; }
+
+    if (!sheet.isSheetHidden()) sheet.hideSheet();
+    payrollHideListRow_(ss, name, true);
+    done.push(ss.getName());
+  }
+  return { status: 'ok', name: name, from: from, done: done, kept: kept, missing: missing };
+}
+
+/* 在籍に戻したときに、隠したぶんを元に戻す */
+function payrollUnretire_(name) {
+  name = String(name || '').trim();
+  if (!name) return { status: 'ok', done: [] };
+  var files = payrollFiles_();
+  if (files.status !== 'ok') return { status: 'ok', done: [] };
+
+  var done = [];
+  for (var i = 0; i < files.files.length; i++) {
+    var ss, sheet;
+    try {
+      ss = SpreadsheetApp.openById(files.files[i].id);
+      sheet = payrollStaffSheet_(ss, name);
+    } catch (e) { continue; }
+    if (!sheet) continue;
+    var moved = false;
+    if (sheet.isSheetHidden()) { sheet.showSheet(); moved = true; }
+    if (payrollHideListRow_(ss, name, false)) moved = true;
+    if (moved) done.push(ss.getName());
+  }
+  return { status: 'ok', done: done };
+}
+
+// まとめの表の、その人の行を隠す／戻す
+function payrollHideListRow_(ss, name, hide) {
+  var list = payrollListSheet_(ss);
+  if (!list) return false;
+  var last = list.getLastRow();
+  if (last < 2) return false;
+  var vals = list.getRange(1, 1, last, 2).getValues();
+  var moved = false;
+  for (var r = 0; r < vals.length; r++) {
+    if (String(vals[r][1]).trim() !== name) continue;
+    var a = vals[r][0];
+    var isNo = (typeof a === 'number' && a > 0) || /^[0-9]+$/.test(String(a).trim());
+    if (!isNo) continue;                       // 店舗別合計などの行は触らない
+    if (hide) list.hideRows(r + 1); else list.showRows(r + 1);
+    moved = true;
+  }
+  return moved;
+}
+
+// その人が、その期間に何日出勤しているか（出勤簿の「合計」行のD列）
+function payrollWorkedDays_(sheet) {
+  var last = Math.min(sheet.getLastRow(), 90);
+  if (last < 2) return 0;
+  var vals = sheet.getRange(1, 2, last, 1).getValues();
+  for (var r = 0; r < last; r++) {
+    if (String(vals[r][0]).trim() !== '合計') continue;
+    var m = String(sheet.getRange(r + 1, 4).getValue()).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  return 0;
+}
+
 /* 名簿の「諸手当」を、[{name, amount}] の形にして返す。
    名簿にはJSONの文字で入っている。壊れていたら空にする（触らない側に倒す）。 */
 function payrollAllowList_(raw) {
