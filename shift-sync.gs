@@ -920,26 +920,34 @@ function payrollFixDetail_(sheet, payKind, rate, ck, commute) {
 }
 
 function payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute) {
-  for (var r = 0; r < rows; r++) {
-    var hasRate = false, hasCommute = false;
+  // 「時給：」「日給：」と書いてある行を探す
+  var labelRow = -1;
+  for (var r = 0; r < rows && labelRow < 0; r++) {
     for (var c = 0; c < cols; c++) {
       var v = vals[r][c];
-      if (typeof v !== 'string' || !v) continue;
-      if (/^(時給|日給)：/.test(v)) hasRate = true;
-      if (v.indexOf('通勤手当：') === 0) hasCommute = true;
+      if (typeof v === 'string' && /^(時給|日給)：/.test(v)) { labelRow = r; break; }
     }
-    if (!hasRate) continue;
-
-    var nums = [];
-    for (var c2 = 0; c2 < cols; c2++) {
-      if (formulas[r][c2]) continue;              // 計算式のセルは動かさない
-      if (typeof vals[r][c2] === 'number') nums.push(c2);
-    }
-    if (nums.length >= 1) sheet.getRange(r + 1, nums[0] + 1).setValue(rate);
-    if (nums.length >= 2 && hasCommute) sheet.getRange(r + 1, nums[1] + 1).setValue(commute);
-    return true;
   }
-  return false;
+  if (labelRow < 0) return false;
+  var row = labelRow + 1;
+
+  /* この帳票は、単価を K列・通勤手当を M列 に置く作りで揃っている。
+     （シートを作る処理も、単価を直す処理も、そこに書いている）
+
+     以前はこの行の「1つめの数値を単価、2つめを通勤手当」と数えていたが、
+     通勤手当のセルが空の人はそこに数値が無いため、2つめが見つからず、
+     通勤手当だけ直らなかった。空のセルにも書けるよう、列を決めて書く。 */
+  var kF = String(sheet.getRange(row, 11).getFormula() || '');
+  var mF = String(sheet.getRange(row, 13).getFormula() || '');
+  if (kF || mF) {
+    /* K列かM列に計算式が入っている、作りの違うシート。
+       どこが単価の欄かを当てて書くと、金額を取り違えるおそれがあるので、
+       ここでは書かずに「見つかりませんでした」として人に知らせる。 */
+    return false;
+  }
+  sheet.getRange(row, 11).setValue(rate);
+  sheet.getRange(row, 13).setValue(commute);
+  return true;
 }
 
 // 日付の表の「出勤・退勤・備考」を空にする
