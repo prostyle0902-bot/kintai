@@ -876,6 +876,49 @@ function payrollFillSheet_(sheet, fromName, toName, rec) {
    そのため「ラベルの右にある最初の数値」を探すやり方だと、
    通勤手当の値を単価のセルに書いてしまう。
    同じ行の数値セルを左から順に見て、1つめを単価、2つめを手当として入れる。 */
+/* 給与明細の「通勤手当」の行を、通勤手当の出し方に合わせて直す。
+
+   単価の欄（M3）だけ直しても、明細の行が前のままだと金額が大きくずれる。
+   たとえば日額100円から月固定5,000円に変えたとき、明細の式が
+   「M3×出勤日数」のままだと 5,000円×20日＝100,000円になってしまう。
+   見出しと式の両方を、いまの出し方に合わせる。
+
+   あわせて「基本賃金」の備考も、いまの単価の書き方に直す。 */
+function payrollFixDetail_(sheet, payKind, rate, ck, commute) {
+  var last = Math.min(sheet.getLastRow(), 80);
+  if (last < 2) return;
+  var vals = sheet.getRange(1, 2, last, 1).getValues();
+
+  var totalRow = -1, comRow = -1, kihonRow = -1;
+  for (var r = 0; r < last; r++) {
+    var b = String(vals[r][0]).trim();
+    if (b === '合計' && totalRow < 0) { totalRow = r + 1; continue; }
+    if (totalRow < 0) continue;                       // 日付の表は見ない
+    if (kihonRow < 0 && b.indexOf('基本賃金') === 0) kihonRow = r + 1;
+    if (comRow < 0 && b.indexOf('通勤手当') === 0) comRow = r + 1;
+  }
+
+  if (kihonRow > 0) {
+    sheet.getRange(kihonRow, 9).setValue(payKind + rate + '円×実働合計');
+  }
+  if (comRow < 0) return;
+
+  if (ck === 'monthly' && commute > 0) {
+    sheet.getRange(comRow, 2).setValue('通勤手当（月固定）');
+    sheet.getRange(comRow, 7).setValue(commute);
+    sheet.getRange(comRow, 9).setValue(commute + '円/月');
+  } else if (ck !== 'none' && commute > 0 && totalRow > 0) {
+    sheet.getRange(comRow, 2).setValue('通勤手当（日額×出勤日数）');
+    sheet.getRange(comRow, 7).setFormula('=M3*VALUE(SUBSTITUTE(D' + totalRow + ',"日出勤",""))');
+    sheet.getRange(comRow, 9).setValue('M3(' + commute + '円)×出勤日数');
+  } else {
+    sheet.getRange(comRow, 2).setValue('通勤手当（なし）');
+    sheet.getRange(comRow, 7).setValue(0);
+    sheet.getRange(comRow, 9).setValue('');
+  }
+  sheet.getRange(comRow, 7).setNumberFormat('#,##0');
+}
+
 function payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute) {
   for (var r = 0; r < rows; r++) {
     var hasRate = false, hasCommute = false;
@@ -1037,6 +1080,9 @@ function payrollRate_(p) {
       // 計算に使う数値
       var okCells = payrollSetRateCells_(sheet, vals, formulas, rows, cols, rate, commute);
       if (!okCells) { failed.push(ss.getName() + '：単価の欄が見つかりませんでした'); continue; }
+
+      // 給与明細の「通勤手当」の行も、出し方に合わせて直す
+      payrollFixDetail_(sheet, payKind, rate, ck, commute);
 
       done.push(ss.getName());
     } catch (e) {
