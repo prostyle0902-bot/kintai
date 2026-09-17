@@ -100,6 +100,18 @@ Dropbox のファイル追加を Claude に push する仕組み（webhook）が
 
 ## 定期チェックの手順（Routineが起きたらやること）
 
+0. **まず `watch.py` で「変わったフォルダ」だけに絞る**（2026-09-17 追加）。
+   見張りフォルダ11個それぞれに `get_file_metadata` を呼び、返ってきた
+   `folder_size` を並べて `python3 furikomi/watch.py --check sizes.json`。
+   変わっていなければ手順1の全件リストは要らない。
+   ★`folder_size` は中のファイルのサイズ合計。実測で一致を確認済み
+     （買掛/21期/2608月: 73ファイルの合計 19,461,960 ＝ folder_size）。
+   ★穴: **同じバイト数のファイルに差し替わった場合だけ見逃す。**
+     そのため **朝（10:00 JST）の回だけは従来どおり手順1の全件リストをやる。**
+     昼・夕方の回は watch.py で済ませてよい。
+   ★対象フォルダは `python3 furikomi/watch.py --list` で出る。
+   処理が終わったら `python3 furikomi/watch.py --save sizes.json` で基準値を更新。
+
 1. `mcp Dropbox list_folder` で `買掛/21期`（2607月以降の月フォルダ）と
    `買掛/22期` を再帰リスト。新しい月フォルダも自動で対象に入る。
    ★**`object_types: ["file"]` を付けること**（2026-09-16 に分かった）。
