@@ -47,7 +47,24 @@ BUMON = {
 HONBU_ROW = {"0001-0001": "人件費　社長", "0001-0002": "人件費　純子"}
 
 # 何人かをまとめて複数の店舗で分けるもの。期ごとに効かせる。
+# ★"月" を書くとその月だけに効く（省略すると期の全月）。2026-09-19 追加。
 POOL = [
+    {
+        "期": "21期",
+        "月": ["8月"],
+        "社員番号": ["0091-0102"],
+        "名前": "松岡実麻",
+        "分ける先": ["タコとハイボール", "韓国酒場ハナ"],
+        "行": "人件費（アルバイト）",
+        "対象": ["総支給"],
+        "指示": "利用者指示 2026-09-19「そうしましょう」。"
+                "★この人は勤怠アプリの名簿では『バッシング』＝神栖横丁、"
+                "roster.py の割り当てではタコとハイボール、"
+                "社長が作っていた既存21期PLでは8月だけタコハイ10,740・ハナ10,740の"
+                "折半になっていた。8月の給料一覧表の総支給は21,480（1人ぶん）で、"
+                "その半分ずつ。「スタッフを2店舗で交代で入れている」ため（利用者談）。"
+                "★6月・7月は給与集計スプシ由来で全額ハナに入っているので触らない",
+    },
     {
         "期": "22期",
         "社員番号": ["0002-0019", "0002-0020", "0002-0021"],
@@ -64,8 +81,17 @@ POOL = [
 ]
 
 
-def pools(period):
-    return [p for p in POOL if p["期"] == period]
+def pools(period, month=None):
+    """その期（と、指定があればその月）に効く折半の決まり。
+
+    "月" を持たない決まりは期の全月に効く。
+    """
+    out = [p for p in POOL if p["期"] == period]
+    if month is not None:
+        out = [p for p in out if "月" not in p or month in p["月"]]
+    else:
+        out = [p for p in out if "月" not in p]
+    return out
 
 
 def tab_of(no, name):
@@ -81,11 +107,18 @@ def row_of(no):
         "人件費（店長）" if no.startswith("0002") else "人件費（アルバイト）")
 
 
+def month_of(ym):
+    """給料一覧表のファイル年月（202608 / 202601_R8）→ PL列（8月 / 1月）。"""
+    return f"{int(ym.split('_')[0][4:6])}月"
+
+
 def split(ym, period="21期"):
     """{(タブ, PL行): 金額}、名簿で引けなかった人、折半の内訳 を返す。"""
     emp = kyuyo_parse.parse(ym)[0]
     nm = kyuyo_parse.names(ym)
-    pooled = {no: p for p in pools(period) for no in p["社員番号"]}
+    # ★期ぜんぶに効く決まりと、この月だけに効く決まりの両方を集める
+    ps = pools(period) + pools(period, month_of(ym))
+    pooled = {no: p for p in ps for no in p["社員番号"]}
     out = collections.Counter()
     fallback, pool_detail = [], []
     hold = collections.defaultdict(lambda: collections.Counter())
@@ -110,7 +143,7 @@ def split(ym, period="21期"):
                 out[(tab, "法定福利費")] += ins
 
     # まとめたぶんを分ける。端数は先に書いた店へ寄せる。
-    for p in pools(period):
+    for p in ps:
         h = hold.get(id(p))
         if not h:
             continue

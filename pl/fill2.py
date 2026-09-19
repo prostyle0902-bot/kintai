@@ -8,6 +8,7 @@ import debits
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
 import kamei
+import kessai
 import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, inv05, airregi, tanaoroshi
 
 STAMP = "2026-08-20 06:40"
@@ -492,6 +493,21 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
           "／陸事総合", f"{sum(x[3] for x in rikuji.rows()):,}",
           "／ENEOS", f"{sum(x[3] for x in eneos.rows()):,}")
 
+    # ===== 決済サービスの手数料（Airペイ・AirペイQR・UberEats・SBペイメント）=====
+    # ★元データはDropboxではなく【Googleドライブ】の店舗フォルダ。kessai.py の冒頭参照。
+    #   いまは8月だけ。9月〜7月は既存21期PLから入っている（8月は既存PLを使わない約束）。
+    #   exist_fill より前に置くこと。
+    kessai.check(wb)               # 行があるか・書き込み先が空か
+    F_KESSAI = PatternFill("solid", fgColor="E2F0D9")
+    ke_rows = list(kessai.rows())
+    for tab, plrow, m, val, src, note in ke_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "決済手数料")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        c.value = int(c.value or 0) + val; c.fill = F_KESSAI; c.number_format = build2.NUMFMT
+    print("決済手数料セル", len(ke_rows), "／計", f"{sum(x[3] for x in ke_rows):,}",
+          "／裏取りできていない", len(list(kessai.hold_rows())), "件")
+
     # ===== 請求書が来ない口座引落（銀行明細CSVから12か月）=====
     # ★利用者指示 2026-09-02「銀行口座のCSV見て…引き落としの案件…口座見て入れて」
     #   fixed_costs より前・請求書より後に置く。inv01 のリヴィン1月10,000の上に
@@ -840,6 +856,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         hs.append(["振込", m, tab, item, "", reason])
     for m, tab, item, reason in rikuji.hold_rows():
         hs.append(["陸事総合", m, tab, item, "", reason])
+    for m, tab, item, reason in kessai.hold_rows():
+        hs.append(["決済手数料", m, tab, item, "", reason])
     for m, tab, item, reason in inv2509.HOLD:
         hs.append(["請求書2509月", m, tab, item, "", reason])
     for m, tab, item, reason in inv11.HOLD:
