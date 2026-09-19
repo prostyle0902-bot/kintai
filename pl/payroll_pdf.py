@@ -113,8 +113,20 @@ def fallbacks():
             yield m, no, name, g, tab
 
 
+# 月の途中で居なくなった人（記録）。8月が空いている理由の説明に使う。
+# (社員番号, 氏名, タブ, PL行, 最後にいた月, 事情)
+LEFT = [
+    ("0002-0018", "及川晶雄", "焼きたて屋", "人件費（店長）", "7月",
+     "8月の給料一覧表に載っていない。7月まで毎月あった（7月は223,225）。"
+     "利用者 2026-09-19「及川は退職してる」。→ 焼きたて屋「人件費（店長）」の"
+     "8月が空なのはこのため。空で正しい"),
+]
+
+
 def hold_rows():
     """判断が割れるところ。推測で決めずに記録に残す。"""
+    for no, name, tab, plrow, last, why in LEFT:
+        yield ("8月", tab, f"{plrow}（{name} {no}）", why)
     fb = list(fallbacks())
     if fb:
         by = collections.defaultdict(list)
