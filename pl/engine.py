@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """freeeカード明細 → PL転記エンジン（仕様【4】）"""
+import os
 import pandas as pd, unicodedata, math, re
 from decimal import Decimal, ROUND_FLOOR
 
@@ -94,6 +95,15 @@ MASTER = [
  ("HIGASHINIHONKOUSOKUDOURO",10,"高速道路","旅費・交通費"),  # 東日本高速道路
  ("JR EAST SHOPPING CENTER",10,"酒","仕入（freeeカード）"),
  ("ファーマーズマーケットなだろう",8,"直売所","仕入（freeeカード）"),
+ # ★2026-09-20 追加。21期の12か月ぶんを読んだら、同じ店が別の綴りで出てきた。
+ #   どれも上に既にある店のローマ字表記・全角表記。新しい取引先ではない。
+ ("MEGADONQUIJOTE",8,"ディスカウント","仕入（freeeカード）"),   # MEGAドン・キホーテ
+ ("SEIMIYA",8,"スーパー","仕入（freeeカード）"),                # セイミヤ
+ ("PRINTPAC",10,"印刷","広告宣伝費（共通宣伝費）"),             # プリントパック
+ ("DAZN",10,"放映","その他経費"),                            # ダゾーン（ＷＷＷ．ＤＡＺＮ．ＣＯＭ）
+ ("DAISO",10,"100均","消耗品費（freeeカード）"),              # ダイソー
+ ("SERIA",10,"100均","消耗品費（freeeカード）"),              # セリア
+ ("MICHINOEKI",8,"直売所","仕入（freeeカード）"),               # 道の駅
  #   ★この2件も利用者確認 2026-09-01「Okです」。明細のメモ（酒／食材）どおりで正しかった。
 ]
 
@@ -165,10 +175,27 @@ def memo_rate(memo):
     return None, None
 
 
-def load(path, riyou_month):
+# 21期 ＝ 2025年9月 〜 2026年8月。PL列はこの範囲だけ。
+PERIOD = [(2025, m) for m in range(9, 13)] + [(2026, m) for m in range(1, 9)]
+
+
+def pl_col(year, month):
+    """(年, 月) → PL列。21期の外なら None（＝この期には入れない）。"""
+    return f"{month}月" if (year, month) in PERIOD else None
+
+
+def load(path, riyou_year, riyou_month):
+    """★年も持たせる（2026-09-20）。
+
+    もとは月の数字だけだった。酒蔵やまなかの「1〜5日は前月へ」が年をまたぐと
+    2025年9月1〜5日 → 「8月」になり、21期の最終月＝2026年8月の列に入ってしまう
+    （2025年8月は20期）。年を持たせて pl_col() で外に出す。
+    """
     d = pd.read_csv(path, encoding="utf-8-sig", dtype=str)
+    d = d[d["利用日"].notna() & (d["利用日"].astype(str).str.strip() != "")]
     d["利用額"] = d["利用額"].astype(int)
     d["利用日"] = pd.to_datetime(d["利用日"])
+    d["_riyou_year"] = riyou_year
     d["_riyou_month"] = riyou_month
     return d
 
@@ -226,13 +253,26 @@ def classify(d):
         kw, mrate, cat, plrow = hits[0]
 
         # 酒蔵やまなか 特別ルール: 利用日1〜5日は前月分へ
-        month = day.month
+        # ★年つきで持つ（2026-09-20）。月の数字だけだと年をまたいだときに
+        #   別の期の列へ入ってしまう。
+        # ★計上月は【利用日】から決める（従来どおり）。ファイル名の年月は
+        #   目安でしかなく、月末・月初が隣のファイルに入ることがあるため。
+        #   6〜8月は既存PLとの突き合わせでこの決め方を検証済み。
+        year, month = day.year, day.month
         biko = ""
         if "やまなか" in norm(kw) or "ヤマナカ" in norm(name):
             if 1 <= day.day <= 5:
-                month = (day - pd.offsets.MonthBegin(1)).month if day.day else month
-                month = (day.replace(day=1) - pd.Timedelta(days=1)).month
+                prev = day.replace(day=1) - pd.Timedelta(days=1)
+                year, month = prev.year, prev.month
                 biko = "前月分に振替"
+        col = pl_col(year, month)
+        if col is None:
+            # 21期の外（2025年8月以前）。利用者判断 2026-09-20
+            #   「2025.8月はPLがないから、それは無視してもらっていい」
+            hold.append({**base, "理由":
+                         f"振替先が {year}年{month}月 で21期（2025年9月〜2026年8月）の外。"
+                         "利用者判断 2026-09-20『2025.8月はPLがないから無視でいい』"})
+            continue
 
         # 円未満切り捨て。floatだと 30800/1.1=27999.99… で1円ずれるため Decimal を使う
         tax_ex = int((Decimal(amt) / (1 + Decimal(rate) / 100)).to_integral_value(ROUND_FLOOR))
@@ -242,7 +282,7 @@ def classify(d):
             plrow = "会議費"
             biko = (biko + "／" if biko else "") + "1件5,000円以下なので会議費"
         base.update(判定=src, 税率=rate, 税抜=tax_ex, 消費税=amt - tax_ex,
-                    PL行=plrow, 計上月=f"{month}月", 備考=biko, 一致キーワード=kw, 分類=cat)
+                    PL行=plrow, 計上月=col, 備考=biko, 一致キーワード=kw, 分類=cat)
         rows.append(base)
     return pd.DataFrame(rows), pd.DataFrame(hold)
 
@@ -250,30 +290,22 @@ def classify(d):
 if __name__ == "__main__":
     frames = []
     # ★ファイル名の年月 −1 が PL列。statement-2026-09 は【8月利用分】
-    # ★★2025年ぶんの statement を足すのは【保留中】（2026-09-20）
-    #   利用者が statement-2025-10（9月利用分）と statement-2025-12（11月利用分）を
-    #   入れてくれた。csv/ に置いてあるが、まだここには足していない。
-    #   試しに足してみて見つかった問題が3つあるため。決着したら下の2行を足す:
-    #       ("csv/statement-2025-10.csv", 9, "statement-2025-10.csv"),
-    #       ("csv/statement-2025-12.csv", 11, "statement-2025-12.csv"),
-    #
-    #   ① ★「酒蔵やまなか 利用日1〜5日は前月分へ」のルールが年をまたぐと壊れる
-    #      計上月を month（数字）だけで決めているので、2025年9月1〜5日のやまなかが
-    #      「8月」になり、21期の最終月＝2026年8月の列に入ってしまう
-    #      （実測 りゅうちゃん 仕入（やまなか）8月 195,466 → 453,412）。
-    #      2025年8月は20期なので、本当はこの期に入れてはいけない。
-    #      足すなら計上月を「年つき」で持つように直すこと。
-    #   ② もも焼きJAPAN に「仕入（やまなか）」の行が無い
-    #      2025年の明細には もも焼きのやまなか（8,800）がある。
-    #      fill2 が「!! 行が見つからない」で止まる。行を作るか、別の行に寄せるか要判断。
-    #   ③ 2025年の明細にしか出てこない取引先が14件・税込120,908円ある
-    #      （ヤフーとちぎ商店51,300／来福酒造23,045／酒の松本8,989／ケーズデンキ8,583／
-    #        Canva 8,300／藤原ストア7,600／松のや5,760／ヤマダ電機5,104 ほか）。
-    #      どの費目に入れるか利用者の判断が要る。
-    for path, m, src in [("csv/statement-2026-07.csv", 6, "statement-2026-07.csv"),
-                         ("csv/statement-2026-08.csv", 7, "statement-2026-08.csv"),
-                         ("csv/statement-2026-09.csv", 8, "statement-2026-09.csv")]:
-        d = load(path, m); d["_srcfile"] = src; frames.append(d)
+    # ★21期の12か月ぶん（利用者指示 2026-09-20「全月をカード明細から入れ直してみて」）。
+    #   ファイル名の年月 −1 が利用月＝PL列。statement-2026-09 は【2026年8月利用分】。
+    for path, y, m in [("csv/statement-2025-10.csv", 2025,  9),
+                       ("csv/statement-2025-11.csv", 2025, 10),
+                       ("csv/statement-2025-12.csv", 2025, 11),
+                       ("csv/statement-2026-01.csv", 2025, 12),
+                       ("csv/statement-2026-02.csv", 2026,  1),
+                       ("csv/statement-2026-03.csv", 2026,  2),
+                       ("csv/statement-2026-04.csv", 2026,  3),
+                       ("csv/statement-2026-05.csv", 2026,  4),
+                       ("csv/statement-2026-06.csv", 2026,  5),
+                       ("csv/statement-2026-07.csv", 2026,  6),
+                       ("csv/statement-2026-08.csv", 2026,  7),
+                       ("csv/statement-2026-09.csv", 2026,  8)]:
+        src = os.path.basename(path)
+        d = load(path, y, m); d["_srcfile"] = src; frames.append(d)
     d = pd.concat(frames, ignore_index=True)
     ok, hold = classify(d)
     ok.to_csv("out_meisai.csv", index=False, encoding="utf-8-sig")
