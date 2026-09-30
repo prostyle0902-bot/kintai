@@ -1648,6 +1648,69 @@ function payrollNameKey_(s) {
   return String(s || '').replace(/[\s　]/g, '');
 }
 
+/* ===== 給与一覧から人を消す ===========================================
+ * REMOVE_STAFF.from の日から始まる給与一覧すべてから、その人の
+ *   ・出勤簿のタブ
+ *   ・まとめの表（給与一覧表）の行
+ * を消して、まとめの表の番号を振り直す。
+ *
+ * 使い方：エディタの関数の選択欄で removeStaffFromPayroll を選んで「実行」。
+ *   その期間に出勤の記録がある月は、給与が消えてしまうので消さずに残し、
+ *   実行ログに「残しました」と出します。消すときは force を true にして、もう一度実行。
+ * ===================================================================== */
+var REMOVE_STAFF = { name: '小金澤登美', from: '2026-09-16', force: false };
+
+function removeStaffFromPayroll() {
+  var L = [];
+  var name = REMOVE_STAFF.name;
+  var files = payrollFiles_().files || [];
+  for (var f = files.length - 1; f >= 0; f--) {         // 古い順に
+    if (files[f].start < REMOVE_STAFF.from) continue;
+    try {
+      var ss = SpreadsheetApp.openById(files[f].id);
+      var sheet = payrollStaffSheet_(ss, name);
+      if (sheet) {
+        var days = payrollWorkedDays_(sheet);
+        if (days > 0 && !REMOVE_STAFF.force) {
+          L.push(files[f].title + '：' + days + '日出勤しているので残しました');
+          continue;
+        }
+        ss.deleteSheet(sheet);
+      }
+      var rows = payrollRemoveListRow_(ss, name);
+      if (!sheet && !rows) { L.push(files[f].title + '：もともとありません'); continue; }
+      L.push(files[f].title + '：' + (sheet ? 'タブを消しました' : 'タブはありません')
+        + '／給与一覧表の行 ' + rows + '行を消しました');
+    } catch (e) {
+      L.push(files[f].title + '：開けませんでした（' + String(e) + '）');
+    }
+  }
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+// まとめの表から、その人の行を消して番号を振り直す。消した行の数を返す
+function payrollRemoveListRow_(ss, name) {
+  var list = payrollListSheet_(ss);
+  if (!list) return 0;
+  var last = list.getLastRow();
+  if (last < 2) return 0;
+  var key = payrollNameKey_(name);
+  var vals = list.getRange(1, 1, last, 2).getValues();
+  var n = 0;
+  for (var r = vals.length - 1; r >= 0; r--) {          // 下から消すと行がずれない
+    if (payrollNameKey_(vals[r][1]) !== key) continue;
+    var a = vals[r][0];
+    var isNo = (typeof a === 'number' && a > 0) || /^[0-9]+$/.test(String(a).trim());
+    if (!isNo) continue;                                 // 店舗別合計などの行は触らない
+    list.deleteRow(r + 1);
+    n++;
+  }
+  if (n) payrollRenumber_(list);
+  return n;
+}
+
 /* ===== 給与一覧のファイルを調べる（読み取りだけ）=========================
  * 中身は一切変えません。構造を実行ログに出すだけです。
  *
