@@ -193,7 +193,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-30a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-30b</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -453,6 +453,48 @@ function loadCfg() {
 }
 function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
 
+/* 名簿の控え。
+   開いてすぐ一覧が出るように、前回の内容を端末に残しておく。
+   ただし住所・電話・メール・緊急連絡先は残さない。
+   端末を共有していても、一覧を出すだけなら要らないため。
+   「編集」や契約書は、読み直しが終わってから開く。 */
+const LS_STAFF = LS_KEY + '_staff';
+const CACHE_COLS = ['id','status','kind','pin','name','kana','dept','storeIds',
+  'shiftName','kyuyoName','payKind','payRate','commute','commuteKind',
+  'joinedAt','retiredAt','kyuyo','days','holidayOk',
+  'weekDays','paidAdjust','paidTaken','contractStatus','contractUrl'];
+
+function saveStaffCache(list) {
+  try {
+    const thin = (list || []).map(function (r) {
+      const o = {};
+      CACHE_COLS.forEach(function (k) { if (r[k] !== undefined && r[k] !== '') o[k] = r[k]; });
+      return o;
+    });
+    localStorage.setItem(LS_STAFF, JSON.stringify(thin));
+  } catch (e) { /* 残せなくても困らない */ }
+}
+
+function loadStaffCache() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_STAFF) || 'null');
+    return Array.isArray(v) ? v : null;
+  } catch (e) { return null; }
+}
+
+// 読み直しが終わるまで待つ。控えだけで「編集」を開くと、欄が空になるため
+let reloadPromise = null;
+let staffIsCache = false;
+async function ensureFresh() {
+  if (!staffIsCache) return true;
+  if (reloadPromise) { try { await reloadPromise; } catch (e) { /* 下で知らせる */ } }
+  if (staffIsCache) {
+    alert('名簿をまだ読み込めていません。少し待ってからもう一度お試しください。');
+    return false;
+  }
+  return true;
+}
+
 /* 手入力したURLを消して、アプリにはじめから入っているURLに戻す。
    「デプロイが見つかりません」が出たとき、まずこれを試す。 */
 function resetApiUrl() {
@@ -480,6 +522,8 @@ async function reload(showAlert) {
     const res = await apiGet({ action: 'staffList' });
     if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
     STAFF = res.staff || [];
+    staffIsCache = false;
+    saveStaffCache(STAFF);
     setState('ok', '名簿 ' + STAFF.filter(isActive).length + '名');
     if (showAlert) alert('最新の名簿を読み込みました。');
   } catch (e) {
@@ -1230,7 +1274,8 @@ function renderList() {
 function findRec(id) { return STAFF.find(function (r) { return r.id === id; }) || null; }
 
 // 名簿の1人を、入社登録と同じ入力画面に読み込む
-function openEdit(id) {
+async function openEdit(id) {
+  if (!(await ensureFresh())) return;
   const r = findRec(id);
   if (!r) return;
   F = blankForm();
@@ -1847,6 +1892,10 @@ function contractMissing(r) {
 }
 
 function contractBtn(r) {
+  // 控えを出しているあいだは、契約書の欄がそろっているか判断できない
+  if (staffIsCache) {
+    return '<button class="btn sm ghost" onclick="makeContract(\'' + r.id + '\')">契約書</button> ';
+  }
   const miss = contractMissing(r);
   if (miss.length) {
     return '<button class="btn sm ghost" title="' + esc(miss.join('・')) + ' が空です" '
@@ -1943,6 +1992,7 @@ function contractVars(r) {
 }
 
 async function makeContract(id) {
+  if (!(await ensureFresh())) return;
   const r = findRec(id);
   if (!r) return;
   const miss = contractMissing(r);
@@ -2340,7 +2390,8 @@ function paidDuty(bal, todayStr) {
 
 
 /* 有給の画面。残日数・付与の履歴・年5日の状況を見せ、取った日を足し引きする */
-function openPaid(id) {
+async function openPaid(id) {
+  if (!(await ensureFresh())) return;
   const r = findRec(id);
   if (!r) return;
   const bal = paidBalance(r, todayYmd());
@@ -2721,7 +2772,16 @@ function startApp(who) {
   if (chip) {
     chip.innerHTML = esc(who.name) + ' <button class="btn sm ghost" onclick="gateLogout()">ログアウト</button>';
   }
-  reload();
+  /* 前回の控えがあれば、先に出す。Apps Script の返事は数秒かかるので、
+     待っているあいだ真っ白にしないため。返事が来たら中身が入れ替わる。 */
+  const cached = loadStaffCache();
+  if (cached && cached.length && apiOn()) {
+    STAFF = cached;
+    staffIsCache = true;
+    renderAll();
+    setState('busy', '読込中…（前回の内容を表示中）');
+  }
+  reloadPromise = reload();
 }
 
 (function () {

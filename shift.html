@@ -700,7 +700,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-30a';
+const APP_VER = '2026-09-30b';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -3689,7 +3689,10 @@ function applyMaster(list) {
 }
 
 // 名簿を読みにいく。版数が変わっていなければ何もしない
-async function masterPull(force) {
+/* pending に「もう投げてある staffShift の約束」を渡せる。
+   開いたときの読み込みを速くするため、共有の読み込みと同時に投げておき、
+   反映だけをあとでする（先に名簿を当てると、共有の読み込みで上書きされてしまう）。 */
+async function masterPull(force, pending) {
   if (!syncOn()) return false;
   // 読めなかったとき用。すでに読めている名簿は捨てない
   const fail = function (why) {
@@ -3702,7 +3705,7 @@ async function masterPull(force) {
     n: masterState.n, reason: masterState.reason };
   try {
     // 住所や単価は受け取らない。シフトに要る欄だけの staffShift を使う
-    const res = await syncGet({ action: 'staffShift' });
+    const res = await (pending || syncGet({ action: 'staffShift' }));
     if (!res) return fail('Apps Script から返事がありません');
     if (res.status !== 'ok') {
       return fail(res.message || 'Apps Script が名簿を返しませんでした（staffShift）');
@@ -4769,7 +4772,13 @@ function startApp(who) {
   if (applySyncHash()) { DB = normalizeDB(DB); renderAll(); }
   // 共有が設定されていれば、開いたときに最新を読み込み、続けて共通スタッフ名簿も取り込む
   syncBase = loadBase();
-  if (syncOn()) syncPull().then(function () { return masterPull(true); }).then(renderWho);
+  if (syncOn()) {
+    /* 共有の読み込みと名簿の読み込みを同時に投げる。
+       Apps Script は1往復に数秒かかるので、順番に待つと倍かかっていた。
+       名簿を画面に当てるのは、共有の読み込みが終わったあと。 */
+    const master = syncGet({ action: 'staffShift' }).catch(function () { return null; });
+    syncPull().then(function () { return masterPull(true, master); }).then(renderWho);
+  }
   // あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
   startSyncWatch();
 }
