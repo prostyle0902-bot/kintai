@@ -1873,6 +1873,120 @@ function payrollTotalRows_(sheet) {
   return out;
 }
 
+/* ===== 給与一覧表の行を整える =========================================
+ * FIX_ROWS_FROM の日から始まる給与一覧すべてで、給与一覧表の行を整える。
+ *
+ *   ・REMOVE_ROWS の人の行を消す（出勤簿のタブが無い、空の行だけ）
+ *   ・2つの現場で働く人の、もう1つの現場のシート（「衣幡千明_海事横河」）に
+ *     行が無ければ、その現場の欄に「衣幡千明（海事・横河）」の行を足す
+ *   ・番号を振り直し、合計の式を引き直す
+ *
+ * 使い方：エディタの関数の選択欄で fixPayrollRows を選んで「実行」。
+ *   何度実行しても同じ結果になります。
+ * ===================================================================== */
+var FIX_ROWS_FROM = '2026-08-16';
+var REMOVE_ROWS = ['田村あつ子', '桜庭京子', '高瀬弥生子'];
+
+function fixPayrollRows() {
+  var L = [];
+  var files = payrollFiles_().files || [];
+  for (var f = files.length - 1; f >= 0; f--) {         // 古い順に
+    if (files[f].start < FIX_ROWS_FROM) continue;
+    try {
+      var ss = SpreadsheetApp.openById(files[f].id);
+      var res = payrollFixRows_(ss);
+      L.push(files[f].title + '：' + (res.length ? '\n　' + res.join('\n　') : '直すところはありませんでした'));
+    } catch (e) {
+      L.push(files[f].title + '：開けませんでした（' + String(e) + '）');
+    }
+  }
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+function payrollFixRows_(ss) {
+  var out = [];
+  var list = payrollListSheet_(ss);
+  if (!list) return ['給与一覧表が見つかりません'];
+
+  // 1. 空の行を消す（下から消すと行がずれない）
+  var lay = payrollListLayout_(list);
+  var keys = REMOVE_ROWS.map(payrollNameKey_);
+  for (var i = lay.people.length - 1; i >= 0; i--) {
+    var p = lay.people[i];
+    if (keys.indexOf(payrollNameKey_(p.name)) < 0) continue;
+    if (payrollStaffSheet_(ss, p.name) || payrollSideSheet_(ss, p.name)) {
+      out.push(p.name + '：出勤簿のタブがあるので、行は残しました');
+      continue;
+    }
+    list.deleteRow(p.row);
+    out.push(p.name + '：行を消しました');
+  }
+
+  // 2. もう1つの現場のシートに行が無ければ足す
+  lay = payrollListLayout_(list);
+  var have = {};
+  lay.people.forEach(function (p) {
+    var sh = payrollStaffSheet_(ss, p.name) || payrollSideSheet_(ss, p.name);
+    if (sh) have[sh.getName()] = true;
+  });
+  var all = ss.getSheets();
+  for (var s = 0; s < all.length; s++) {
+    var n = all[s].getName();
+    var k = n.lastIndexOf('_');
+    if (k <= 0 || have[n]) continue;
+    var key = n.slice(k + 1).replace(/[・\s　]/g, '');
+    var g = null;
+    for (var j = 0; j < lay.groups.length; j++) {
+      if (lay.groups[j].name.replace(/[・\s　]/g, '') === key) { g = lay.groups[j]; break; }
+    }
+    if (!g) continue;
+    var after = g.rows.length ? g.rows[g.rows.length - 1] : g.head;
+    var sample = lay.people.length ? lay.people[0].row : -1;
+    list.insertRowsAfter(after, 1);
+    if (sample > 0) {
+      if (sample > after) sample++;
+      list.getRange(sample, 1, 1, list.getLastColumn())
+        .copyTo(list.getRange(after + 1, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    }
+    var label = n.slice(0, k) + '（' + g.name + '）';
+    list.getRange(after + 1, 1).setValue(1);            // 番号はあとで振り直す
+    list.getRange(after + 1, 2).setValue(label);
+    out.push(g.name + 'の欄に「' + label + '」の行を足しました');
+    lay = payrollListLayout_(list);                     // 行がずれたので読み直す
+  }
+
+  // 3. 番号と合計の式
+  if (out.length) {
+    payrollRenumber_(list);
+    out = out.concat(payrollFixList_(ss));
+  }
+  return out;
+}
+
+// まとめの表の、現場の見出しと各人の行を調べる
+function payrollListLayout_(list) {
+  var last = list.getLastRow();
+  var vals = list.getRange(1, 1, last, 2).getValues();
+  var groups = [], people = [], cur = null;
+  for (var r = 0; r < last; r++) {
+    var a = String(vals[r][0] || '').trim();
+    if (a.indexOf('【') === 0) break;                    // 店舗別合計から下は見ない
+    if (a.indexOf('▶') === 0) {
+      cur = { name: a.replace(/^▶\s*/, '').trim(), head: r + 1, rows: [] };
+      groups.push(cur);
+      continue;
+    }
+    var nm = String(vals[r][1] || '').trim();
+    var isNo = (typeof vals[r][0] === 'number' && vals[r][0] > 0) || /^[0-9]+$/.test(a);
+    if (!cur || !isNo || !nm) continue;
+    cur.rows.push(r + 1);
+    people.push({ row: r + 1, name: nm });
+  }
+  return { groups: groups, people: people };
+}
+
 /* ===== 給与一覧のファイルを調べる（読み取りだけ）=========================
  * 中身は一切変えません。構造を実行ログに出すだけです。
  *
