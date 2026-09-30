@@ -2197,7 +2197,7 @@ function moveInto_(item, parent) {
 function staffShift_() {
   var sh = getStaffSheet_();
   var list = readStaff_(sh, staffHeader_(sh));
-  var keep = ['name', 'shiftName', 'kyuyoName', 'status', 'kind', 'kyuyo', 'storeIds',
+  var keep = ['id', 'name', 'shiftName', 'kyuyoName', 'status', 'kind', 'kyuyo', 'storeIds',
               'retiredAt', 'joinedAt', 'weekDays', 'paidAdjust', 'paidTaken',
               'days', 'holidayOk', 'startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend',
               'targetDays', 'maxDays', 'maxPerWeek'];

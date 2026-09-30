@@ -197,6 +197,10 @@
     border: 0.5px solid var(--border-md); background: var(--surface); font-family: inherit; }
   .slot-note { font-size: 11px; color: #92650a; margin-top: 8px; }
   .cell-adj { box-shadow: inset 0 0 0 2px #d4a017; }
+  /* 有給の日。出勤の緑と見分けられるよう紫にする */
+  .cell-paid { background: #EDE7F6; color: #4527A0; font-weight: 700; cursor: pointer; }
+  .paid-on td.cell-on { cursor: pointer; box-shadow: inset 0 0 0 1px #B39DDB; }
+  .with-times td.cell-paid { padding: 4px 5px; line-height: 1.25; }
   .adjust-on td.cell-on { cursor: cell; }
 
   .time-tag { font-size: 10.5px; color: var(--text-secondary); background: #eceff5;
@@ -391,6 +395,7 @@
         <button class="btn" onclick="doGenerate(true)">別パターンで作り直す</button>
         <button class="btn" id="btn-times" onclick="toggleShowTimes()">時間を表示</button>
         <button class="btn" id="btn-adjust" onclick="toggleAdjustMode()">時間を調整</button>
+        <button class="btn" id="btn-paid" onclick="togglePaidMode()">有給を入れる</button>
         <button class="btn ghost" onclick="clearShift()">シフトを消去</button>
         <button class="btn ghost" onclick="exportCsv()">CSV出力</button>
         <button class="btn ghost" onclick="exportTransferCsv(true)">転記用CSV</button>
@@ -695,7 +700,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-15j';
+const APP_VER = '2026-09-30a';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -1085,11 +1090,30 @@ function daySpans(st, sh, c, u) {
   });
 }
 
+/* ---------- 有給 ----------
+   出勤の割り当てはそのままに、「この日は有給」という印だけを別に持つ。
+   印が付いた日は、転記のときに出勤簿へ「有給」として送られる。
+   実際には働かない日なので、必要人数の数には入れない。 */
+function isPaid(sh, key, staffId) {
+  return !!(sh && sh.paid && sh.paid[key] && sh.paid[key].indexOf(staffId) >= 0);
+}
+
+function setPaid(sh, key, staffId, on) {
+  if (!sh.paid) sh.paid = {};
+  const cur = sh.paid[key] ? sh.paid[key].slice() : [];
+  const i = cur.indexOf(staffId);
+  if (on && i < 0) cur.push(staffId);
+  if (!on && i >= 0) cur.splice(i, 1);
+  if (cur.length) sh.paid[key] = cur; else delete sh.paid[key];
+}
+
 // 1日に埋まっている枠の数（パターンなしの現場は人数と同じ）
+// 有給の人は実際には働かないので、ここには数えない
 function filledSlots(st, sh, key) {
   if (!sh || !sh.days[key]) return 0;
-  if (!usesPatterns(st)) return sh.days[key].length;
-  return sh.days[key].reduce(function (a, id) {
+  const ids = sh.days[key].filter(function (id) { return !isPaid(sh, key, id); });
+  if (!usesPatterns(st)) return ids.length;
+  return ids.reduce(function (a, id) {
     return a + Math.max(1, getPatList(sh, key, id).length);
   }, 0);
 }
@@ -1746,6 +1770,16 @@ function renderShift() {
       if (on) counts[u.id]++;
       let cls, txt, title = '';
       if (c.closed) { cls = 'cell-closed'; txt = '－'; }
+      else if (on && isPaid(sh, c.key, u.id)) {
+        const spans = daySpans(st, sh, c, u);
+        cls = 'cell-paid';
+        txt = DB.showTimes
+          ? spans.map(function (s) {
+              return '<span class="cell-t">有 ' + esc(compactSpan(s.start, s.end)) + '</span>';
+            }).join('')
+          : '有';
+        title = '有給　' + spans.map(function (s) { return s.start + '〜' + s.end; }).join(' / ');
+      }
       else if (on) {
         const spans = daySpans(st, sh, c, u);
         cls = 'cell-on' + (req[c.key] === 'off' ? ' cell-conflict' : '')
@@ -1768,6 +1802,7 @@ function renderShift() {
       // 調整モードのときは、出勤している人のセルを押すと時間の編集を開く
       const editable = DB.adjustMode && on;
       const click = c.closed ? ''
+        : DB.paidMode ? (on ? ' onclick="togglePaid(\'' + u.id + '\',\'' + c.key + '\')"' : '')
         : editable ? ' onclick="openTimeEditor(\'' + c.key + '\',\'' + u.id + '\')"'
         : ' onclick="toggleCell(\'' + u.id + '\',\'' + c.key + '\')"';
       h += '<td class="' + cls + '"' + click + (title ? ' title="' + esc(title) + '"' : '') + '>' + txt + '</td>';
@@ -1791,6 +1826,7 @@ function renderShift() {
   wrap.innerHTML = h;
   wrap.classList.toggle('with-times', !!DB.showTimes);
   wrap.classList.toggle('adjust-on', !!DB.adjustMode);
+  wrap.classList.toggle('paid-on', !!DB.paidMode);
   const tb = document.getElementById('btn-times');
   if (tb) {
     tb.textContent = DB.showTimes ? '時間を隠す' : '時間を表示';
@@ -1800,6 +1836,11 @@ function renderShift() {
   if (ab) {
     ab.textContent = DB.adjustMode ? '調整をやめる' : '時間を調整';
     ab.classList.toggle('primary', !!DB.adjustMode);
+  }
+  const pb = document.getElementById('btn-paid');
+  if (pb) {
+    pb.textContent = DB.paidMode ? '有給をやめる' : '有給を入れる';
+    pb.classList.toggle('primary', !!DB.paidMode);
   }
   renderDaily(cal, sh);
   renderTransferInfo(st, sh);
@@ -1836,6 +1877,12 @@ function renderTransferInfo(st, sh) {
     + timeTxt + '<br />'
     + 'この期間のシフト：<b>' + n + '件</b>'
     + '（うち出勤簿へ送る対象者：<b>' + kyuyoN + '件</b>）。'
+    + (plan.filter(function (p) { return p.paid; }).length
+        ? '<br /><span style="color:#4527A0"><b>有給：'
+          + plan.filter(function (p) { return p.paid; }).length + '件</b>　'
+          + '出勤簿には「有給」として入り、その日の支給は0になります。'
+          + '名簿の有給の残日数からも引かれます。</span>'
+        : '')
     // 名簿が読めていないと「出勤簿へ転記する」が効かない。まずそこを出す
     + (masterNotes.length
         ? '<br /><span style="color:#a32d2d"><b>' + masterNotes.map(esc).join('<br />') + '</b></span>'
@@ -2893,6 +2940,26 @@ function apiParams(st, params) {
   return params;
 }
 
+/* 有給を取った日を、入社登録アプリの名簿にも記録する。
+   名簿の残日数が自動で減るようにするため。
+   同じ日を二度送っても増えない作りなので、転記をやり直しても平気。 */
+function rosterIdOf(shiftName) {
+  const t = normName(shiftName);
+  const rec = masterList.find(function (r) {
+    return normName(r.shiftName || r.name) === t || normName(r.name) === t;
+  });
+  return rec && rec.id ? String(rec.id) : '';
+}
+
+function notePaidTaken(staffName, date, remove) {
+  const id = rosterIdOf(staffName);
+  if (!id || !syncOn()) return Promise.resolve('skip');
+  return syncGet({ action: 'paidTake', id: id, date: date,
+                   remove: remove ? 'true' : 'false', by: ME || '' })
+    .then(function (res) { return (res && res.status === 'ok') ? 'ok' : 'ng'; })
+    .catch(function () { return 'ng'; });
+}
+
 /* 出勤簿へ送る対象者かどうか。
    空白の有無や異体字（山崎／山﨑 など）の違いだけで外れてしまうと、
    だまって転記されない人が出るため、ならしてから比べる。 */
@@ -3086,8 +3153,9 @@ function buildEvent(st, p) {
     break: autoBreak(p.staff, p.start, p.end),
     memo: '',
   };
+  // 有給の日。出勤簿では備考が「有給」になり、その日の支給は0になる
+  ev.paid = !!p.paid;
   if (st.dept === 'gyomu') {
-    ev.paid = false;
     // 業務課シフトには勤務パターンの欄があるのでそのまま渡す
     ev.patterns = p.pattern ? [p.pattern] : null;
   } else {
@@ -3136,9 +3204,11 @@ function buildTransferPlan(st) {
             date: c.key,
             store: st.name,
             staff: u.name,
+            staffId: u.id,
             start: s.start,
             end: s.end,
             pattern: s.code,
+            paid: isPaid(sh, c.key, u.id),
           });
         });
       });
@@ -3158,7 +3228,8 @@ function prevSent(v) {
 // こちらの予定の中身を1本の文字列にする（前回送ったものと見比べるため）
 function planSig(st, p) {
   return [p.staff, p.start, p.end, autoBreak(p.staff, p.start, p.end),
-    st.dept === 'gyomu' ? (p.pattern || '') : ''].join('|');
+    st.dept === 'gyomu' ? (p.pattern || '') : '',
+    p.paid ? '有給' : ''].join('|');
 }
 
 // 連携先にあるものと、こちらが送ろうとしているものが同じ中身か
@@ -3224,6 +3295,13 @@ async function transferStore(st, ym, report) {
 
   const ids = {};
   let added = 0, updated = 0, skipped = 0, removed = 0, resent = 0, kyuyoOk = 0, kyuyoNg = 0;
+  // 有給の付け外しを、名簿にも反映する（あとでまとめて送る）
+  const paidJobs = [];
+  const notePaid = function (p, was) {
+    const before = !!(was && was.sig && was.sig.indexOf('有給') >= 0);
+    if (p.paid === before) return;
+    paidJobs.push({ staff: p.staff, date: p.date, remove: !p.paid });
+  };
   // 失敗した人と、その理由（同じものはまとめる）
   const kyuyoNgList = [];
   const countKyuyo = function (k) {
@@ -3252,6 +3330,7 @@ async function transferStore(st, ym, report) {
         /* シフトの中身が前と同じでも、出勤簿に届いたと確認できていないものは送り直す。
            名簿で「出勤簿へ転記する」を後から入れた人は、シフトが変わらないため
            いつまでも「そのまま」扱いになり、出勤簿にいつまでも入らなかった。 */
+        notePaid(p, was);
         if (isKyuyoTarget(ev.staff) && (forceKyuyo || was.k !== 'ok')) {
           ev.id = was.id;
           const k = await kyuyoCall('writeShift', ev);
@@ -3272,6 +3351,7 @@ async function transferStore(st, ym, report) {
         if (!ev.memo && mine.memo) ev.memo = mine.memo;   // 連携先で書かれたメモは残す
         await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
       }
+      notePaid(p, was);
       const ku = await kyuyoCall('writeShift', ev);
       countKyuyo(ku);
       ids[p.key] = { id: ev.id, sig: sig, ev: ev, k: ku.state };
@@ -3295,6 +3375,7 @@ async function transferStore(st, ym, report) {
     if (was && was.id) ev.id = was.id;
 
     if (useCal) await jsonpCall(TRANSFER_API, apiParams(st, { action: 'saveShift', data: ev }));
+    notePaid(p, was);
     const ka = await kyuyoCall('writeShift', ev);
     countKyuyo(ka);
     ids[p.key] = { id: ev.id, sig: sig, ev: ev, k: ka.state };
@@ -3323,11 +3404,20 @@ async function transferStore(st, ym, report) {
     removed++;
   }
 
+  // 有給の付け外しを名簿へ。1件ずつ順に送る（まとめて送ると受けきれない）
+  let paidOk = 0;
+  for (let q = 0; q < paidJobs.length; q++) {
+    if (transferCancelled) break;
+    const j = paidJobs[q];
+    if (await notePaidTaken(j.staff, j.date, j.remove) === 'ok') paidOk++;
+  }
+
   DB.transfers[key] = { ids: ids, at: new Date().toISOString(),
     added: added, updated: updated, skipped: skipped, removed: removed, resent: resent };
   saveDB();
   return { added: added, updated: updated, skipped: skipped, removed: removed, total: plan.length,
-    resent: resent, kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg, kyuyoNgList: kyuyoNgList };
+    resent: resent, kyuyoOk: kyuyoOk, kyuyoNg: kyuyoNg, kyuyoNgList: kyuyoNgList,
+    paidJobs: paidJobs.length, paidOk: paidOk };
 }
 
 async function runTransfer(stores, ym) {
@@ -3403,6 +3493,7 @@ async function runTransfer(stores, ym) {
         + (r.resent ? '・送り直し ' + r.resent : '')
         + '・そのまま ' + r.skipped
         + (r.removed ? '・取消 ' + r.removed : '')
+        + (r.paidJobs ? '／有給 ' + r.paidOk + '/' + r.paidJobs + '件を名簿に記録' : '')
         + '／出勤簿 ' + r.kyuyoOk + '件'
         + (r.kyuyoNg ? '（失敗 ' + r.kyuyoNg + '件：' + r.kyuyoNgList.join('、') + '）' : ''));
     }
@@ -4097,9 +4188,35 @@ function toggleShowTimes() {
    ========================================================= */
 let editTarget = null;   // { key, staffId }
 
+/* 有給モード。出勤している人のセルを押すと、有給の印が付く／外れる。
+   実際に働かない日なので、必要人数の数からは外れる。 */
+function togglePaidMode() {
+  DB.paidMode = !DB.paidMode;
+  if (DB.paidMode) DB.adjustMode = false;
+  saveDB(); renderShift();
+}
+
+function togglePaid(staffId, key) {
+  const st = store();
+  const sh = getShift();
+  if (!sh || !sh.days[key] || sh.days[key].indexOf(staffId) < 0) return;
+  const u = (st.staff || []).find(function (x) { return x.id === staffId; });
+  const now = isPaid(sh, key, staffId);
+
+  if (!now && u && !isKyuyoTarget(u.name)) {
+    if (!confirm(u.name + ' さんは出勤簿へ送る対象ではありません。\n\n'
+      + '印は付けられますが、出勤簿には届きません。\n'
+      + '入社登録アプリの名簿で「出勤簿（給与）へ転記する」を確かめてください。\n\n'
+      + 'このまま印を付けますか？')) return;
+  }
+  setPaid(sh, key, staffId, !now);
+  setShift(sh);
+  renderShift();
+}
+
 function toggleAdjustMode() {
   DB.adjustMode = !DB.adjustMode;
-  if (DB.adjustMode) DB.showTimes = true;   // 調整するときは時間が見えていた方がよい
+  if (DB.adjustMode) { DB.paidMode = false; DB.showTimes = true; }   // 調整するときは時間が見えていた方がよい
   saveDB(); renderShift();
 }
 
