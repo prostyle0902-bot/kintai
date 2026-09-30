@@ -888,6 +888,7 @@ function payrollAdd_(p) {
       list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
       list.getRange(g.last + 1, 2).setValue(name);
       payrollRenumber_(list);
+      payrollFixList_(ss);          // 写した式は上の人のシートを見ているので引き直す
 
       done.push(ss.getName());
     } catch (e) {
@@ -1707,8 +1708,139 @@ function payrollRemoveListRow_(ss, name) {
     list.deleteRow(r + 1);
     n++;
   }
-  if (n) payrollRenumber_(list);
+  if (n) { payrollRenumber_(list); payrollFixList_(ss); }
   return n;
+}
+
+/* ===== 給与一覧表の合計を直す =========================================
+ * 給与一覧表（まとめの表）の式を、各人の出勤簿に合わせて引き直す。
+ *
+ *   ・各人の行：出勤日数・実働・深夜・差引支給額を、その人自身のシートの
+ *     「合計」行と「差引支給額」行（合算支給額があればそちら）から取る
+ *   ・店舗別合計：その現場の人の行をぜんぶ足す
+ *   ・総合計：店舗別合計をぜんぶ足す
+ *
+ * 使い方：エディタの関数の選択欄で fixPayrollTotals を選んで「実行」。
+ *   FIX_TOTALS_FROM の日から始まる給与一覧すべてを直します。
+ *   実行ログに、直したところが出ます。何度実行しても同じ結果になります。
+ * ===================================================================== */
+var FIX_TOTALS_FROM = '2026-09-16';
+
+function fixPayrollTotals() {
+  var L = [];
+  var files = payrollFiles_().files || [];
+  for (var f = files.length - 1; f >= 0; f--) {         // 古い順に
+    if (files[f].start < FIX_TOTALS_FROM) continue;
+    try {
+      var ss = SpreadsheetApp.openById(files[f].id);
+      var res = payrollFixList_(ss);
+      L.push(files[f].title + '：' + (res.length ? '\n　' + res.join('\n　') : '直すところはありませんでした'));
+    } catch (e) {
+      L.push(files[f].title + '：開けませんでした（' + String(e) + '）');
+    }
+  }
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+/* まとめの表の式を引き直す。直したところを文字の配列で返す。
+
+   これまで、人を足すときは上の人の行を写していたため、
+   式が上の人のシートを1行ずれて見ていた（小金澤登美江さんの行が
+   小金澤登美さんのシートを見ていた）。店舗別合計の範囲も広がらず、
+   足した人が合計に入っていなかった。
+   総合計は、各人の行と店舗別合計の両方を足していて、二重になっていた。 */
+function payrollFixList_(ss) {
+  var out = [];
+  var list = payrollListSheet_(ss);
+  if (!list) return ['給与一覧表が見つかりません'];
+  var last = list.getLastRow();
+  var vals = list.getRange(1, 1, last, 6).getValues();
+  var fmls = list.getRange(1, 1, last, 6).getFormulas();
+
+  var groups = [], cur = null, subStart = -1;
+  for (var r = 0; r < last; r++) {
+    var a = String(vals[r][0] || '').trim();
+    if (a.indexOf('【') === 0 && a.indexOf('店舗別合計') >= 0) { subStart = r; break; }
+    if (a.indexOf('▶') === 0) {
+      cur = { name: a.replace(/^▶\s*/, '').trim(), rows: [] };
+      groups.push(cur);
+      continue;
+    }
+    var nm = String(vals[r][1] || '').trim();
+    var isNo = (typeof vals[r][0] === 'number' && vals[r][0] > 0) || /^[0-9]+$/.test(a);
+    if (!cur || !isNo || !nm) continue;
+    cur.rows.push(r + 1);
+
+    // --- 各人の行 ---
+    var sheet = payrollStaffSheet_(ss, nm);
+    if (!sheet) {
+      if (fmls[r][2] || fmls[r][5]) out.push(nm + '：出勤簿のタブがありません（式はそのまま）');
+      continue;
+    }
+    var pos = payrollTotalRows_(sheet);
+    if (pos.total < 0 || pos.pay < 0) { out.push(nm + '：出勤簿の形が分からないため、そのままにしました'); continue; }
+    var q = "='" + sheet.getName().replace(/'/g, "''") + "'!";
+    var want = [q + 'D' + pos.total, q + 'G' + pos.total, q + 'H' + pos.total, q + 'G' + pos.pay];
+    var changed = false;
+    for (var c = 0; c < 4; c++) {
+      if (fmls[r][2 + c] !== want[c]) { list.getRange(r + 1, 3 + c).setFormula(want[c]); changed = true; }
+    }
+    if (changed) out.push(nm + '：式を直しました（' + (fmls[r][5] || '差引支給額が空') + ' → ' + want[3] + '）');
+  }
+  if (subStart < 0) { out.push('【 店舗別合計 】が見つかりません'); return out; }
+
+  // --- 店舗別合計と総合計 ---
+  var firstSub = -1, lastSub = -1, totalRow = -1;
+  for (var s = subStart + 1; s < last; s++) {
+    var t = String(vals[s][0] || '').trim();
+    if (!t) continue;
+    if (t === '総合計') { totalRow = s + 1; break; }
+    var g = null;
+    for (var k = 0; k < groups.length; k++) if (groups[k].name === t) { g = groups[k]; break; }
+    if (firstSub < 0) firstSub = s + 1;
+    lastSub = s + 1;
+    if (!g) { out.push('店舗別合計の「' + t + '」に当たる現場が見つかりません（そのまま）'); continue; }
+    var f = g.rows.length
+      ? '=SUM(' + g.rows.map(function (x) { return 'F' + x; }).join(',') + ')'
+      : '=0';
+    // 行が続いているときは F6:F8 の形にする（見やすいため）
+    if (g.rows.length && g.rows[g.rows.length - 1] - g.rows[0] === g.rows.length - 1) {
+      f = g.rows.length === 1 ? '=SUM(F' + g.rows[0] + ')'
+                              : '=SUM(F' + g.rows[0] + ':F' + g.rows[g.rows.length - 1] + ')';
+    }
+    if (fmls[s][5] !== f) {
+      list.getRange(s + 1, 6).setFormula(f);
+      out.push('店舗別合計 ' + t + '：' + (fmls[s][5] || '空') + ' → ' + f);
+    }
+  }
+  if (totalRow > 0 && firstSub > 0) {
+    var tf = '=SUM(F' + firstSub + ':F' + lastSub + ')';
+    if (fmls[totalRow - 1][5] !== tf) {
+      list.getRange(totalRow, 6).setFormula(tf);
+      out.push('総合計：' + (fmls[totalRow - 1][5] || '空') + ' → ' + tf);
+    }
+  }
+  return out;
+}
+
+/* 出勤簿の「合計」行と、支給額の行を探す。
+   2つの現場で働く人は「合算支給額」の行があるので、そちらを使う。 */
+function payrollTotalRows_(sheet) {
+  var last = Math.min(sheet.getLastRow(), 90);
+  var out = { total: -1, pay: -1 };
+  if (last < 2) return out;
+  var b = sheet.getRange(1, 2, last, 1).getValues();
+  var sashi = -1, gassan = -1;
+  for (var r = 0; r < last; r++) {
+    var v = String(b[r][0] || '').trim();
+    if (out.total < 0 && v === '合計') out.total = r + 1;
+    if (sashi < 0 && v.indexOf('差引支給額') === 0) sashi = r + 1;
+    if (gassan < 0 && v.indexOf('合算支給額') === 0) gassan = r + 1;
+  }
+  out.pay = gassan > 0 ? gassan : sashi;
+  return out;
 }
 
 /* ===== 給与一覧のファイルを調べる（読み取りだけ）=========================
