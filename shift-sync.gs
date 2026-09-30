@@ -144,6 +144,7 @@ function handle_(p, cb) {
       if (p.action === 'staffImport') return json_(staffImport_(p), cb);
       if (p.action === 'staffFill') return json_(staffFill_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
+      if (p.action === 'paidTake') return json_(paidTake_(p), cb);
       if (p.action === 'contractMake') return json_(contractMake_(p), cb);
       if (p.action === 'staffDelete') return json_(staffDelete_(p), cb);
       if (p.action === 'rosterExport') return json_(rosterExport_(), cb);
@@ -279,6 +280,14 @@ var STAFF_COLS = [
   'startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend',
   'targetDays', 'maxDays', 'maxPerWeek',
   'note',
+
+  /* 年次有給休暇。労基法39条。
+     付与日数は入社日と「週の所定労働日数」から自動で出すので、
+     ここに持つのは計算の材料だけにする。 */
+  'weekDays',    // 週の所定労働日数（1〜5）。空なら5日として扱う
+  'paidAdjust',  // 有給の調整日数。この仕組みを入れる前の繰越などを＋−で入れる
+  'paidTaken',   // 有給を取った日。JSONの配列 ["2026-09-19", ...]
+
   'updatedAt', 'updatedBy',
 
   /* ここから下は雇用契約書のための欄。
@@ -329,7 +338,8 @@ var STAFF_COLS = [
 
 // 数字として扱う列（空欄は0にする）
 var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek',
-                      'breakMin', 'trialMonths', 'totalYears'];
+                      'breakMin', 'trialMonths', 'totalYears',
+                      'weekDays', 'paidAdjust'];
 // はい／いいえで扱う列
 var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk',
                        'overtime', 'raise', 'bonus', 'severance', 'socialIns', 'empIns'];
@@ -652,6 +662,49 @@ function staffFill_(p) {
 }
 
 // 退職にする。行は消さずに status を retired にして履歴を残す
+/* 有給を取った日を、名簿に足す／消す。
+   名簿ぜんぶを書き戻すと、ほかの欄をうっかり消すおそれがあるので、
+   この欄だけを読んで直して書く。 */
+function paidTake_(p) {
+  var id = String(p.id || '').trim();
+  var date = String(p.date || '').slice(0, 10);
+  if (!id) return { status: 'error', message: '誰のぶんかが分かりません' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { status: 'error', message: '日付の形が違います' };
+
+  var sh = getStaffSheet_();
+  var head = staffHeader_(sh);
+  var list = readStaff_(sh, head);
+  var target = null;
+  for (var i = 0; i < list.length; i++) if (list[i].id === id) { target = list[i]; break; }
+  if (!target) return { status: 'error', message: 'その人は名簿にいません' };
+
+  var arr = [];
+  try { arr = JSON.parse(String(target.paidTaken || '[]')); } catch (e) { arr = []; }
+  if (Object.prototype.toString.call(arr) !== '[object Array]') arr = [];
+
+  var out = [], seen = {};
+  for (var k = 0; k < arr.length; k++) {
+    var d = String(arr[k] || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || seen[d]) continue;
+    seen[d] = true;
+    out.push(d);
+  }
+  if (String(p.remove) === 'true') {
+    var kept = [];
+    for (var m = 0; m < out.length; m++) if (out[m] !== date) kept.push(out[m]);
+    out = kept;
+  } else if (!seen[date]) {
+    out.push(date);
+  }
+  out.sort();
+
+  target.paidTaken = JSON.stringify(out);
+  target.updatedAt = nowStamp_();
+  target.updatedBy = String(p.by || '');
+  sh.getRange(target._row, 1, 1, head.length).setValues([staffObjToRow_(target, head)]);
+  return { status: 'ok', staffRev: bumpStaffRev_(), rec: target };
+}
+
 function staffRetire_(p) {
   var sh = getStaffSheet_();
   var head = staffHeader_(sh);
@@ -2145,7 +2198,7 @@ function staffShift_() {
   var sh = getStaffSheet_();
   var list = readStaff_(sh, staffHeader_(sh));
   var keep = ['name', 'shiftName', 'kyuyoName', 'status', 'kind', 'kyuyo', 'storeIds',
-              'retiredAt',
+              'retiredAt', 'joinedAt', 'weekDays', 'paidAdjust', 'paidTaken',
               'days', 'holidayOk', 'startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend',
               'targetDays', 'maxDays', 'maxPerWeek'];
   var out = [];

@@ -193,7 +193,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-16c</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-30a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -507,6 +507,7 @@ function blankForm() {
     startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
     payKind: 'hourly', payRate: 0, commuteKind: 'none', commute: 0,
+    weekDays: 5, paidAdjust: 0,
     shiftName: '', kyuyoName: '', note: '',
 
     // 本人の連絡先
@@ -673,7 +674,25 @@ function renderNew() {
     + '<div class="hint">' + (F.kind === 'part'
         ? 'PA勤怠（kintai-pa）に入ります。' : '勤怠（index.html）に入ります。') + '</div></div>'
     + '<div class="field"><label>入社日</label>'
-    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setJoinedAt(this.value)" /></div>'
+    + '<input type="date" value="' + esc(F.joinedAt) + '" onchange="setJoinedAt(this.value)" />'
+    + '<div class="hint">有給の付与日は、この日から6か月後です。</div></div>'
+    + '</div>'
+    + '<div class="grid2">'
+    + '<div class="field"><label>週の所定労働日数</label>'
+    + '<div class="chip-row">'
+    + [5,4,3,2,1].map(function (n) {
+        return '<span class="chip' + (Number(F.weekDays) === n ? ' on' : '') + '"'
+          + ' onclick="setF(\'weekDays\',' + n + ')">週' + n + '日</span>';
+      }).join('')
+    + '</div>'
+    + '<div class="hint">有給の日数がこれで決まります（労基法39条）。'
+    + '週5日は6か月で10日、週3日なら5日です。'
+    + '週4日以下でも<b>週30時間以上</b>働くなら「週5日」を選んでください。</div></div>'
+    + '<div class="field"><label>有給の調整日数</label>'
+    + '<input type="number" step="0.5" value="' + esc(String(F.paidAdjust || 0)) + '"'
+    + ' onchange="setF(\'paidAdjust\', +this.value || 0)" />'
+    + '<div class="hint">この仕組みを入れる前の残日数を、ここで足し引きします。'
+    + '入社日からの自動計算に、この数を足します。ふだんは 0 のままで構いません。</div></div>'
     + '</div>'
     + '<div class="grid2">'
     + '<div class="field"><label>氏名<span class="req">必須</span></label>'
@@ -967,6 +986,8 @@ async function submitNew() {
     allowances: JSON.stringify(F.allowances.filter(function (a) { return a.name && a.amount; })),
     raise: !!F.raise, bonus: !!F.bonus, severance: !!F.severance,
     socialIns: !!F.socialIns, empIns: !!F.empIns,
+    weekDays: F.weekDays || 5, paidAdjust: F.paidAdjust || 0,
+    // paidTaken はここでは送らない。送らなければ名簿の値がそのまま残る
   };
   if (F.timeMode === 'custom') {
     rec.startTime = F.startTime; rec.endTime = F.endTime;
@@ -1172,7 +1193,8 @@ function renderList() {
   }
 
   h += '<div class="card" style="padding:.5rem"><div class="table-wrap"><table><thead><tr>'
-    + '<th>氏名</th><th>区分</th><th>PIN</th><th>所属</th><th>シフトの現場</th><th>入社日</th><th></th>'
+    + '<th>氏名</th><th>区分</th><th>PIN</th><th>所属</th><th>シフトの現場</th><th>入社日</th>'
+    + '<th>有給</th><th></th>'
     + '</tr></thead><tbody>';
   rows.forEach(function (r) {
     const sids = storeIdsOf(r);
@@ -1189,9 +1211,11 @@ function renderList() {
       + '<td>' + esc(r.dept) + '</td>'
       + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
       + '<td class="muted">' + esc(r.joinedAt || '') + '</td>'
+      + '<td style="white-space:nowrap">' + paidShort(r) + '</td>'
       + '<td style="text-align:right;white-space:nowrap">'
       + (isActive(r) ? contractBtn(r) : '')
       + (isActive(r) && r.kyuyo ? '<button class="btn sm" onclick="openPayroll(\'' + r.id + '\')">給与一覧</button> ' : '')
+      + '<button class="btn sm" onclick="openPaid(\'' + r.id + '\')">有給</button> '
       + '<button class="btn sm ghost" onclick="openEdit(\'' + r.id + '\')">編集</button> '
       + (isActive(r)
           ? '<button class="btn sm danger" onclick="openRetire(\'' + r.id + '\')">退職</button>'
@@ -1222,6 +1246,7 @@ function openEdit(id) {
   F.commute = +r.commute || 0;
   F.commuteKind = (r.commuteKind === 'daily' || r.commuteKind === 'monthly') ? r.commuteKind : 'none';
   F.targetDays = +r.targetDays || 0; F.maxDays = +r.maxDays || 0; F.maxPerWeek = +r.maxPerWeek || 0;
+  F.weekDays = +r.weekDays || 5; F.paidAdjust = +r.paidAdjust || 0;
   if (r.startTime || r.endTime) {
     F.timeMode = 'custom';
     F.startTime = r.startTime || ''; F.endTime = r.endTime || '';
@@ -2191,6 +2216,239 @@ async function runAllRates(dryRun) {
   }
   if (b1) b1.disabled = false;
   if (b2) b2.disabled = false;
+}
+
+
+/* =========================================================
+   年次有給休暇（労働基準法39条）
+
+   付与日数は「入社日」と「週の所定労働日数」で決まる。
+   入社から6か月で最初の付与、以後1年ごと。
+   時効は2年。取ったぶんは、古い付与から先に減らす。
+
+   この仕組みを入れる前の繰越は「調整日数」で足し引きする。
+   ========================================================= */
+
+// 週5日以上、または週30時間以上の人
+const PAID_FULL = [10, 11, 12, 14, 16, 18, 20];
+// 週4日以下かつ週30時間未満の人（比例付与）
+const PAID_PART = {
+  4: [7, 8, 9, 10, 12, 13, 15],
+  3: [5, 6, 6,  8,  9, 10, 11],
+  2: [3, 4, 4,  5,  6,  6,  7],
+  1: [1, 2, 2,  2,  3,  3,  3],
+};
+
+function paidTable(weekDays) {
+  const w = Number(weekDays) || 5;
+  if (w >= 5) return PAID_FULL;
+  return PAID_PART[w] || PAID_FULL;
+}
+
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0');
+}
+function parseYmd(v) {
+  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+function todayYmd() { return ymd(new Date()); }
+
+// 名簿の「有給を取った日」を、重複を除いた古い順の配列にする
+function paidTakenList(raw) {
+  let arr = raw;
+  if (typeof arr === 'string') {
+    const t = arr.trim();
+    if (!t) return [];
+    try { arr = JSON.parse(t); } catch (e) { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  const seen = {}, out = [];
+  arr.forEach(function (x) {
+    const d = String(x || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || seen[d]) return;
+    seen[d] = true; out.push(d);
+  });
+  return out.sort();
+}
+
+// 入社日から今日までの付与を並べる
+function paidGrants(joinedAt, weekDays, today) {
+  const j = parseYmd(joinedAt);
+  if (!j) return [];
+  const tbl = paidTable(weekDays);
+  const out = [];
+  for (let i = 0; i < 50; i++) {
+    const d = new Date(j.getFullYear(), j.getMonth(), j.getDate());
+    d.setMonth(d.getMonth() + 6 + i * 12);
+    if (ymd(d) > today) break;
+    const exp = new Date(d.getFullYear() + 2, d.getMonth(), d.getDate());
+    const days = tbl[Math.min(i, tbl.length - 1)];
+    out.push({ date: ymd(d), days: days, left: days, expires: ymd(exp) });
+  }
+  return out;
+}
+
+/* 残日数を出す。
+   取った日を、その日に有効な いちばん古い付与から1日ずつ減らす。
+   どの付与にも結び付かない取得（付与前に取ったなど）は「超過」として素直に引く。 */
+function paidBalance(rec, todayStr) {
+  const today = todayStr || todayYmd();
+  const grants = paidGrants(rec.joinedAt, rec.weekDays, today);
+  const taken = paidTakenList(rec.paidTaken);
+  let over = 0;
+
+  taken.forEach(function (t) {
+    let hit = null;
+    for (let i = 0; i < grants.length; i++) {
+      const g = grants[i];
+      if (g.left > 0 && g.date <= t && t < g.expires) { hit = g; break; }
+    }
+    if (hit) hit.left--; else over++;
+  });
+
+  let live = 0;
+  grants.forEach(function (g) { if (today < g.expires) live += g.left; });
+
+  const adjust = Number(rec.paidAdjust) || 0;
+  return {
+    grants: grants, taken: taken, over: over, adjust: adjust,
+    left: live + adjust - over,
+    known: !!parseYmd(rec.joinedAt) || !!adjust,
+  };
+}
+
+/* 年5日の取得義務（2019年4月〜）。
+   10日以上付与された人は、付与日から1年のあいだに5日取らせる義務がある。
+   違反は1人につき30万円以下の罰金。 */
+function paidDuty(bal, todayStr) {
+  const today = todayStr || todayYmd();
+  let g = null;
+  for (let i = bal.grants.length - 1; i >= 0; i--) {
+    if (bal.grants[i].days >= 10) { g = bal.grants[i]; break; }
+  }
+  if (!g) return null;
+  const s = parseYmd(g.date);
+  const end = ymd(new Date(s.getFullYear() + 1, s.getMonth(), s.getDate()));
+  const n = bal.taken.filter(function (t) { return t >= g.date && t < end; }).length;
+  const limit = new Date(s.getFullYear() + 1, s.getMonth(), s.getDate() - 1);
+  return { from: g.date, until: ymd(limit), taken: n, need: 5,
+           ok: n >= 5, over: today >= end };
+}
+
+
+/* 有給の画面。残日数・付与の履歴・年5日の状況を見せ、取った日を足し引きする */
+function openPaid(id) {
+  const r = findRec(id);
+  if (!r) return;
+  const bal = paidBalance(r, todayYmd());
+  const duty = paidDuty(bal, todayYmd());
+  const today = todayYmd();
+
+  let h = '<div class="card-title">' + esc(r.name) + ' さんの有給</div>';
+
+  if (!parseYmd(r.joinedAt)) {
+    h += '<div class="alert warn"><b>入社日が入っていないので、付与日数を計算できません。</b><br />'
+      + '「編集」から入社日を入れてください。'
+      + 'それまでは「有給の調整日数」に残日数を直接入れて使えます。</div>';
+  }
+
+  h += '<div class="alert ' + (bal.left > 0 ? 'ok' : 'info') + '" style="font-size:1.1rem">'
+    + '<b>残り ' + bal.left + '日</b>'
+    + '<span class="muted" style="font-size:.85rem;margin-left:.6em">' + esc(today) + ' 時点</span></div>';
+
+  if (duty) {
+    h += duty.ok
+      ? '<div class="alert ok"><b>年5日の取得義務：満たしています</b>（'
+        + esc(duty.from) + '〜' + esc(duty.until) + ' に ' + duty.taken + '日）</div>'
+      : '<div class="alert ' + (duty.over ? 'err' : 'warn') + '">'
+        + '<b>年5日の取得義務：あと ' + (duty.need - duty.taken) + '日</b><br />'
+        + esc(duty.until) + ' までに 5日 取らせる必要があります（いま ' + duty.taken + '日）。'
+        + (duty.over ? '<br /><b>期限を過ぎています。</b>' : '')
+        + '<br /><span class="muted">10日以上付与された人が対象です。'
+        + '違反は1人につき30万円以下の罰金（労基法120条）。</span></div>';
+  }
+
+  h += '<div class="card-desc" style="margin-top:1rem"><b>付与の履歴</b></div>';
+  if (!bal.grants.length) {
+    h += '<div class="muted">まだ付与されていません。</div>';
+  } else {
+    h += '<div class="table-wrap"><table><thead><tr>'
+      + '<th>付与日</th><th>日数</th><th>残り</th><th>時効</th></tr></thead><tbody>';
+    bal.grants.forEach(function (g) {
+      const dead = today >= g.expires;
+      h += '<tr' + (dead ? ' class="muted"' : '') + '><td>' + esc(g.date) + '</td>'
+        + '<td>' + g.days + '日</td>'
+        + '<td>' + (dead ? '—' : g.left + '日') + '</td>'
+        + '<td>' + esc(g.expires) + (dead ? '（時効）' : '') + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  if (bal.adjust) {
+    h += '<div class="muted">調整日数：' + (bal.adjust > 0 ? '＋' : '') + bal.adjust + '日</div>';
+  }
+  if (bal.over) {
+    h += '<div class="alert warn">付与されていない日に取った記録が ' + bal.over + '日あります。'
+      + 'そのぶんは残日数から引いています。</div>';
+  }
+
+  h += '<div class="card-desc" style="margin-top:1rem"><b>取った日</b>'
+    + '（' + bal.taken.length + '日）</div>'
+    + '<div class="inline" style="margin-bottom:.6rem">'
+    + '<input type="date" id="paid-date" value="' + esc(today) + '" />'
+    + '<button class="btn" onclick="addPaid(\'' + r.id + '\')">取った日を足す</button></div>';
+  if (!bal.taken.length) {
+    h += '<div class="muted">まだありません。</div>';
+  } else {
+    h += '<div class="chip-row">'
+      + bal.taken.slice().reverse().map(function (t) {
+          return '<span class="chip">' + esc(t)
+            + ' <a href="#" onclick="delPaid(\'' + r.id + '\',\'' + t + '\');return false"'
+            + ' style="color:#a32d2d;text-decoration:none">×</a></span>';
+        }).join('')
+      + '</div>';
+  }
+
+  h += '<div class="row-actions" style="margin-top:1rem">'
+    + '<button class="btn ghost" onclick="closeSheet()">閉じる</button></div>';
+  openSheet(h);
+}
+
+async function addPaid(id) {
+  const d = document.getElementById('paid-date').value;
+  if (!d) return;
+  await savePaid(id, d, false);
+}
+async function delPaid(id, d) {
+  if (!confirm(d + ' の有給の記録を消します。よろしいですか？')) return;
+  await savePaid(id, d, true);
+}
+async function savePaid(id, d, remove) {
+  setState('busy', '保存中…');
+  try {
+    const res = await apiPost({ action: 'paidTake', id: id, date: d,
+      remove: remove ? 'true' : 'false' });
+    if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+    await reload();
+    openPaid(id);
+  } catch (e) {
+    alert('保存できませんでした：' + e.message);
+    setState('err', e.message);
+  }
+}
+
+// 一覧に出す、有給の残りの短い表示
+function paidShort(r) {
+  const bal = paidBalance(r, todayYmd());
+  if (!bal.known) return '<span class="muted">—</span>';
+  const duty = paidDuty(bal, todayYmd());
+  const warn = duty && !duty.ok;
+  return '<span' + (warn ? ' style="color:#a32d2d;font-weight:600"' : '') + '>'
+    + bal.left + '日</span>'
+    + (warn ? '<br /><span class="muted" style="font-size:.8em">年5日 あと'
+              + (duty.need - duty.taken) + '</span>' : '');
 }
 
 // 単価の出し方（画面に出す用）
