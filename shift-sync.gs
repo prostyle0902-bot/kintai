@@ -1090,6 +1090,37 @@ function payrollDetailRows_(sheet) {
   return out;
 }
 
+/* 明細にいまある手当と、名簿の諸手当を合わせた「あるべき形」を返す。
+
+   名簿に無い手当の行は、消さずに残す。
+   名簿は「手当なし」も「まだ入れていない」も同じ [] で保存されるため、
+   区別がつかない。以前は名簿を正として行ごと消していたので、
+   名簿に入れ忘れていた職務手当（石井さん 3,000円）が
+   給与一覧から消えてしまった。お金が黙って減るのがいちばん困るので、
+   消すのは人の手でやる（明細の行を消す）ことにする。
+
+   ・名簿と同じ名前の行 → 金額を名簿に合わせる
+   ・名簿にしか無い手当 → 下に足す */
+function payrollAllowMerge_(have, want) {
+  var out = [], used = {};
+  for (var i = 0; i < have.length; i++) {
+    var hit = null;
+    for (var j = 0; j < want.length; j++) {
+      if (!used[j] && want[j].name === have[i].name) { hit = j; break; }
+    }
+    if (hit === null) {
+      out.push({ name: have[i].name, amount: have[i].amount });
+    } else {
+      used[hit] = true;
+      out.push({ name: want[hit].name, amount: want[hit].amount });
+    }
+  }
+  for (var k = 0; k < want.length; k++) {
+    if (!used[k]) out.push({ name: want[k].name, amount: want[k].amount });
+  }
+  return out;
+}
+
 /* 給与明細の手当の行を、名簿の諸手当に合わせる。
 
    これまで手当は出勤簿GASの STAFF_WAGES に直接書かれていて、
@@ -1104,6 +1135,7 @@ function payrollFixAllowances_(sheet, want) {
   if (pos.kihon < 0 || pos.end < 0) return '';   // 明細の形が分からない。触らない
 
   var have = pos.allow;
+  want = payrollAllowMerge_(have, want);
   if (have.length === want.length) {
     var same = true;
     for (var k = 0; k < want.length; k++) {
@@ -1396,6 +1428,7 @@ function payrollAllowDiff_(sheet, want) {
   var pos = payrollDetailRows_(sheet);
   if (pos.kihon < 0 || pos.end < 0) return '';
   var have = pos.allow;
+  want = payrollAllowMerge_(have, want);
   if (have.length === want.length) {
     var same = true;
     for (var k = 0; k < want.length; k++) {
@@ -1472,6 +1505,125 @@ function payrollRate_(p) {
     }
   }
   return { status: 'ok', done: done, skipped: skipped, failed: failed };
+}
+
+/* ===== 消えた手当を戻す =================================================
+ * 石井義則さんの職務手当（3,000円）が、給与一覧_2026_9_16-2026_10_15 から
+ * 先の期間で消えてしまったのを戻す。
+ *
+ * 使い方：エディタの関数の選択欄で fixLostAllowance を選んで「実行」。
+ *   1. 名簿（入社登録）の諸手当に「職務手当 3,000円」を入れる
+ *      （名簿に無いと、また合わせ直したときに正しく出ないため）
+ *   2. FROM の日から始まる給与一覧すべてで、この人の明細に手当の行を戻す
+ *   実行ログに、どのファイルを直したかが出ます。何度実行しても同じ結果になります。
+ *
+ * ほかの人にも同じことが起きていないかは、checkLostAllowance で確かめられます。
+ * ===================================================================== */
+var LOST_ALLOW = { name: '石井義則', allow: '職務手当', amount: 3000, from: '2026-09-16' };
+
+function fixLostAllowance() {
+  var L = [];
+  var key = payrollNameKey_(LOST_ALLOW.name);
+
+  // 1. 名簿に手当を入れる
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  var rec = null, allowRaw = [];
+  try {
+    var sh = getStaffSheet_();
+    var head = staffHeader_(sh);
+    var list = readStaff_(sh, head);
+    for (var i = 0; i < list.length; i++) {
+      if (payrollNameKey_(list[i].name) === key || payrollNameKey_(list[i].kyuyoName) === key) {
+        rec = list[i]; break;
+      }
+    }
+    if (!rec) {
+      L.push('名簿に「' + LOST_ALLOW.name + '」が見つかりませんでした。名簿は直していません。');
+    } else {
+      try { allowRaw = JSON.parse(rec.allowances || '[]') || []; } catch (e) { allowRaw = []; }
+      var found = false;
+      for (var a = 0; a < allowRaw.length; a++) {
+        if (String(allowRaw[a].name || '').trim() === LOST_ALLOW.allow) {
+          allowRaw[a].amount = LOST_ALLOW.amount; found = true;
+        }
+      }
+      if (!found) allowRaw.push({ name: LOST_ALLOW.allow, amount: LOST_ALLOW.amount });
+      sh.getRange(rec._row, head.indexOf('allowances') + 1).setValue(JSON.stringify(allowRaw));
+      bumpStaffRev_();
+      L.push('名簿：' + rec.name + ' の諸手当 → '
+        + allowRaw.map(function (x) { return x.name + ' ' + x.amount + '円'; }).join('・'));
+    }
+  } finally {
+    lock.releaseLock();
+  }
+
+  // 2. 給与一覧に手当の行を戻す
+  var want = payrollAllowList_(allowRaw.length ? allowRaw
+                                : [{ name: LOST_ALLOW.allow, amount: LOST_ALLOW.amount }]);
+  var names = [LOST_ALLOW.name];
+  if (rec) names.push(String(rec.kyuyoName || '').trim(), String(rec.name || '').trim());
+
+  var files = payrollFiles_().files || [];
+  for (var f = 0; f < files.length; f++) {
+    if (files[f].start < LOST_ALLOW.from) continue;
+    try {
+      var ss = SpreadsheetApp.openById(files[f].id);
+      var sheet = null;
+      for (var n = 0; n < names.length && !sheet; n++) {
+        if (names[n]) sheet = payrollStaffSheet_(ss, names[n]);
+      }
+      if (!sheet) { L.push(files[f].title + '：この人の出勤簿がありません'); continue; }
+      var msg = payrollFixAllowances_(sheet, want);
+      L.push(files[f].title + '：' + (msg || 'すでに入っていました'));
+    } catch (e) {
+      L.push(files[f].title + '：開けませんでした（' + String(e) + '）');
+    }
+  }
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+/* 同じように手当が消えた人がいないか調べる（読み取りだけ・何も書きません）。
+   FROM の直前の期間と、FROM から始まる期間の明細の手当を、人ごとに比べて
+   前にはあったのに、いま無い／金額が違う人を出します。 */
+function checkLostAllowance() {
+  var files = payrollFiles_().files || [];
+  var before = null, now = null;
+  for (var f = 0; f < files.length; f++) {          // 新しい順に並んでいる
+    if (files[f].start >= LOST_ALLOW.from) now = files[f];
+    else if (!before) before = files[f];
+  }
+  if (!before || !now) { Logger.log('比べる給与一覧が見つかりません'); return; }
+
+  var ssB = SpreadsheetApp.openById(before.id);
+  var ssN = SpreadsheetApp.openById(now.id);
+  var L = ['前：' + before.title + '　いま：' + now.title];
+  var sheets = ssB.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    var nm = sheets[i].getName();
+    var posB = payrollDetailRows_(sheets[i]);
+    if (posB.kihon < 0 || !posB.allow.length) continue;
+    var sN = ssN.getSheetByName(nm);
+    var haveN = sN ? payrollDetailRows_(sN).allow : [];
+    var lost = posB.allow.filter(function (b) {
+      return !haveN.some(function (x) { return x.name === b.name && x.amount === b.amount; });
+    });
+    if (!lost.length) continue;
+    L.push(nm + '：前は ' + lost.map(function (x) { return x.name + ' ' + x.amount + '円'; }).join('・')
+      + ' → いまは ' + (sN ? (haveN.length ? haveN.map(function (x) { return x.name + ' ' + x.amount + '円'; }).join('・') : 'なし') : 'シートなし'));
+  }
+  if (L.length === 1) L.push('手当が消えた人はいませんでした。');
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+// 「石井 義則」「石井　義則」も同じ人として扱う
+function payrollNameKey_(s) {
+  return String(s || '').replace(/[\s　]/g, '');
 }
 
 /* ===== 給与一覧のファイルを調べる（読み取りだけ）=========================
