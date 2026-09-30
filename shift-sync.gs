@@ -402,6 +402,12 @@ function staffRowToObj_(row, head) {
       o[key] = (v === '' || v === null) ? 0 : Number(v) || 0;
     } else if (STAFF_BOOL_COLS.indexOf(key) >= 0) {
       o[key] = (v === true || String(v).toLowerCase() === 'true' || String(v) === '1');
+    } else if (v instanceof Date) {
+      /* 日付として入っているセルは、そのまま文字にすると
+         「Wed Aug 16 2023 00:00:00 GMT+0900 (日本標準時)」になってしまう。
+         契約書にもこの形で出ていた。どのアプリでも扱える形に直す。 */
+      o[key] = Utilities.formatDate(v, 'Asia/Tokyo',
+        (key === 'updatedAt' || key === 'contractAt') ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd');
     } else {
       o[key] = String(v === null || v === undefined ? '' : v);
     }

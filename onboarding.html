@@ -193,7 +193,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-30b</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-30c</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1254,7 +1254,7 @@ function renderList() {
       + '<td class="pin">' + esc(r.pin) + '</td>'
       + '<td>' + esc(r.dept) + '</td>'
       + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
-      + '<td class="muted">' + esc(r.joinedAt || '') + '</td>'
+      + '<td class="muted">' + esc(isoDate(r.joinedAt)) + '</td>'
       + '<td style="white-space:nowrap">' + paidShort(r) + '</td>'
       + '<td style="text-align:right;white-space:nowrap">'
       + (isActive(r) ? contractBtn(r) : '')
@@ -1280,7 +1280,7 @@ async function openEdit(id) {
   if (!r) return;
   F = blankForm();
   F.id = r.id; F.kind = r.kind || 'part'; F.name = r.name; F.kana = r.kana || '';
-  F.joinedAt = r.joinedAt || F.joinedAt;
+  F.joinedAt = isoDate(r.joinedAt) || F.joinedAt;
   F.storeIds = storeIdsOf(r); F.dept = r.dept || ''; F.pin = r.pin || '';
   F.kyuyo = !!r.kyuyo; F.holidayOk = r.holidayOk !== false;
   F.days = String(r.days || '0,1,2,3,4,5,6').split(',').filter(function (x) { return x !== ''; }).map(Number);
@@ -1908,10 +1908,36 @@ function contractBtn(r) {
   return '<button class="btn sm" onclick="makeContract(\'' + r.id + '\')">契約書</button> ';
 }
 
+const EN_MONTH = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6,
+                   Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
+
+/* 名簿の日付を YYYY-MM-DD にそろえる。
+
+   名簿に日付のセルとして入っていると
+   「Wed Aug 16 2023 00:00:00 GMT+0900 (日本標準時)」の形で届くことがある。
+   これを new Date() に通すと、見ている端末の時間帯によって1日ずれる。
+   書いてある文字をそのまま読んで、ずれないようにする。 */
+function isoDate(v) {
+  if (!v) return '';
+  const t = String(v).trim();
+  const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  const e = t.match(/^[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/);
+  if (e && EN_MONTH[e[1]]) {
+    return e[3] + '-' + String(EN_MONTH[e[1]]).padStart(2, '0')
+      + '-' + String(+e[2]).padStart(2, '0');
+  }
+  const j = t.match(/^(\d{4})[\/年](\d{1,2})[\/月](\d{1,2})/);
+  if (j) return j[1] + '-' + String(+j[2]).padStart(2, '0') + '-' + String(+j[3]).padStart(2, '0');
+  return '';
+}
+
 function jpDate(iso) {
   if (!iso) return '';
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? (+m[1]) + '年' + (+m[2]) + '月' + (+m[3]) + '日' : String(iso);
+  const d = isoDate(iso);
+  if (!d) return String(iso);
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return (+m[1]) + '年' + (+m[2]) + '月' + (+m[3]) + '日';
 }
 function yen(n) { return (+n || 0).toLocaleString('ja-JP') + '円'; }
 
@@ -2300,7 +2326,7 @@ function ymd(d) {
     + '-' + String(d.getDate()).padStart(2, '0');
 }
 function parseYmd(v) {
-  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const m = isoDate(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
   return new Date(+m[1], +m[2] - 1, +m[3]);
 }
