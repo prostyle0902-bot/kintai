@@ -1762,6 +1762,7 @@ function payrollFixList_(ss) {
   var fmls = list.getRange(1, 1, last, 6).getFormulas();
 
   var groups = [], cur = null, subStart = -1;
+  var used = {};                       // 各人の行が見ているシート
   for (var r = 0; r < last; r++) {
     var a = String(vals[r][0] || '').trim();
     if (a.indexOf('【') === 0 && a.indexOf('店舗別合計') >= 0) { subStart = r; break; }
@@ -1776,7 +1777,9 @@ function payrollFixList_(ss) {
     cur.rows.push(r + 1);
 
     // --- 各人の行 ---
-    var sheet = payrollStaffSheet_(ss, nm);
+    // 「衣幡千明（海事・横河）」の行は「衣幡千明_海事横河」のシートを見る
+    var sheet = payrollStaffSheet_(ss, nm) || payrollSideSheet_(ss, nm);
+    if (sheet) used[sheet.getName()] = true;
     if (!sheet) {
       if (fmls[r][2] || fmls[r][5]) out.push(nm + '：出勤簿のタブがありません（式はそのまま）');
       continue;
@@ -1811,7 +1814,7 @@ function payrollFixList_(ss) {
     } else {
       g.rows.forEach(function (x) { parts.push('F' + x); });
     }
-    parts = parts.concat(payrollSideRefs_(ss, g.name));
+    parts = parts.concat(payrollSideRefs_(ss, g.name, used));
     var f = parts.length ? '=SUM(' + parts.join(',') + ')' : '=0';
     if (fmls[s][5] !== f) {
       list.getRange(s + 1, 6).setFormula(f);
@@ -1830,7 +1833,7 @@ function payrollFixList_(ss) {
 
 /* 2つの現場で働く人の、もう1つの現場のシート（「衣幡千明_海事横河」）を探して、
    その差引支給額を指す式の部品を返す。現場名の「・」は、シート名では抜いてある。 */
-function payrollSideRefs_(ss, group) {
+function payrollSideRefs_(ss, group, used) {
   var key = group.replace(/[・\s　]/g, '');
   var out = [];
   var all = ss.getSheets();
@@ -1838,10 +1841,18 @@ function payrollSideRefs_(ss, group) {
     var n = all[i].getName();
     var k = n.lastIndexOf('_');
     if (k <= 0 || n.slice(k + 1).replace(/[・\s　]/g, '') !== key) continue;
+    if (used && used[n]) continue;      // 給与一覧表に自分の行がある。二重に足さない
     var pos = payrollTotalRows_(all[i]);
     if (pos.pay > 0) out.push("'" + n.replace(/'/g, "''") + "'!G" + pos.pay);
   }
   return out;
+}
+
+/* 「衣幡千明（海事・横河）」のような行の名前から、「衣幡千明_海事横河」のシートを探す */
+function payrollSideSheet_(ss, name) {
+  var m = /^(.+?)[（(](.+)[）)]$/.exec(String(name || '').trim());
+  if (!m) return null;
+  return ss.getSheetByName(m[1].trim() + '_' + m[2].replace(/[・\s　]/g, ''));
 }
 
 /* 出勤簿の「合計」行と、差引支給額の行を探す。
