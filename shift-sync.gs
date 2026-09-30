@@ -1716,15 +1716,17 @@ function payrollRemoveListRow_(ss, name) {
  * 給与一覧表（まとめの表）の式を、各人の出勤簿に合わせて引き直す。
  *
  *   ・各人の行：出勤日数・実働・深夜・差引支給額を、その人自身のシートの
- *     「合計」行と「差引支給額」行（合算支給額があればそちら）から取る
- *   ・店舗別合計：その現場の人の行をぜんぶ足す
+ *     「合計」行と「差引支給額」行から取る
+ *   ・店舗別合計：その現場の人の行をぜんぶ足す。
+ *     2つの現場で働く人の、もう1つの現場のぶん（「衣幡千明_海事横河」のような
+ *     シート）は、その現場の店舗別合計に足す
  *   ・総合計：店舗別合計をぜんぶ足す
  *
  * 使い方：エディタの関数の選択欄で fixPayrollTotals を選んで「実行」。
  *   FIX_TOTALS_FROM の日から始まる給与一覧すべてを直します。
  *   実行ログに、直したところが出ます。何度実行しても同じ結果になります。
  * ===================================================================== */
-var FIX_TOTALS_FROM = '2026-09-16';
+var FIX_TOTALS_FROM = '2026-08-16';
 
 function fixPayrollTotals() {
   var L = [];
@@ -1802,14 +1804,15 @@ function payrollFixList_(ss) {
     if (firstSub < 0) firstSub = s + 1;
     lastSub = s + 1;
     if (!g) { out.push('店舗別合計の「' + t + '」に当たる現場が見つかりません（そのまま）'); continue; }
-    var f = g.rows.length
-      ? '=SUM(' + g.rows.map(function (x) { return 'F' + x; }).join(',') + ')'
-      : '=0';
+    var parts = [];
     // 行が続いているときは F6:F8 の形にする（見やすいため）
     if (g.rows.length && g.rows[g.rows.length - 1] - g.rows[0] === g.rows.length - 1) {
-      f = g.rows.length === 1 ? '=SUM(F' + g.rows[0] + ')'
-                              : '=SUM(F' + g.rows[0] + ':F' + g.rows[g.rows.length - 1] + ')';
+      parts.push(g.rows.length === 1 ? 'F' + g.rows[0] : 'F' + g.rows[0] + ':F' + g.rows[g.rows.length - 1]);
+    } else {
+      g.rows.forEach(function (x) { parts.push('F' + x); });
     }
+    parts = parts.concat(payrollSideRefs_(ss, g.name));
+    var f = parts.length ? '=SUM(' + parts.join(',') + ')' : '=0';
     if (fmls[s][5] !== f) {
       list.getRange(s + 1, 6).setFormula(f);
       out.push('店舗別合計 ' + t + '：' + (fmls[s][5] || '空') + ' → ' + f);
@@ -1825,21 +1828,37 @@ function payrollFixList_(ss) {
   return out;
 }
 
-/* 出勤簿の「合計」行と、支給額の行を探す。
-   2つの現場で働く人は「合算支給額」の行があるので、そちらを使う。 */
+/* 2つの現場で働く人の、もう1つの現場のシート（「衣幡千明_海事横河」）を探して、
+   その差引支給額を指す式の部品を返す。現場名の「・」は、シート名では抜いてある。 */
+function payrollSideRefs_(ss, group) {
+  var key = group.replace(/[・\s　]/g, '');
+  var out = [];
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    var n = all[i].getName();
+    var k = n.lastIndexOf('_');
+    if (k <= 0 || n.slice(k + 1).replace(/[・\s　]/g, '') !== key) continue;
+    var pos = payrollTotalRows_(all[i]);
+    if (pos.pay > 0) out.push("'" + n.replace(/'/g, "''") + "'!G" + pos.pay);
+  }
+  return out;
+}
+
+/* 出勤簿の「合計」行と、差引支給額の行を探す。
+   2つの現場で働く人の「合算支給額」は使わない。
+   もう1つの現場のぶんは、その現場の店舗別合計に入れるため。 */
 function payrollTotalRows_(sheet) {
   var last = Math.min(sheet.getLastRow(), 90);
   var out = { total: -1, pay: -1 };
   if (last < 2) return out;
   var b = sheet.getRange(1, 2, last, 1).getValues();
-  var sashi = -1, gassan = -1;
+  var sashi = -1;
   for (var r = 0; r < last; r++) {
     var v = String(b[r][0] || '').trim();
     if (out.total < 0 && v === '合計') out.total = r + 1;
     if (sashi < 0 && v.indexOf('差引支給額') === 0) sashi = r + 1;
-    if (gassan < 0 && v.indexOf('合算支給額') === 0) gassan = r + 1;
   }
-  out.pay = gassan > 0 ? gassan : sashi;
+  out.pay = sashi;
   return out;
 }
 
