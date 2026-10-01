@@ -167,7 +167,7 @@ def post_cards(bk):
         for used, merchant, inc in det:
             plrow = cards._classify(issuer, merchant)
             ex = cards._ex(inc)
-            if plrow == "接待交際費" and ex <= cards.KAIGI_LIMIT:
+            if plrow == "接待交際費" and ex <= cards.KAIGI_LIMIT and not cards.is_gift(merchant):
                 plrow = "会議費"
             if plrow is None:
                 bk.hold.append((m, "本部", f"{issuer} {used} {merchant} {inc:,}",

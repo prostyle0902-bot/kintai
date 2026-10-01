@@ -161,6 +161,24 @@ from decimal import Decimal, ROUND_FLOOR
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
 
 
+# ★2026-10-01 追加。202610meisai.csv / 202610.csv（9月ぶん＝22期）の保留を利用者に見てもらって
+#   決めたもの（利用者 2026-10-01「その案で」）。
+_ADD_2610 = {
+    "ソフトウェア利用料": ["IVRy"],                     # 電話の自動応答
+    "接待交際費": ["鳥一門", "串たろう", "遊膳", "菓匠右門",
+              "出雲空港売店", "道の駅 酒蔵奥出雲交流館", "道の駅常総"],
+    "その他経費": ["ASHINAGA", "テラ・ルネッサンス",      # 寄付
+              "SBI損保"],                              # がん保険（保険の行は会社名ごとなので）
+    "事務消耗品費": ["ヤックスドラッグ"],
+}
+# ★おみやげ（物品）は飲食ではないので「5,000円以下は会議費」の対象にしない
+GIFT_KEYS = ["出雲空港売店", "道の駅 酒蔵奥出雲交流館", "道の駅常総"]
+
+for _k, _ws in _ADD_2610.items():
+    JCB_MASTER.setdefault(_k, [])
+    JCB_MASTER[_k] = JCB_MASTER[_k] + _ws
+
+
 def _ex(tax_inc, rate=10):
     """税込 → 税抜（円未満切り捨て）"""
     return int((Decimal(tax_inc) / (1 + Decimal(rate) / 100)).to_integral_value(ROUND_FLOOR))
@@ -247,6 +265,10 @@ def _read_smcc(path):
         yield (used, unicodedata.normalize("NFKC", p[1]).strip(), v)
 
 
+def is_gift(merchant):
+    return any(k in merchant for k in GIFT_KEYS)
+
+
 def _classify(issuer, merchant):
     """取引先名 → 本部のPL行。決められなければ None（一括行に残す）。
 
@@ -296,7 +318,7 @@ def rows():
             #   ★判定は税抜。この損益計算書は税抜経理でそろえているため
             #     （税込で判定すると6件・28,269円ぶん結果が変わる）。
             #   ★人数は明細に出ないので、1件あたりで判定している。
-            if plrow == "接待交際費" and ex <= KAIGI_LIMIT:
+            if plrow == "接待交際費" and ex <= KAIGI_LIMIT and not is_gift(merchant):
                 plrow = "会議費"
             yield ("本部", merchant, plrow, ex, inc - ex,
                    f"freeeカード明細/21期/{fname}", month, used, issuer)
