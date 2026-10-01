@@ -12,3 +12,4 @@ rikuji_pdf/
 # ※ルートの .gitignore の pl/kyuyo/ と二重に効かせている
 kyuyo/
 meg/*.pdf
+out22_*.csv
