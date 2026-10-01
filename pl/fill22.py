@@ -198,6 +198,38 @@ def post_bank(bk):
             bk.add(tab, plrow, m, ex, name, src, note)
 
 
+# ---------------------------------------------------------------- ⑥ 給与
+# 給料一覧表PDF（Dropbox /※プロスタイル給与※/プロスタイル給与R8年/給料一覧表-YYYYMM.pdf）を
+# pl/kyuyo/YYYYMM.pdf に落としておくと入る。★個人の給与が載るのでリポジトリには入れない。
+# 割り振りは kyuyo_split.split(ym, "22期")（22期の折半ルールもそこにある）。
+# ★りゅうちゃん店長（河野竜二）の業務委託料は給料一覧表に載らない。22期は請求書（inv22）から入れる。
+def post_payroll(bk):
+    import collections
+    import kyuyo_parse
+    import kyuyo_split
+    for folder, m in MONTHS22.items():
+        ym = "20" + folder[:4]
+        if not os.path.exists(os.path.join(BASE, "kyuyo", f"{ym}.pdf")):
+            bk.hold.append((m, "（全タブ）", "人件費・法定福利費",
+                            f"給料一覧表-{ym}.pdf がまだ無い（※プロスタイル給与※/プロスタイル給与R8年）"))
+            break       # 先の月はまだ来ていない。いちばん早い未着の月だけ出す
+        split, _fb, _pool = kyuyo_split.split(ym, "22期")
+        emp = kyuyo_parse.parse(ym)[0]
+        nm = kyuyo_parse.names(ym)
+        who = collections.defaultdict(list)
+        for no in sorted(emp):
+            tab, _how = kyuyo_split.tab_of(no, nm.get(no, ""))
+            who[(tab, kyuyo_split.row_of(no))].append(f"{nm.get(no, '')}({no})")
+        src = f"給料一覧表-{ym}.pdf（Dropbox /※プロスタイル給与※/）"
+        for (tab, row), v in sorted(split.items()):
+            if row == "法定福利費":
+                note = f"給料一覧表{m}分の社会保険料計（{tab}ぶん）"
+            else:
+                names = who[(tab, row)]
+                note = f"給料一覧表{m}分の総支給額（{len(names)}人）: " + "／".join(names[:12])
+            bk.add(tab, row, m, int(v), "給与", src, note)
+
+
 # ---------------------------------------------------------------- 仕上げ
 def _comment(bk):
     by = {}
@@ -221,6 +253,7 @@ def build():
     post_freee(bk)
     post_cards(bk)
     post_bank(bk)
+    post_payroll(bk)
     _comment(bk)
     assert not bk.missing, "行が見つからない: " + "／".join(
         f"{t} {r} {m} {v:,}（{k}）" for t, r, m, v, k, _s in bk.missing)
