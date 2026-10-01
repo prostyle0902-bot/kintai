@@ -59,6 +59,27 @@ def rows():
         yield kind, want, 1 if have else 0, have
 
 
+# ★22期（2026年9月ぶん〜）。2026-10-01 に9月ぶんが入ってきたので並べて出す。
+#   (パターン, 期待するもの, 何件で揃いか)
+YM22 = {
+    "銀行（千葉銀行）": ("bank/小見川支店_普通_*_202609.csv", "202609", 8),
+    "PayPay銀行":      ("bank/NBG_202609.csv",              "2026年9月", 1),
+    "freeeカード":      ("csv/statement-2026-10.csv",         "2026-10（＝9月利用分）", 1),
+    "JCB":             ("cards/202610meisai.csv",            "202610（＝9月ぶん）", 1),
+    "三井住友":         ("cards/202610.csv",                  "202610（＝9月ぶん）", 1),
+    "board売上":        ("cards/9月売上*.csv",                "9月売上", 1),
+    "エアレジ売上":      ("uriage/2609月/*_20260901-20260930.csv", "2609月（5店）", 5),
+    "かめや（焼きたて屋）": ("uriage/2609月/焼きたて屋_*.xlsx",   "2609月の月間売上集計一覧表", 1),
+    "給料一覧表":       ("kyuyo/202609.pdf",                  "202609", 1),
+}
+
+
+def rows22():
+    for kind, (pattern, want, need) in YM22.items():
+        hit = glob.glob(os.path.join(BASE, pattern))
+        yield kind, want, len(hit), len(hit) >= need
+
+
 def waiting():
     """まだ届いていないもの。(どこ, 何)"""
     import status8
@@ -92,6 +113,17 @@ def text():
         for what, why in w:
             out.append(f"    ・{what}")
             out.append(f"        {why}")
+    out.append("")
+    out.append("■ 22期 9月ぶん")
+    ok22 = [r for r in rows22() if r[3]]
+    ng22 = [r for r in rows22() if not r[3]]
+    out.append(f"● 届いているもの（{len(ok22)}件）")
+    for kind, want, n, _ in ok22:
+        out.append(f"    ✓ {kind}　{want}　{n}件")
+    if ng22:
+        out.append(f"● ★まだ届いていないもの（{len(ng22)}件）")
+        for kind, want, n, _ in ng22:
+            out.append(f"    × {kind}　{want}")
     out.append("")
     out.append("─" * 30)
     out.append("このフォルダが空＝入れてもらったものは全部取り込み済みです。")

@@ -71,11 +71,50 @@ def _pl_month(yyyymm, back):
     return f"{m}月"
 
 
-def classify(name):
+# ★2026-10 から届くエアレジCSVは名前に店名が入っていない（売上集計_／会計明細_）。
+#   店は Dropbox の店舗フォルダで見分ける（エアレジCSVの取り方.txt）。
+#   フォルダ名 → airregi.py の STORES の店名
+AIREGI_FOLDER = {"もも焼きJAPAN": "もも焼き", "りゅうちゃん": "りゅうちゃん",
+                 "タコとハイボール": "タコハイ", "韓国酒場ハナ": "ハナ",
+                 "さわら十三里屋": "十三里屋"}
+
+
+def classify(name, path=""):
     """Dropboxのファイル名 → (置き場所, 追記が要るモジュール or None, メモ)
 
     置き場所が決まらないときは (None, None, 理由) を返す。
+    path（Dropboxの場所）は、名前だけでは決まらないもの（店名の無いエアレジCSV）に使う。
     """
+    m = re.match(r"^(売上集計|会計明細)_(\d{8})-(\d{8})\.csv$", name)
+    if m:
+        folder = path.rstrip("/").split("/")[-2] if "/" in path else ""
+        store = AIREGI_FOLDER.get(folder)
+        if store is None:
+            return None, None, f"エアレジCSVだが店舗フォルダ（{folder}）が分からない"
+        ym = m.group(2)
+        if m.group(1) == "会計明細":
+            # 1会計ごとの明細。いまのPLでは使わない（売上集計＝日別で足りる）。
+            # 担当者名などが入るので pl/ には置かず、Dropbox の 会計明細/NN期 に保管するだけ
+            return ("", None, "エアレジの会計明細（1会計ごと）。PLでは使わない。"
+                    "Dropboxの会計明細/22期/YYMM月/<店舗>/ へ移すだけ")
+        return (f"uriage/{ym[2:4]}{ym[4:6]}月/{store}_{m.group(2)}-{m.group(3)}.csv", None,
+                "エアレジ売上集計（日別）。airregi.py が拾う")
+
+    m = re.match(r"^NBG.+\.csv$", name)
+    if m:
+        return ("bank/NBG_<YYYYMM>.csv", None,
+                "PayPay銀行。中の操作日で年月を決めて bank/NBG_YYYYMM.csv に置く")
+
+    m = re.match(r"^(\d{6}) \(\d+\)\.csv$", name)
+    if m:
+        return (f"cards/{m.group(1)}.csv", "cards.py",
+                f"三井住友（ブラウザが『 (1)』を付けたもの）。支払{m.group(1)}＝PL列は"
+                f"{_pl_month(m.group(1), 1)}")
+
+    if re.match(r"^\d{14}_月間売上集計一覧表\.xlsx$", name):
+        return ("uriage/<YYMM月>/焼きたて屋_税抜.xlsx", None,
+                "焼きたて屋FCの月間売上集計一覧表（中の年月で月を決める。税抜/税込は表題で見分ける）")
+
     m = re.match(r"^(小見川支店_普通_\d+_\d{6})_\d+\.csv$", name)
     if m:
         return f"bank/{m.group(1)}.csv", None, "千葉銀行。置けば自動で拾う"
@@ -147,11 +186,11 @@ def plan(listing_path):
     for e in entries:
         if e["file_id"] in known:
             continue
-        local, mod, note = classify(e["name"])
+        local, mod, note = classify(e["name"], e.get("path", ""))
         if local is None:
             unknown.append({**e, "note": note})
             continue
-        if os.path.exists(os.path.join(BASE, local)):
+        if local and "<" not in local and os.path.exists(os.path.join(BASE, local)):
             have += 1          # もう取り込んである。落とし直さない
             continue
         todo.append({**e, "local": local, "module": mod, "note": note})

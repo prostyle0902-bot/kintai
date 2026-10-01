@@ -117,7 +117,10 @@ def check(wb=None):
     d = _debits()
     # 摘要ごとの総額が、rows() が出す税込の総額と合うこと
     for plrow, (keys, rate) in GROUPS.items():
-        allsum = sum(a for k in keys for ym in d[k] for _dt, a, _s in d[k][ym])
+        # ★21期の月だけを数える。22期（202609〜）の明細が bank/ に置かれても
+        #   ここで拾わないように（2026-10-01 9月分の明細を置いたら水道で食い違った）
+        allsum = sum(a for k in keys for ym in d[k] if ym in YM.values()
+                     for _dt, a, _s in d[k][ym])
         got = 0
         for _t, r, m, _ex, _s, note in rows():
             if r != plrow:

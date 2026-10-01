@@ -76,7 +76,9 @@ OUTSIDE = [
 def _outside_check():
     """OUTSIDE が実際の振込と合っているか、銀行明細で毎回確かめる。"""
     import bank
-    got = [(d, a) for d, _bk, raw, _v, a, _s, _k in bank.payments() if "コウノ" in raw]
+    # ★21期（2025/09〜2026/08）の振込だけ数える。22期の明細が bank/ に置かれても拾わない
+    got = [(d, a) for d, _bk, raw, _v, a, _s, _k in bank.payments()
+           if "コウノ" in raw and "2025/09" <= d[:7] <= "2026/08"]
     assert len(got) == 12, f"コウノリュウジへの振込が{len(got)}件（9月〜8月の12件のはず）"
     for d, a in got:
         assert a in (300000, 300330), f"{d} の振込 {a:,} が300,000でも300,330でもない"
