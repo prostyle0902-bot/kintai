@@ -53,6 +53,17 @@ STATEMENTS22 = [("csv/statement-2026-10.csv", 2026, 9)]
 CARDS22 = [("202610meisai.csv", "JCB", "9月"),
            ("202610.csv", "三井住友", "9月")]
 
+# ★十三里屋の固定費カード0538（ドコモ・USEN・ダスキン）は engine.py が「除外」にする。
+#   21期は既存PLの定額（fixed_costs.py）と二重にならないようにするためだった。
+#   22期には定額の表が無いので、除外にした行をここで十三里屋の行へ入れ直す。
+#   利用者指示 2026-10-02「十三里屋のリース料（ダスキン）は freeeカードの明細に
+#   入ってるから、そこから引っ張ってきてほしい。22期も同じように」。
+#   ドコモ・USEN も同じカードで同じ理由で除外されていて、22期9月の通信費が空いていた。
+#   税抜は 22期の決まりどおり ÷1.1 の円未満切り捨て。月は利用日で決める。
+CARD0538 = [("ダスキン", "リース料（ダスキン）"),
+            ("ドコモ", "通信費（USEN、Wi-Fi）"),
+            ("USEN", "通信費（USEN、Wi-Fi）")]
+
 # カード明細の PL行 → そのタブでの呼び名（fill2.REMAP と同じ）
 REMAP = {("韓国酒場ハナ", "仕入（やまなか）"): "仕入（山中ストアー）",
          ("もも焼きJAPAN", "仕入（やまなか）"): "仕入（freeeカード）",
@@ -147,6 +158,34 @@ def post_freee(bk):
     for _, r in hold.iterrows():
         bk.hold.append(("", str(r.get("店舗", "")), f"freeeカード {r['利用日']} {r['取引先']} {r['税込']:,}",
                         str(r["理由"])))
+    _post_0538(bk, ok[ok["判定"] == "除外"])
+
+
+def _post_0538(bk, ex):
+    """engine.py が除外にした 十三里屋カード0538 の固定費を 22期の行へ。"""
+    for _, r in ex.iterrows():
+        if not str(r["カード"]).endswith("(0538)"):
+            continue
+        name = engine_norm(r["取引先"])
+        row = next((pl for k, pl in CARD0538 if engine_norm(k) in name), None)
+        assert row, f"0538 の除外行で行き先が決まらない: {r['取引先']}"
+        y, mo = int(r["利用日"][:4]), int(r["利用日"][5:7])
+        m = f"{mo}月"
+        if (y, mo) not in PERIOD22:
+            bk.hold.append((m, "さわら十三里屋", f"freeeカード {r['利用日']} {r['取引先']} {int(r['税込']):,}",
+                            "利用日が22期の外。21期8月ぶんなら21期に入れる（fill2.py 側）"))
+            continue
+        inc = int(r["税込"])
+        bk.add("さわら十三里屋", row, m, inc * 10 // 11, "freeeカード",
+               r["元ファイル"], f"{r['利用日']} {r['取引先']} 税込{inc:,}（カード0538）")
+
+
+def engine_norm(s):
+    import engine
+    return engine.norm(s)
+
+
+PERIOD22 = [(2026, m) for m in range(9, 13)] + [(2027, m) for m in range(1, 9)]
 
 
 # ---------------------------------------------------------------- ④ JCB・三井住友
