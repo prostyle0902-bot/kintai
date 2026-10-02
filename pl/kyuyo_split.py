@@ -114,10 +114,13 @@ def month_of(ym):
 
 def split(ym, period="21期"):
     """{(タブ, PL行): 金額}、名簿で引けなかった人、折半の内訳 を返す。"""
-    emp = kyuyo_parse.parse(ym)[0]
+    emp, grand = kyuyo_parse.parse(ym)
     nm = kyuyo_parse.names(ym)
-    # ★期ぜんぶに効く決まりと、この月だけに効く決まりの両方を集める
-    ps = pools(period) + pools(period, month_of(ym))
+    # ★期ぜんぶに効く決まりと、この月だけに効く決まりの両方を集める。
+    #   pools(期, 月) は「月」を持たない決まりも返すので、これ1回で両方そろう。
+    #   ★以前は pools(期) と足していて、22期の3人折半が2回かかり
+    #     総支給・社会保険が3人ぶん二重になっていた（2026-10-02 9月分で発覚）。
+    ps = pools(period, month_of(ym))
     pooled = {no: p for p in ps for no in p["社員番号"]}
     out = collections.Counter()
     fallback, pool_detail = [], []
@@ -156,6 +159,10 @@ def split(ym, period="21期"):
             rest = total - each * (len(tabs) - 1)      # 端数は先頭の店へ
             for i, tab in enumerate(tabs):
                 out[(tab, row)] += rest if i == 0 else each
+    # ★割り振った合計が給料一覧表の総合計と1円でも違えば止める（二重計上よけ）
+    got = (sum(v for (_t, r), v in out.items() if r != "法定福利費"),
+           sum(v for (_t, r), v in out.items() if r == "法定福利費"))
+    assert got == tuple(grand), f"{ym} {period}: 割り振り合計 {got} が総合計 {grand} と合わない"
     return out, fallback, pool_detail
 
 
