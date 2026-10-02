@@ -76,6 +76,14 @@ VENDORS = {
     "ソンポジヤパン":            ("保険料", 0, "損保ジャパン。損害保険料なので非課税"),
 }
 
+# ★横丁の費用なのに、横丁以外の口座から落ちるようになったもの（2026-10-02 追加）。
+#   関彰商事は 2026/07 までは横丁の口座（3543920）から落ちていたが、
+#   2026/08 からタコハイ（3548060）・もも焼き（3555848）の口座から落ちるようになり、
+#   どこにも入っていなかった（8月 タコハイ5,874／9月 タコハイ3,083＋もも焼き4,426）。
+#   利用者指示 2026-10-02「神栖横丁」＝口座がどこでも神栖横丁の事務消耗品費に入れる。
+#   ★store_bank は関彰商事を拾わないので二重にはならない。
+OTHER_ACCOUNTS = {"ＭＨＦ）セキシヨウ": ["3548060", "3555848"]}
+
 # 消費税がかからないもの。引落額をそのまま税抜として計上する。
 # 本部のプルデンシャル47,090・ジブラルタ17,345も同じ扱いにしてある（fixed_costs.py）。
 TAXFREE = {"ソンポジヤパン"}
@@ -138,15 +146,21 @@ def _debits():
     """
     d = collections.defaultdict(lambda: collections.defaultdict(int))
     seen = set()
-    for path in sorted(glob.glob(os.path.join(DIR, f"*_{ACCOUNT}_*.csv"))):
+    extra = sorted({a for accts in OTHER_ACCOUNTS.values() for a in accts})
+    paths = [(ACCOUNT, p) for p in sorted(glob.glob(os.path.join(DIR, f"*_{ACCOUNT}_*.csv")))]
+    for a in extra:
+        paths += [(a, p) for p in sorted(glob.glob(os.path.join(DIR, f"*_{a}_*.csv")))]
+    for acct, path in paths:
         for r in csv.DictReader(open(path, encoding="utf-8-sig")):
             if not r["出金金額(円)"]:
                 continue
+            if acct != ACCOUNT and acct not in OTHER_ACCOUNTS.get(r["摘要"].strip(), ()):
+                continue                     # ほかの口座は決めた相手だけ見る
             # ★同じ月のCSVが2本置かれても二重に数えない。
             #   銀行のエクスポートは同じ期間を何度でも書き出せるので、
             #   古い名前のファイルが残っていると簡単に二重計上になる。
             #   日付・摘要・金額・残高が全部同じ行は同じ取引とみなす。
-            key = (r["取引日"], r["摘要"], r["出金金額(円)"], r["残高(円)"])
+            key = (acct, r["取引日"], r["摘要"], r["出金金額(円)"], r["残高(円)"])
             if key in seen:
                 continue
             seen.add(key)
