@@ -193,7 +193,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-09-30c</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-10-04a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1043,6 +1043,24 @@ async function submitNew() {
 
   // 時給・通勤手当が変わったかを見るため、直す前の内容を控えておく
   const before = F.id ? findRec(F.id) : null;
+
+  /* 氏名を変えたとき、出勤簿のシート名は前の名前のまま残る。
+     「給与一覧での表記」が空だと氏名がそのまま使われるので、
+     シートが見つからなくなり、打刻も転記も届かなくなる。
+     （小金澤登美→小金澤登美江 でこれが起きた）
+     前の名前を引き継ぐかどうか、ここで聞く。 */
+  if (before && before.name && rec.name !== before.name
+      && !String(rec.kyuyoName || '').trim() && rec.kyuyo) {
+    const keep = confirm(
+      '氏名を「' + before.name + '」から「' + rec.name + '」に変えます。\n\n'
+      + '出勤簿（給与一覧）のシートは「' + before.name + '」のままです。\n'
+      + 'このままだとシートが見つからず、打刻も転記も届かなくなります。\n\n'
+      + '「給与一覧での表記」を「' + before.name + '」にして、\n'
+      + 'これまでのシートを使い続けますか？\n\n'
+      + '［OK］前の名前を使う（おすすめ）\n'
+      + '［キャンセル］新しい名前で探す（出勤簿のシート名も直す必要があります）');
+    if (keep) rec.kyuyoName = before.name;
+  }
 
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.textContent = '登録中…';
