@@ -481,6 +481,17 @@ def _target(tab, item):
 KAIGI_LIMIT = 5000
 
 
+def _board_suppress():
+    """board.py が「既存PLを使わない」と決めた (タブ, 行, 月)。
+    ★2026-10-05 追加。board が書かない月（例: 神栖横丁キッチンカー6月）に
+      空きセルだと思って既存PLの値を写すと、boardの別の行と二重になるため。"""
+    import board
+    # ★7月ぶん（キッチンカー・スポンサー・ビアガーデン・加盟金）は board.SUPPRESS に昔からあるが、
+    #   ここでは効かせていなかったので、7月のスポンサー407,000・加盟金400,000 は既存PLの値が
+    #   入ったまま利用者に見えている。黙って消さないよう7月は対象外のままにする（利用者に確認中 2026-10-05）。
+    return {k for k in board.SUPPRESS if k[2] != "7月"}
+
+
 def rows(wb):
     """(タブ, PL行, 月, 値, 元, メモ) を列挙。空いているセルだけ。"""
     import build2
@@ -504,6 +515,8 @@ def rows(wb):
                     continue
                 if (tab, item, m) in SKIP_CELL or (tab, plrow, m) in SKIP_CELL:
                     continue        # 1セルだけ写さないもの（SKIP_CELL）
+                if (tab, plrow, m) in _board_suppress():
+                    continue        # ★boardを正とする売上セル（2026-10-05 9月〜6月）。空でも写さない
                 if (tab, plrow, m) in VALUE_FIX:
                     v = VALUE_FIX[(tab, plrow, m)][0]   # 税込→税抜などの直し
                 moved = MOVE_CELL.get((tab, plrow, m))
