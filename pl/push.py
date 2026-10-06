@@ -114,6 +114,12 @@ def push(period):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in TARGETS:
+    args = [a for a in sys.argv[1:] if a != "--backup"]
+    if len(args) != 1 or args[0] not in TARGETS:
         sys.exit(f"使い方: python3 push.py [{' | '.join(TARGETS)}]")
-    push(sys.argv[1])
+    # ★22期のふだんの反映は push_sheets.py。ここで 22期 を流すと、
+    #   8月から止めてある古い .xlsx（バックアップ）を上書きしてしまう
+    #   （2026-10-06 に一度やってしまい、前の版に戻した）。わざと書くときだけ --backup。
+    if args[0] == "22期" and "--backup" not in sys.argv:
+        sys.exit("22期は push_sheets.py で反映してください（古い .xlsx を書くときだけ --backup）")
+    push(args[0])
