@@ -237,6 +237,39 @@ def post_bank(bk):
             bk.add(tab, plrow, m, ex, name, src, note)
 
 
+# ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）
+# 利用者が ★毎月ここに入れる/04_board売上/ に置く「合計請求書の一覧」エクスポート → cards/board_YYMM.csv。
+# ★利用者指示 2026-10-06「飲食は全部出てないから、業務、鳥害だけ入れて」
+#   → グループ 業務課・鳥害対策課 だけ入れる。飲食事業部はまだ入れない（横丁の売上は後日）。
+#   グループ空欄は board.GROUP_BY_CUSTOMER（21期と同じ: PlusOne・シナネンアクシア・亀甲堂→業務課）。
+#   TAKEOUTPARK神栖横丁（グリスト清掃）も21期と同じく業務課の売上。
+# 主キーは 合計請求書No（この形式には請求書IDが無い）。請求日がその月でない行があれば止める。
+BOARD22 = [("board_2609.csv", "9月", "2026-09")]
+BOARD22_GROUPS = {"業務課", "鳥害対策課"}
+
+
+def post_board(bk):
+    import board
+    for name, m, ym in BOARD22:
+        path = os.path.join(BASE, "cards", name)
+        if not os.path.exists(path):
+            continue
+        rows = {r["合計請求書No"]: r for r in board._read(path)}.values()
+        by = {}
+        for r in rows:
+            assert r["請求日"][:7] == ym, f"{name}: 請求日 {r['請求日']} が {ym} でない"
+            g = board._group(r)
+            if g not in BOARD22_GROUPS:
+                continue
+            ex = int(float(r["請求金額（JPY・税抜）"]))
+            by.setdefault(g, []).append((ex, r["顧客名"]))
+        for g, items in sorted(by.items()):
+            items.sort(key=lambda x: -x[0])
+            note = f"board {m}分 {len(items)}件: " + "／".join(f"{c} {e:,}" for e, c in items[:15])
+            bk.add(g, "売上", m, sum(e for e, _c in items), "board",
+                   f"★毎月ここに入れる/04_board売上（cards/{name}）", note)
+
+
 # ---------------------------------------------------------------- ⑥ 給与
 # 給料一覧表PDF（Dropbox /※プロスタイル給与※/プロスタイル給与R8年/給料一覧表-YYYYMM.pdf）を
 # pl/kyuyo/YYYYMM.pdf に落としておくと入る。★個人の給与が載るのでリポジトリには入れない。
@@ -316,6 +349,7 @@ def build():
     post_cards(bk)
     post_bank(bk)
     post_payroll(bk)
+    post_board(bk)
     _comment(bk)
     assert not bk.missing, "行が見つからない: " + "／".join(
         f"{t} {r} {m} {v:,}（{k}）" for t, r, m, v, k, _s in bk.missing)
