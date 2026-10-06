@@ -53,6 +53,11 @@
   #gate .err { font-size: 13px; color: var(--text-danger); min-height: 1.2em; text-align: center; }
   #gate .keep { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-secondary); }
   #gate .keep input { width: auto; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 56px !important; }
+  .pw-eye { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    border: none; background: transparent; cursor: pointer; font-size: 12px;
+    color: #6b6b68; padding: 6px 8px; font-family: inherit; }
   .who { font-size: 12px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 8px; }
 
     /* Prostyle ロゴ（ブランド色 #1778BC） */
@@ -177,7 +182,7 @@
     </div>
     <div>
       <label for="gate-pw">パスワード</label>
-      <input type="password" id="gate-pw" name="password" autocomplete="current-password" />
+      <div class="pw-wrap"><input type="password" id="gate-pw" name="password" autocomplete="current-password" /><button type="button" class="pw-eye" id="gate-eye" onclick="togglePw()">表示</button></div>
     </div>
     <label class="keep"><input type="checkbox" id="gate-keep" checked />この端末では次回から省く</label>
     <button type="submit" class="btn primary">入る</button>
@@ -2787,6 +2792,20 @@ const ACCOUNTS = [
   { id: 'junko', name: '飯田純子', hash: '700457fa44444538e3b6789422e23013d47175353cef4f88fa22cf16636691fc' },
 ];
 
+/* 日本語入力のまま打つと英数字が全角になることがある。
+   貼り付けたときの前後の空白も含めて、半角に直してから確かめる。 */
+function normPw(s) {
+  return String(s || '').normalize('NFKC').trim();
+}
+
+function togglePw() {
+  const i = document.getElementById('gate-pw');
+  const b = document.getElementById('gate-eye');
+  const show = i.type === 'password';
+  i.type = show ? 'text' : 'password';
+  if (b) b.textContent = show ? '隠す' : '表示';
+}
+
 async function gateHash(id, pw) {
   const data = new TextEncoder().encode(id + ':' + pw + ':' + GATE_SALT);
   const buf = await crypto.subtle.digest('SHA-256', data);
@@ -2837,7 +2856,7 @@ function startApp(who) {
   form.addEventListener('submit', async function (ev) {
     ev.preventDefault();
     const id = document.getElementById('gate-id').value.trim().toLowerCase();
-    const pw = document.getElementById('gate-pw').value;
+    const pw = normPw(document.getElementById('gate-pw').value);
     err.textContent = '';
     if (!id || !pw) { err.textContent = 'IDとパスワードを入れてください'; return; }
     if (!window.crypto || !crypto.subtle) {
@@ -2849,7 +2868,9 @@ function startApp(who) {
 
     const hit = ACCOUNTS.find(function (a) { return a.id === id && a.hash === h; });
     if (!hit) {
-      err.textContent = 'IDかパスワードが違います';
+      err.innerHTML = 'IDかパスワードが違います。<br />'
+        + '<span style="font-weight:400">日本語入力を切って（半角英数で）、大文字・小文字とハイフンもそのまま入れてください。'
+        + '「表示」を押すと入力した文字を確かめられます。</span>';
       document.getElementById('gate-pw').value = '';
       return;
     }
