@@ -51,6 +51,7 @@
 | PA勤怠（パート・アルバイト） | https://prostyle0902-bot.github.io/kintai-pa/ |
 | 勤怠（社員） | https://prostyle0902-bot.github.io/kintai/index.html |
 | シフト作成 | https://prostyle0902-bot.github.io/kintai/shift.html |
+| 現場収支（社長用・[説明](GENBA_README.md)） | https://prostyle0902-bot.github.io/kintai/genba.html |
 
 ## ログイン（ID・パスワード）
 

@@ -154,6 +154,9 @@ function handle_(p, cb) {
       if (p.action === 'payrollRateAll') return json_(payrollRateAll_(p), cb);
       if (p.action === 'payrollRetire') return json_(payrollRetire_(p), cb);
       if (p.action === 'payrollReinstate') return json_(payrollReinstate_(p), cb);
+      // 現場収支（genba.html）の日当・材料費など。シフトと同じ方法で別シートに預かる
+      if (p.action === 'genbaLoad') return json_(loadAll_(getGenbaSheet_()), cb);
+      if (p.action === 'genbaSave') return json_(saveAll_(getGenbaSheet_(), p), cb);
       return json_({ status: 'error', message: '不明な操作です: ' + p.action }, cb);
     } finally {
       lock.releaseLock();
@@ -185,10 +188,20 @@ function revOnly_(sh) {
 }
 
 function getSheet_() {
+  return getDataSheet_(SHEET_NAME);
+}
+
+// 現場収支（genba.html）の保存先。中身の並びはシフトの保存先と同じ
+var GENBA_SHEET = 'genba_rieki';
+function getGenbaSheet_() {
+  return getDataSheet_(GENBA_SHEET);
+}
+
+function getDataSheet_(name) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(SHEET_NAME);
+  var sh = ss.getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(SHEET_NAME);
+    sh = ss.insertSheet(name);
     sh.getRange('A1').setValue('rev');
     sh.getRange('A2').setValue('updatedAt');
     sh.getRange('A3').setValue('updatedBy');

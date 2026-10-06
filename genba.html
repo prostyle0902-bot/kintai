@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prostyle 現場収支</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="現場収支" />
+<meta name="theme-color" content="#1778BC" />
+<style>
+  :root {
+    --bg: #f1f4f8;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text-primary: #161d28;
+    --text-secondary: #646d7c;
+    --text-danger: #a32d2d;
+    --ok: #0F6E56;
+    --ok-bg: #E1F5EE;
+    --ng-bg: #FAECE7;
+    --warn-bg: #FFF4DB;
+    --warn: #8a5a00;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --accent: #1778BC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    font-size: 15px; line-height: 1.6;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .app { max-width: 980px; margin: 0 auto; padding: 16px 16px 80px; }
+
+  /* ---- 入口 ---- */
+  #gate { position: fixed; inset: 0; background: var(--bg); z-index: 50;
+          display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #gate .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+                padding: 28px 24px; width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 14px; }
+  #gate h2 { margin: 0; font-size: 18px; text-align: center; }
+  #gate label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+  #gate input[type=text], #gate input[type=password] { width: 100%; padding: 10px 12px; font-size: 16px;
+                border: 1px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface); }
+  #gate .err { font-size: 13px; color: var(--text-danger); min-height: 1.2em; text-align: center; }
+  #gate .keep { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-secondary); }
+
+  /* ---- 見出し ---- */
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .title { font-size: 20px; font-weight: 600; letter-spacing: .04em; }
+  .title small { display: block; font-size: 12px; font-weight: 400; color: var(--text-secondary); letter-spacing: 0; }
+  .who { font-size: 12px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chip-state { font-size: 12px; padding: 4px 12px; border-radius: 20px; background: #e8edf3; color: var(--text-secondary); cursor: default; }
+  .chip-state.ok  { background: var(--ok-bg); color: var(--ok); }
+  .chip-state.err { background: var(--ng-bg); color: var(--text-danger); cursor: pointer; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-md); margin-bottom: 16px; overflow-x: auto; }
+  .tab { padding: 10px 14px; border: 0; background: none; color: var(--text-secondary); cursor: pointer;
+         border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+  .tab.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .btn { padding: 9px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-md);
+         background: var(--surface); cursor: pointer; white-space: nowrap; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.sm { padding: 4px 10px; font-size: 13px; }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
+  .btn.danger { color: var(--text-danger); }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 14px; }
+  .card h3 { margin: 0 0 10px; font-size: 15px; }
+  .muted { color: var(--text-secondary); font-size: 13px; }
+  .note { font-size: 13px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--warn-bg); color: var(--warn); margin-bottom: 12px; }
+  .note.info { background: #E8F1FA; color: #1d4f7a; }
+  .note a, .linkish { color: inherit; text-decoration: underline; cursor: pointer; background: none; border: 0; padding: 0; }
+
+  /* ---- 期間 ---- */
+  .period { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .period .month { font-size: 18px; font-weight: 600; min-width: 120px; text-align: center; }
+  .period input[type=date] { padding: 6px 8px; border: 1px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface); }
+  .seg { display: inline-flex; border: 1px solid var(--border-md); border-radius: var(--radius-md); overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); padding: 6px 12px; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; }
+
+  /* ---- 合計 ---- */
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px; }
+  .kpi .l { font-size: 12px; color: var(--text-secondary); }
+  .kpi .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi .s { font-size: 12px; color: var(--text-secondary); }
+  @media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi .v { font-size: 18px; } }
+
+  .plus { color: var(--ok); }
+  .minus { color: var(--text-danger); }
+
+  /* ---- 現場の一覧 ---- */
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .toolbar input[type=search] { flex: 1; min-width: 160px; padding: 8px 10px; border: 1px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface); }
+  .toolbar select { padding: 8px; border: 1px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface); }
+  .site { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+          background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+          padding: 12px 14px; margin-bottom: 8px; cursor: pointer; text-align: left; width: 100%; }
+  .site:hover { border-color: var(--accent); }
+  .site .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .site .sub { font-size: 12px; color: var(--text-secondary); grid-column: 1; }
+  .site .profit { font-size: 18px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; grid-row: 1 / span 2; grid-column: 2; }
+  .site .profit small { display: block; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+  .site .bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: #e8edf3; overflow: hidden; display: flex; }
+  .site .bar span { display: block; height: 100%; }
+  .site .flags { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: #e8edf3; color: var(--text-secondary); }
+  .tag.warn { background: var(--warn-bg); color: var(--warn); }
+  .tag.plan { background: #E8F1FA; color: #1d4f7a; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin: 0 0 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .c-labor { background: #6E9BD1; } .c-cost { background: #E3A35B; } .c-profit { background: #4DB38A; }
+
+  /* ---- 表 ---- */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { font-size: 12px; color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.total td { font-weight: 600; border-top: 2px solid var(--border-md); border-bottom: 0; }
+
+  /* ---- 入力 ---- */
+  .form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+  .form label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 3px; }
+  .form input, .form select, .wage-row input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-md);
+          border-radius: var(--radius-md); background: var(--surface); font-size: 16px; }
+  .yen { position: relative; }
+  .yen input { padding-right: 28px; text-align: right; }
+  .yen::after { content: '円'; position: absolute; right: 10px; bottom: 9px; font-size: 13px; color: var(--text-secondary); pointer-events: none; }
+
+  .wage-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .wage-row .nm { font-weight: 500; }
+  .wage-row .nm small { color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 6px 12px; border-radius: 18px; border: 1px solid var(--border-md); background: var(--surface); cursor: pointer; font-size: 14px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ---- 詳細 ---- */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 30; display: none; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 24px 12px; }
+  .overlay.on { display: flex; }
+  .sheet { background: var(--bg); border-radius: var(--radius-lg); width: 100%; max-width: 860px; padding: 16px; }
+  .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .sheet-head h2 { margin: 0; font-size: 18px; }
+  .calc { font-variant-numeric: tabular-nums; }
+  .calc .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+  .calc .row.big { font-size: 18px; font-weight: 600; border-bottom: 0; padding-top: 10px; }
+  .day { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .day:last-of-type { border-bottom: 0; }
+  .day-staff { margin: 2px 0; }
+  .day-nums { display: flex; gap: 4px 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); align-items: center; }
+  .day-nums b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .day.off .amt b { text-decoration: line-through; color: var(--text-secondary); }
+  .cnt { display: inline-flex; align-items: center; gap: 4px; color: var(--text-primary); }
+  .empty { text-align: center; color: var(--text-secondary); padding: 30px 10px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <form class="card" id="gate-form" autocomplete="on">
+    <h2>現場収支</h2>
+    <div class="muted" style="text-align:center">入社登録アプリと同じIDとパスワードで入れます</div>
+    <div>
+      <label for="gate-id">ID</label>
+      <input type="text" id="gate-id" name="username" autocomplete="username"
+             autocapitalize="off" autocorrect="off" spellcheck="false" />
+    </div>
+    <div>
+      <label for="gate-pw">パスワード</label>
+      <input type="password" id="gate-pw" name="password" autocomplete="current-password" />
+    </div>
+    <label class="keep"><input type="checkbox" id="gate-keep" checked />この端末では次回から省く</label>
+    <button type="submit" class="btn primary">入る</button>
+    <div class="err" id="gate-err"></div>
+  </form>
+</div>
+
+<div class="app">
+  <div class="head">
+    <div class="title">現場収支<small>現場管理カレンダーの「担当スタッフ」と「請負金額」から、現場ごとの儲けを出します</small></div>
+    <div class="who">
+      <span class="chip-state" id="state-cal" onclick="reloadAll()">カレンダー 読込中…</span>
+      <span class="chip-state" id="state-save" onclick="reloadAll()">保存先 確認中…</span>
+      <span id="who"></span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="sites" onclick="showTab('sites')">現場ごとの収支</button>
+    <button class="tab" data-tab="sim" onclick="showTab('sim')">見積もり試算</button>
+    <button class="tab" data-tab="wages" onclick="showTab('wages')">日当の設定</button>
+  </div>
+
+  <!-- ===== 現場ごとの収支 ===== -->
+  <section id="tab-sites">
+    <div class="period">
+      <div class="seg">
+        <button id="pm-month" class="on" onclick="setPeriodMode('month')">月ごと</button>
+        <button id="pm-range" onclick="setPeriodMode('range')">期間を指定</button>
+      </div>
+      <span id="period-month">
+        <button class="btn sm" onclick="moveMonth(-1)">‹ 前月</button>
+        <span class="month" id="month-title"></span>
+        <button class="btn sm" onclick="moveMonth(1)">次月 ›</button>
+      </span>
+      <span id="period-range" class="hidden">
+        <input type="date" id="range-from" onchange="setRange()" /> 〜
+        <input type="date" id="range-to" onchange="setRange()" />
+      </span>
+    </div>
+
+    <div id="warn-save"></div>
+    <div id="warn-wages"></div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="現場名・お客様名でしぼりこむ" oninput="renderSites()" />
+      <select id="sort" onchange="renderSites()">
+        <option value="profit">儲けが大きい順</option>
+        <option value="loss">儲けが小さい順</option>
+        <option value="sales">売上が大きい順</option>
+        <option value="rate">利益率が低い順</option>
+        <option value="date">日付順</option>
+      </select>
+    </div>
+    <div class="legend"><span><i class="c-labor"></i>人件費</span><span><i class="c-cost"></i>材料費・外注費など</span><span><i class="c-profit"></i>儲け</span></div>
+    <div id="site-list"><div class="empty">読み込み中…</div></div>
+  </section>
+
+  <!-- ===== 見積もり試算 ===== -->
+  <section id="tab-sim" class="hidden">
+    <div class="note info">カレンダーに入れる前に「この金額で受けて儲かるか」を試せます。ここで入れた内容は保存されません。</div>
+    <div class="card">
+      <h3>現場の条件</h3>
+      <div class="form">
+        <div class="yen"><label>請負金額</label><input type="number" inputmode="numeric" id="sim-amount" placeholder="1000000" oninput="renderSim()" /></div>
+        <div><label>日数</label><input type="number" inputmode="decimal" id="sim-days" value="1" min="0" step="0.5" oninput="renderSim()" /></div>
+        <div class="yen"><label>材料費</label><input type="number" inputmode="numeric" id="sim-mat" placeholder="0" oninput="renderSim()" /></div>
+        <div class="yen"><label>外注費</label><input type="number" inputmode="numeric" id="sim-out" placeholder="0" oninput="renderSim()" /></div>
+        <div class="yen"><label>その他（車両・燃料など）</label><input type="number" inputmode="numeric" id="sim-other" placeholder="0" oninput="renderSim()" /></div>
+      </div>
+      <div style="margin-top:14px">
+        <label class="muted">行くスタッフ（タップで選ぶ）</label>
+        <div class="chips" id="sim-staff"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>試算の結果</h3>
+      <div id="sim-result"></div>
+    </div>
+  </section>
+
+  <!-- ===== 日当の設定 ===== -->
+  <section id="tab-wages" class="hidden">
+    <div class="note info">
+      1人が1日現場に出たときにかかる金額（日当）を入れます。社員は「月給÷月の出勤日数」に、社会保険の会社負担ぶんを足した金額にするのがおすすめです。<br>
+      同じ日に2つ以上の現場へ行った人は、カレンダーの作業時間の長さで日当を分けて計算します。
+    </div>
+    <div class="card">
+      <h3>月給から日当を計算する</h3>
+      <div class="form">
+        <div class="yen"><label>月給（総支給）</label><input type="number" inputmode="numeric" id="calc-salary" oninput="calcWage()" /></div>
+        <div><label>月の出勤日数</label><input type="number" inputmode="decimal" id="calc-days" value="22" oninput="calcWage()" /></div>
+        <div><label>会社負担（社保など）</label><select id="calc-ins" onchange="calcWage()">
+          <option value="0">含めない</option>
+          <option value="0.15" selected>15%を足す</option>
+          <option value="0.16">16%を足す</option>
+        </select></div>
+        <div><label>1日あたり</label><div id="calc-out" style="font-size:18px;font-weight:600;padding:6px 0">―</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>自社スタッフ</h3>
+      <div id="wage-own"></div>
+    </div>
+    <div class="card">
+      <h3>外注</h3>
+      <div class="muted" style="margin-bottom:6px">1日あたりの金額が決まっている外注先だけ入れてください。現場ごとに金額が違うときは空のままにして、各現場の「材料費・外注費など」に入れます。</div>
+      <div id="wage-out"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== 現場の詳細 ===== -->
+<div class="overlay" id="detail" onclick="if(event.target===this)closeDetail()">
+  <div class="sheet" id="detail-body"></div>
+</div>
+
+<script>
+/* =========================================================
+   現場収支
+   現場管理カレンダー（prostyle-calendar の index.html）に入っている
+   「現場名・担当スタッフ・作業時間・請負金額」を読み、
+   日当の設定と、ここで入れた材料費・外注費などから、現場ごとの儲けを出す。
+
+   カレンダーの内容はここからは書き換えない（読むだけ）。
+   日当・材料費などは、シフト作成と同じ Apps Script（shift-sync.gs）の
+   「genba_rieki」シートに預ける。まだ Apps Script を貼り替えていないときは、
+   この端末の中だけに保存する。
+   ========================================================= */
+
+// 現場管理カレンダーの Apps Script（prostyle-calendar/index.html の API と同じ）
+const CAL_API = 'https://script.google.com/macros/s/AKfycbwV_UNDYqwlGhMeoEQiasU348YX_UEKXys7E0TkZaOMfrcXtTx6-JIisyLVMCW2yj3g/exec';
+// 日当などの保存先（shift.html の SYNC_API / onboarding.html の MASTER_API と同じ）
+const MASTER_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
+const MASTER_TOKEN = 'prostyle-shift-2026';
+
+// カレンダーのスタッフ一覧と同じ表記（prostyle-calendar/index.html の STAFF_OWN / STAFF_OUT）
+const STAFF_OWN = ['平野健雄','安藤正樹','伏田幸枝','小林俊樹','石毛貴英','池田久史','三浦達弥','飯田怜飛','飯田栄'];
+const STAFF_OUT = ['SUN-X','SIBS','One by One','増田（伸和洗浄）','ロープワーク','RISE','ミノアカ','小池','サンクトラスト','Green Field'];
+
+const TYPE_LABEL = { daily:'日常清掃', regular:'定期清掃', spot:'スポット清掃', bird:'鳥害対策', outsource:'外注', pending:'未定', delivery:'納品' };
+const COST_KINDS = ['材料費', '外注費', '車両・燃料', 'その他'];
+
+const LS_STORE = 'prostyle_genba_store_v1';   // 日当・経費の控え
+const LS_CAL   = 'prostyle_genba_cal_v1';     // カレンダーの控え
+const CAL_CACHE_OF_CALENDAR = 'genba_cache_v2'; // カレンダー自身が残している控え（同じサイトなので読める）
+
+/* ---------- 保存する中身 ----------
+   wages     : { 名前: 日当 }
+   costs     : { 現場名: [{ id, date, kind, item, amount }] }
+   skipSales : { カレンダーの予定id: true }  … 売上に数えない日
+   deleted   : { 消した経費のid: true }       … 2台で同時に触ったときに消したものが戻らないように */
+let STORE = { wages: {}, costs: {}, skipSales: {}, deleted: {} };
+let storeRev = 0;
+let localDirty = false;    // 保存先につながらないあいだに、この端末で変えたものがある
+let cloudOk = null;        // null=確認中 / true=Apps Script に保存 / false=この端末だけ
+let EVENTS = {};           // { 'YYYY-MM-DD': [予定] }
+let userName = '';
+
+let periodMode = 'month';
+let curMonth = (function () { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
+let rangeFrom = '', rangeTo = '';
+let openSite = null;       // 詳細を開いている現場名
+let simStaff = [];
+
+/* ================= 小さな道具 ================= */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+function yen(n) { return (n < 0 ? '−' : '') + Math.round(Math.abs(n)).toLocaleString('ja-JP') + '円'; }
+function man(n) {
+  // 大きい金額は「123.4万円」と短く出す
+  const a = Math.abs(n);
+  if (a >= 100000) return (n < 0 ? '−' : '') + (Math.round(a / 1000) / 10).toLocaleString('ja-JP') + '万円';
+  return yen(n);
+}
+function pct(n) { return isFinite(n) ? (Math.round(n * 10) / 10) + '%' : '―'; }
+function num(v) {
+  // 「45,000」「45000円」「４５０００」なども数字として読む
+  if (v == null) return 0;
+  const s = String(v).replace(/[０-９．]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+                     .replace(/[,，円\s]/g, '');
+  const n = parseFloat(s);
+  return isFinite(n) ? n : 0;
+}
+function days1(n) { return String(Math.round(n * 100) / 100); }
+function pad(n) { return String(n).padStart(2, '0'); }
+function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function today() { return ymd(new Date()); }
+function mdw(s) {
+  const p = s.split('-'); const d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return (+p[1]) + '/' + (+p[2]) + '（' + '日月火水木金土'[d.getDay()] + '）';
+}
+function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+// 現場名の空白の違い（全角・半角・前後）で別の現場にならないようにそろえる
+function siteKey(place) { return String(place || '').replace(/[\s　]+/g, ' ').trim(); }
+function hoursOf(ev) {
+  const t = function (v) { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? (+m[1]) + (+m[2]) / 60 : null; };
+  const s = t(ev.start), e = t(ev.end);
+  if (s == null || e == null) return 0;
+  let h = e - s;
+  if (h <= 0) h += 24;   // 日をまたぐ作業
+  return h;
+}
+function isOut(name) { return STAFF_OUT.indexOf(name) >= 0; }
+
+/* ================= 期間 ================= */
+function periodBounds() {
+  if (periodMode === 'range' && rangeFrom && rangeTo) {
+    return rangeFrom <= rangeTo ? [rangeFrom, rangeTo] : [rangeTo, rangeFrom];
+  }
+  const y = curMonth.getFullYear(), m = curMonth.getMonth();
+  return [ymd(new Date(y, m, 1)), ymd(new Date(y, m + 1, 0))];
+}
+function inPeriod(d) { const b = periodBounds(); return d >= b[0] && d <= b[1]; }
+function setPeriodMode(m) {
+  periodMode = m;
+  document.getElementById('pm-month').classList.toggle('on', m === 'month');
+  document.getElementById('pm-range').classList.toggle('on', m === 'range');
+  document.getElementById('period-month').classList.toggle('hidden', m !== 'month');
+  document.getElementById('period-range').classList.toggle('hidden', m !== 'range');
+  if (m === 'range' && !rangeFrom) {
+    const b = periodBounds();
+    rangeFrom = b[0]; rangeTo = b[1];
+    document.getElementById('range-from').value = rangeFrom;
+    document.getElementById('range-to').value = rangeTo;
+  }
+  renderSites();
+}
+function setRange() {
+  rangeFrom = document.getElementById('range-from').value;
+  rangeTo = document.getElementById('range-to').value;
+  renderSites();
+}
+function moveMonth(d) {
+  curMonth = new Date(curMonth.getFullYear(), curMonth.getMonth() + d, 1);
+  renderSites();
+}
+
+/* ================= 計算 ================= */
+/* 期間内の予定を現場ごとにまとめ、人件費・売上・経費を出す。
+
+   人件費は「その日にその人が行った現場の数」で日当を分ける。
+   作業時間が入っていれば時間の長さで、入っていなければ均等に分ける。
+   例：日当15,000円の人が、同じ日に 2時間と6時間の現場へ行った → 3,750円と11,250円 */
+function computeSites() {
+  const b = periodBounds();
+  const sites = {};
+  const noWage = {};
+
+  Object.keys(EVENTS).forEach(function (date) {
+    if (date < b[0] || date > b[1]) return;
+    const list = (EVENTS[date] || []).filter(function (ev) { return ev && siteKey(ev.place); });
+
+    // その日、各スタッフが行った予定と時間
+    const perStaff = {};
+    list.forEach(function (ev) {
+      (ev.staff || []).forEach(function (name) {
+        (perStaff[name] = perStaff[name] || []).push({ ev: ev, h: hoursOf(ev) });
+      });
+    });
+
+    list.forEach(function (ev) {
+      const key = siteKey(ev.place);
+      const s = sites[key] || (sites[key] = {
+        name: key, clients: {}, days: [], sales: 0, labor: 0, manDays: 0, staff: {},
+        first: date, last: date, hasPlan: false, sameAmount: false,
+      });
+      if (ev.client) s.clients[ev.client] = (s.clients[ev.client] || 0) + 1;
+      if (date < s.first) s.first = date;
+      if (date > s.last) s.last = date;
+      const plan = date > today();
+      if (plan) s.hasPlan = true;
+
+      const amount = num(ev.amount);
+      const counted = !STORE.skipSales[ev.id];
+      if (counted) s.sales += amount;
+
+      const row = { date: date, ev: ev, amount: amount, counted: counted, plan: plan, labor: 0, people: [] };
+      (ev.staff || []).forEach(function (name) {
+        const mine = perStaff[name] || [];
+        const total = mine.reduce(function (a, x) { return a + x.h; }, 0);
+        const me = mine.find(function (x) { return x.ev === ev; });
+        const share = total > 0 ? (me ? me.h : 0) / total : 1 / Math.max(1, mine.length);
+        const w = STORE.wages[name];
+        const hasWage = w != null && w !== '' && isFinite(+w);
+        if (!hasWage && !isOut(name)) noWage[name] = true;
+        const cost = hasWage ? (+w) * share : 0;
+        row.labor += cost;
+        row.people.push({ name: name, share: share, cost: cost, hasWage: hasWage });
+        const st = s.staff[name] || (s.staff[name] = { name: name, manDays: 0, cost: 0, hasWage: hasWage, out: isOut(name) });
+        st.manDays += share;
+        st.cost += cost;
+        if (!hasWage) st.hasWage = false;
+        if (!isOut(name)) s.manDays += share;
+      });
+      s.labor += row.labor;
+      s.days.push(row);
+    });
+  });
+
+  // 材料費などは、期間内の日付のものだけ数える
+  Object.keys(sites).forEach(function (key) {
+    const s = sites[key];
+    s.days.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    s.costItems = (STORE.costs[key] || []).filter(function (c) { return !STORE.deleted[c.id] && c.date >= b[0] && c.date <= b[1]; });
+    s.costByKind = {};
+    s.cost = 0;
+    s.costItems.forEach(function (c) {
+      const a = num(c.amount);
+      s.cost += a;
+      s.costByKind[c.kind] = (s.costByKind[c.kind] || 0) + a;
+    });
+    s.profit = s.sales - s.labor - s.cost;
+    s.rate = s.sales > 0 ? s.profit / s.sales * 100 : NaN;
+    const cl = Object.keys(s.clients).sort(function (a, b) { return s.clients[b] - s.clients[a]; });
+    s.client = cl[0] || '';
+    // 同じ請負金額が2日以上入っている（1件の金額を毎日入れている）かもしれない
+    const amts = {};
+    s.days.forEach(function (r) { if (r.amount > 0 && r.counted) amts[r.amount] = (amts[r.amount] || 0) + 1; });
+    s.sameAmount = Object.keys(amts).some(function (k) { return amts[k] >= 2; }) && s.days.length >= 2;
+    s.noSales = s.days.every(function (r) { return !r.amount; });
+  });
+
+  // 経費だけ入っていて、期間内に予定が無い現場も出す
+  Object.keys(STORE.costs).forEach(function (key) {
+    if (sites[key]) return;
+    const items = (STORE.costs[key] || []).filter(function (c) { return !STORE.deleted[c.id] && c.date >= b[0] && c.date <= b[1]; });
+    if (!items.length) return;
+    const cost = items.reduce(function (a, c) { return a + num(c.amount); }, 0);
+    const byKind = {};
+    items.forEach(function (c) { byKind[c.kind] = (byKind[c.kind] || 0) + num(c.amount); });
+    sites[key] = { name: key, client: '', clients: {}, days: [], sales: 0, labor: 0, manDays: 0, staff: {},
+                   first: items[0].date, last: items[0].date, hasPlan: false, sameAmount: false, noSales: true,
+                   costItems: items, costByKind: byKind, cost: cost, profit: -cost, rate: NaN };
+  });
+
+  return { sites: sites, noWage: Object.keys(noWage) };
+}
+
+/* ================= 現場ごとの収支 ================= */
+let LAST = { sites: {}, noWage: [] };
+
+function renderSites() {
+  const b = periodBounds();
+  document.getElementById('month-title').textContent = curMonth.getFullYear() + '年' + (curMonth.getMonth() + 1) + '月';
+
+  LAST = computeSites();
+  const all = Object.keys(LAST.sites).map(function (k) { return LAST.sites[k]; });
+
+  // 日当が未設定の人
+  const ww = document.getElementById('warn-wages');
+  ww.innerHTML = LAST.noWage.length
+    ? '<div class="note">日当がまだ入っていない人がいます：<b>' + LAST.noWage.map(esc).join('、')
+      + '</b>。この人のぶんの人件費は 0円 で計算しています。<button class="linkish" onclick="showTab(\'wages\')">日当を入れる</button></div>'
+    : '';
+
+  // 合計
+  const t = all.reduce(function (a, s) {
+    a.sales += s.sales; a.labor += s.labor; a.cost += s.cost; a.profit += s.profit; a.manDays += s.manDays; return a;
+  }, { sales: 0, labor: 0, cost: 0, profit: 0, manDays: 0 });
+  const rate = t.sales > 0 ? t.profit / t.sales * 100 : NaN;
+  const planNote = b[1] > today() ? '<div class="s">これからの予定も含む</div>' : '';
+  document.getElementById('kpis').innerHTML =
+    kpi('売上', man(t.sales), all.length + '現場' ) +
+    kpi('人件費', man(t.labor), days1(t.manDays) + '人工') +
+    kpi('材料費・外注費など', man(t.cost), '') +
+    '<div class="kpi"><div class="l">儲け（粗利）</div><div class="v ' + (t.profit >= 0 ? 'plus' : 'minus') + '">' + man(t.profit)
+      + '</div><div class="s">利益率 ' + pct(rate) + '</div>' + planNote + '</div>';
+
+  // 一覧
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  let list = all.filter(function (s) { return !q || (s.name + ' ' + s.client).toLowerCase().indexOf(q) >= 0; });
+  const sort = document.getElementById('sort').value;
+  list.sort(function (a, b) {
+    if (sort === 'loss') return a.profit - b.profit;
+    if (sort === 'sales') return b.sales - a.sales;
+    if (sort === 'rate') return (isFinite(a.rate) ? a.rate : 1e9) - (isFinite(b.rate) ? b.rate : 1e9);
+    if (sort === 'date') return a.first < b.first ? -1 : a.first > b.first ? 1 : 0;
+    return b.profit - a.profit;
+  });
+
+  const box = document.getElementById('site-list');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">' + (Object.keys(EVENTS).length
+      ? 'この期間の現場はありません'
+      : 'カレンダーの内容を読み込んでいます…') + '</div>';
+  } else {
+    box.innerHTML = list.map(siteCard).join('');
+  }
+  if (openSite) renderDetail();
+}
+function kpi(l, v, s) {
+  return '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + s + '</div></div>';
+}
+function siteCard(s) {
+  const base = Math.max(s.sales, s.labor + s.cost, 1);
+  const w = function (n) { return Math.max(0, n) / base * 100; };
+  const flags = [];
+  if (s.hasPlan) flags.push('<span class="tag plan">予定あり</span>');
+  if (s.noSales && s.days.length) flags.push('<span class="tag warn">請負金額が未入力</span>');
+  if (s.sameAmount) flags.push('<span class="tag warn">同じ金額が複数日</span>');
+  if (Object.keys(s.staff).some(function (k) { return !s.staff[k].hasWage && !s.staff[k].out; })) flags.push('<span class="tag warn">日当未設定の人あり</span>');
+  const period = s.first === s.last ? mdw(s.first) : mdw(s.first) + '〜' + mdw(s.last);
+  return '<button class="site" onclick="openDetail(' + esc(JSON.stringify(s.name)) + ')">'
+    + '<div class="name">' + esc(s.name) + (s.client ? ' <span class="muted">／' + esc(s.client) + '</span>' : '') + '</div>'
+    + '<div class="profit ' + (s.profit >= 0 ? 'plus' : 'minus') + '">' + man(s.profit) + '<small>利益率 ' + pct(s.rate) + '</small></div>'
+    + '<div class="sub">' + period + '・' + s.days.length + '回・' + days1(s.manDays) + '人工　売上 ' + man(s.sales)
+      + '　人件費 ' + man(s.labor) + (s.cost ? '　経費 ' + man(s.cost) : '') + '</div>'
+    + '<div class="bar"><span class="c-labor" style="width:' + w(s.labor) + '%"></span><span class="c-cost" style="width:' + w(s.cost)
+      + '%"></span><span class="c-profit" style="width:' + w(s.profit) + '%"></span></div>'
+    + (flags.length ? '<div class="flags">' + flags.join('') + '</div>' : '')
+    + '</button>';
+}
+
+/* ================= 現場の詳細 ================= */
+function openDetail(name) {
+  openSite = name;
+  renderDetail();
+  document.getElementById('detail').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function closeDetail() {
+  openSite = null;
+  document.getElementById('detail').classList.remove('on');
+  document.body.style.overflow = '';
+}
+
+function renderDetail() {
+  const s = LAST.sites[openSite];
+  const el = document.getElementById('detail-body');
+  if (!s) { closeDetail(); return; }
+  const b = periodBounds();
+  let h = '<div class="sheet-head"><div><h2>' + esc(s.name) + '</h2><div class="muted">'
+    + (s.client ? esc(s.client) + '・' : '') + mdw(b[0]) + '〜' + mdw(b[1]) + ' のぶん</div></div>'
+    + '<button class="btn sm" onclick="closeDetail()">閉じる</button></div>';
+
+  // 計算のまとめ
+  h += '<div class="card calc"><h3>儲けの計算</h3>'
+    + '<div class="row"><span>売上（請負金額）</span><span>' + yen(s.sales) + '</span></div>'
+    + '<div class="row"><span>− 人件費（' + days1(s.manDays) + '人工）</span><span>' + yen(s.labor) + '</span></div>';
+  COST_KINDS.forEach(function (k) {
+    if (s.costByKind[k]) h += '<div class="row"><span>− ' + k + '</span><span>' + yen(s.costByKind[k]) + '</span></div>';
+  });
+  h += '<div class="row big"><span>儲け（粗利）</span><span class="' + (s.profit >= 0 ? 'plus' : 'minus') + '">' + yen(s.profit)
+    + '</span></div><div class="muted" style="text-align:right">利益率 ' + pct(s.rate) + '</div></div>';
+
+  // 日ごと
+  if (s.days.length) {
+    h += '<div class="card"><h3>日ごとの内容（現場管理カレンダーより）</h3>';
+    if (s.sameAmount) {
+      h += '<div class="note">同じ請負金額が2日以上に入っています。1つの工事の金額を毎日入れている場合は、2日目以降の「売上に数える」を外してください。'
+        + ' <button class="linkish" onclick="firstDayOnly()">同じ金額は最初の日だけ数える</button></div>';
+    }
+    s.days.forEach(function (r) {
+      const ev = r.ev;
+      const ppl = r.people.map(function (p) {
+        return esc(p.name) + (p.share < 0.999 ? '<span class="muted">（' + days1(p.share) + '）</span>' : '')
+          + (isOut(p.name) ? ' <span class="tag">外注</span>' : '')
+          + (!p.hasWage && !isOut(p.name) ? ' <span class="tag warn">日当なし</span>' : '');
+      }).join('、') || '<span class="muted">スタッフなし</span>';
+      const hrs = hoursOf(ev);
+      h += '<div class="day' + (r.counted ? '' : ' off') + '">'
+        + '<div class="day-top"><b>' + mdw(r.date) + '</b>' + (r.plan ? ' <span class="tag plan">予定</span>' : '')
+        + ' <span class="muted">' + esc(TYPE_LABEL[ev.type] || ev.type || '')
+        + (ev.start && ev.end ? '・' + esc(ev.start) + '〜' + esc(ev.end) + (hrs ? '（' + days1(hrs) + '時間）' : '') : '') + '</span></div>'
+        + '<div class="day-staff">' + ppl + '</div>'
+        + '<div class="day-nums"><span>人件費 <b>' + yen(r.labor) + '</b></span>'
+        + '<span class="amt">請負金額 <b>' + (r.amount ? yen(r.amount) : '―') + '</b></span>'
+        + (r.amount ? '<label class="cnt"><input type="checkbox" ' + (r.counted ? 'checked' : '') + ' onchange="toggleSales(' + esc(JSON.stringify(ev.id)) + ', this.checked)" />売上に数える</label>' : '')
+        + '</div></div>';
+    });
+    h += '<div class="muted" style="margin-top:6px">スタッフや金額を直すときは、現場管理カレンダーで直してください。名前のあとの（0.5）などは、同じ日に別の現場にも行ったので日当を分けたぶんです。</div></div>';
+  }
+
+  // 人ごと
+  const people = Object.keys(s.staff).map(function (k) { return s.staff[k]; });
+  if (people.length) {
+    h += '<div class="card"><h3>人件費の内訳</h3><div class="tbl-wrap"><table><thead><tr><th>名前</th><th class="n">人工</th><th class="n">日当</th><th class="n">金額</th></tr></thead><tbody>';
+    people.sort(function (a, b) { return b.cost - a.cost; }).forEach(function (p) {
+      const w = STORE.wages[p.name];
+      h += '<tr><td>' + esc(p.name) + (p.out ? ' <span class="tag">外注</span>' : '') + '</td><td class="n">' + days1(p.manDays)
+        + '</td><td class="n">' + (w != null && w !== '' ? yen(+w) : '<button class="linkish" onclick="closeDetail();showTab(\'wages\')">未設定</button>')
+        + '</td><td class="n">' + yen(p.cost) + '</td></tr>';
+    });
+    h += '<tr class="total"><td>合計</td><td class="n">' + days1(s.manDays) + '</td><td></td><td class="n">' + yen(s.labor) + '</td></tr>';
+    h += '</tbody></table></div></div>';
+  }
+
+  // 経費
+  const firstDay = s.days.length ? s.days[0].date : (today() >= b[0] && today() <= b[1] ? today() : b[0]);
+  h += '<div class="card"><h3>材料費・外注費など</h3>';
+  if (s.costItems.length) {
+    h += '<div class="tbl-wrap"><table><thead><tr><th>日付</th><th>種類</th><th>内容</th><th class="n">金額</th><th></th></tr></thead><tbody>';
+    s.costItems.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (c) {
+      h += '<tr><td>' + mdw(c.date) + '</td><td>' + esc(c.kind) + '</td><td>' + esc(c.item) + '</td><td class="n">' + yen(num(c.amount))
+        + '</td><td><button class="btn sm ghost danger" onclick="delCost(' + esc(JSON.stringify(c.id)) + ')">消す</button></td></tr>';
+    });
+    h += '<tr class="total"><td colspan="3">合計</td><td class="n">' + yen(s.cost) + '</td><td></td></tr></tbody></table></div>';
+  } else {
+    h += '<div class="muted" style="margin-bottom:8px">まだ入っていません。</div>';
+  }
+  h += '<div class="form" style="margin-top:12px">'
+    + '<div><label>日付</label><input type="date" id="c-date" value="' + esc(firstDay) + '" /></div>'
+    + '<div><label>種類</label><select id="c-kind">' + COST_KINDS.map(function (k) { return '<option>' + k + '</option>'; }).join('') + '</select></div>'
+    + '<div style="grid-column: span 2"><label>内容</label><input type="text" id="c-item" placeholder="例：ワックス 18L×2" /></div>'
+    + '<div class="yen"><label>金額</label><input type="number" inputmode="numeric" id="c-amount" placeholder="0" onkeydown="if(event.key===\'Enter\')addCost()" /></div>'
+    + '<div><button class="btn primary" style="width:100%" onclick="addCost()">足す</button></div>'
+    + '</div><div class="muted" style="margin-top:6px">日付は、見ている期間に入る日にしてください（その期間の集計に入ります）。</div></div>';
+
+  el.innerHTML = h;
+}
+
+function toggleSales(id, on) {
+  if (on) delete STORE.skipSales[id]; else STORE.skipSales[id] = true;
+  saveStore();
+  renderSites();
+}
+function firstDayOnly() {
+  const s = LAST.sites[openSite];
+  if (!s) return;
+  const seen = {};
+  s.days.forEach(function (r) {
+    if (!r.amount) return;
+    if (seen[r.amount]) STORE.skipSales[r.ev.id] = true;
+    else { seen[r.amount] = true; delete STORE.skipSales[r.ev.id]; }
+  });
+  saveStore();
+  renderSites();
+}
+function addCost() {
+  const date = document.getElementById('c-date').value;
+  const kind = document.getElementById('c-kind').value;
+  const item = document.getElementById('c-item').value.trim();
+  const amount = num(document.getElementById('c-amount').value);
+  if (!date) { alert('日付を入れてください'); return; }
+  if (!amount) { alert('金額を入れてください'); return; }
+  (STORE.costs[openSite] = STORE.costs[openSite] || []).push({ id: newId(), date: date, kind: kind, item: item, amount: amount });
+  saveStore();
+  renderSites();
+  if (!inPeriod(date)) alert('入れた日付が、いま見ている期間の外なので、この画面の合計には入っていません。');
+}
+function delCost(id) {
+  if (!confirm('この経費を消しますか？')) return;
+  Object.keys(STORE.costs).forEach(function (k) {
+    STORE.costs[k] = STORE.costs[k].filter(function (c) { return c.id !== id; });
+    if (!STORE.costs[k].length) delete STORE.costs[k];
+  });
+  STORE.deleted[id] = true;
+  saveStore();
+  renderSites();
+}
+
+/* ================= 日当の設定 ================= */
+// 一覧に出す人：カレンダーの自社スタッフ ＋ 予定に出てくるそれ以外の名前 ＋ 日当を入れたことのある人
+function knownNames() {
+  const own = STAFF_OWN.slice(), out = STAFF_OUT.slice();
+  const add = function (n) { if (n && own.indexOf(n) < 0 && out.indexOf(n) < 0) own.push(n); };
+  Object.keys(EVENTS).forEach(function (d) { (EVENTS[d] || []).forEach(function (ev) { (ev.staff || []).forEach(add); }); });
+  Object.keys(STORE.wages).forEach(add);
+  return { own: own, out: out };
+}
+function renderWages() {
+  const k = knownNames();
+  const row = function (n, out) {
+    const v = STORE.wages[n];
+    return '<div class="wage-row"><div class="nm">' + esc(n) + (STAFF_OWN.indexOf(n) < 0 && !out ? '<small>カレンダーで見つけた名前</small>' : '') + '</div>'
+      + '<div class="yen"><input type="number" inputmode="numeric" value="' + (v != null ? esc(v) : '') + '" placeholder="' + (out ? '空のまま' : '未設定') + '"'
+      + ' onchange="setWage(' + esc(JSON.stringify(n)) + ', this.value)" /></div></div>';
+  };
+  document.getElementById('wage-own').innerHTML = k.own.map(function (n) { return row(n, false); }).join('');
+  document.getElementById('wage-out').innerHTML = k.out.map(function (n) { return row(n, true); }).join('');
+}
+function setWage(name, v) {
+  const s = String(v).trim();
+  if (s === '') delete STORE.wages[name];
+  else STORE.wages[name] = Math.round(num(s));
+  saveStore();
+  renderSites();
+  renderSim();
+}
+function calcWage() {
+  const sal = num(document.getElementById('calc-salary').value);
+  const d = num(document.getElementById('calc-days').value);
+  const ins = num(document.getElementById('calc-ins').value);
+  document.getElementById('calc-out').textContent = sal && d ? yen(Math.round(sal / d * (1 + ins))) : '―';
+}
+
+/* ================= 見積もり試算 ================= */
+function renderSimStaff() {
+  const k = knownNames();
+  document.getElementById('sim-staff').innerHTML = k.own.map(function (n) {
+    const w = STORE.wages[n];
+    return '<button class="chip ' + (simStaff.indexOf(n) >= 0 ? 'on' : '') + '" onclick="toggleSim(' + esc(JSON.stringify(n)) + ')">'
+      + esc(n) + (w != null ? '' : ' <small>(日当なし)</small>') + '</button>';
+  }).join('');
+}
+function toggleSim(n) {
+  const i = simStaff.indexOf(n);
+  if (i >= 0) simStaff.splice(i, 1); else simStaff.push(n);
+  renderSimStaff();
+  renderSim();
+}
+function renderSim() {
+  const amount = num(document.getElementById('sim-amount').value);
+  const days = num(document.getElementById('sim-days').value);
+  const mat = num(document.getElementById('sim-mat').value);
+  const out = num(document.getElementById('sim-out').value);
+  const other = num(document.getElementById('sim-other').value);
+  let daily = 0;
+  const missing = [];
+  simStaff.forEach(function (n) {
+    const w = STORE.wages[n];
+    if (w == null) missing.push(n); else daily += +w;
+  });
+  const labor = daily * days;
+  const cost = labor + mat + out + other;
+  const profit = amount - cost;
+  const rate = amount > 0 ? profit / amount * 100 : NaN;
+  let h = '<div class="calc">'
+    + '<div class="row"><span>請負金額</span><span>' + yen(amount) + '</span></div>'
+    + '<div class="row"><span>− 人件費（' + simStaff.length + '人 × ' + days1(days) + '日 ＝ ' + days1(simStaff.length * days) + '人工）</span><span>' + yen(labor) + '</span></div>'
+    + (mat ? '<div class="row"><span>− 材料費</span><span>' + yen(mat) + '</span></div>' : '')
+    + (out ? '<div class="row"><span>− 外注費</span><span>' + yen(out) + '</span></div>' : '')
+    + (other ? '<div class="row"><span>− その他</span><span>' + yen(other) + '</span></div>' : '')
+    + '<div class="row big"><span>儲け（粗利）</span><span class="' + (profit >= 0 ? 'plus' : 'minus') + '">' + yen(profit) + '</span></div>'
+    + '<div class="muted" style="text-align:right">利益率 ' + pct(rate) + '</div></div>';
+  if (cost > 0) {
+    h += '<div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>ほしい利益率</th><th class="n">この金額以上で受ける</th></tr></thead><tbody>';
+    [20, 30, 40].forEach(function (r) {
+      h += '<tr><td>' + r + '%</td><td class="n">' + yen(Math.ceil(cost / (1 - r / 100) / 1000) * 1000) + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  if (missing.length) h += '<div class="note" style="margin-top:10px">日当が未設定の人（' + missing.map(esc).join('、') + '）は 0円 で計算しています。</div>';
+  document.getElementById('sim-result').innerHTML = h;
+}
+
+/* ================= タブ ================= */
+function showTab(t) {
+  document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === t); });
+  ['sites', 'sim', 'wages'].forEach(function (k) { document.getElementById('tab-' + k).classList.toggle('hidden', k !== t); });
+  if (t === 'wages') renderWages();
+  if (t === 'sim') { renderSimStaff(); renderSim(); }
+  if (t === 'sites') renderSites();
+}
+
+/* ================= 読み込み・保存 ================= */
+let cbCount = 0;
+function jsonp(url, params, ms) {
+  return new Promise(function (resolve, reject) {
+    const cb = '_gb' + (++cbCount) + '_' + Date.now();
+    let done = false;
+    const script = document.createElement('script');
+    const finish = function (fn, v) {
+      if (done) return; done = true;
+      clearTimeout(timer); delete window[cb]; script.remove(); fn(v);
+    };
+    const timer = setTimeout(function () { finish(reject, new Error('時間切れ')); }, ms || 45000);
+    window[cb] = function (d) { finish(resolve, d); };
+    const q = Object.keys(params).map(function (k) {
+      const v = params[k];
+      return k + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : String(v));
+    }).join('&');
+    script.src = url + '?' + q + '&callback=' + cb + '&t=' + Date.now();
+    script.onerror = function () { finish(reject, new Error('つながりませんでした')); };
+    // Google がエラー画面を返したときは、返事が来ないまま読み込みが終わる
+    script.onload = function () { setTimeout(function () { finish(reject, new Error('返事がありませんでした')); }, 0); };
+    document.head.appendChild(script);
+  });
+}
+
+function setChip(id, kind, text) {
+  const el = document.getElementById(id);
+  el.className = 'chip-state' + (kind ? ' ' + kind : '');
+  el.textContent = text;
+}
+
+// --- カレンダー ---
+function loadCalCache() {
+  try {
+    const mine = JSON.parse(localStorage.getItem(LS_CAL) || 'null');
+    if (mine && mine.events) { EVENTS = mine.events; return true; }
+    // まだ一度も読めていなければ、カレンダー自身の控えを借りる
+    const theirs = JSON.parse(localStorage.getItem(CAL_CACHE_OF_CALENDAR) || 'null');
+    if (theirs && theirs.events) { EVENTS = theirs.events; return true; }
+  } catch (e) { /* 控えが壊れていても読み込み直せばよい */ }
+  return false;
+}
+async function loadCalendar() {
+  setChip('state-cal', '', 'カレンダー 読込中…');
+  try {
+    let ev = null;
+    try {
+      const b = await jsonp(CAL_API, { action: 'getBundle' }, 20000);
+      if (b && b.events) ev = b.events;
+    } catch (e) { /* まとめ取りがだめなら、予定だけ取る */ }
+    if (!ev) ev = await jsonp(CAL_API, { action: 'getAll' });
+    EVENTS = ev || {};
+    try { localStorage.setItem(LS_CAL, JSON.stringify({ t: Date.now(), events: EVENTS })); } catch (e) {}
+    setChip('state-cal', 'ok', 'カレンダー 読込済み');
+  } catch (e) {
+    setChip('state-cal', 'err', 'カレンダー 読めず・タップで再試行');
+  }
+}
+
+// --- 日当・経費 ---
+function normalizeStore(o) {
+  o = o || {};
+  return { wages: o.wages || {}, costs: o.costs || {}, skipSales: o.skipSales || {}, deleted: o.deleted || {} };
+}
+function loadStoreCache() {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_STORE) || 'null');
+    if (o) { STORE = normalizeStore(o.store); storeRev = o.rev || 0; localDirty = !!o.dirty; }
+  } catch (e) {}
+}
+function keepStoreCache() {
+  try { localStorage.setItem(LS_STORE, JSON.stringify({ store: STORE, rev: storeRev, dirty: localDirty, t: Date.now() })); } catch (e) {}
+}
+
+/* 2台で同時に触ったとき用。相手の内容に、こちらの内容を重ねる。
+   消した経費は deleted に残しているので、重ねても戻ってこない */
+function mergeStore(server, local) {
+  const m = normalizeStore(JSON.parse(JSON.stringify(server)));
+  Object.assign(m.wages, local.wages);
+  Object.assign(m.deleted, local.deleted);
+  Object.keys(local.skipSales).forEach(function (k) { m.skipSales[k] = true; });
+  Object.keys(local.costs).forEach(function (site) {
+    const have = {};
+    (m.costs[site] = m.costs[site] || []).forEach(function (c) { have[c.id] = true; });
+    local.costs[site].forEach(function (c) { if (!have[c.id]) m.costs[site].push(c); });
+  });
+  Object.keys(m.costs).forEach(function (site) {
+    m.costs[site] = m.costs[site].filter(function (c) { return !m.deleted[c.id]; });
+    if (!m.costs[site].length) delete m.costs[site];
+  });
+  return m;
+}
+
+async function loadStore() {
+  try {
+    const r = await jsonp(MASTER_API, { action: 'genbaLoad', token: MASTER_TOKEN });
+    if (!r || r.status !== 'ok') throw new Error((r && r.message) || '読めませんでした');
+    const server = r.data ? normalizeStore(JSON.parse(r.data)) : normalizeStore({});
+    // つながらないあいだにこの端末で入れたぶん（Apps Script を貼り替える前など）も残す
+    const keepLocal = localDirty;
+    STORE = keepLocal ? mergeStore(server, STORE) : server;
+    storeRev = r.rev || 0;
+    cloudOk = true;
+    localDirty = false;
+    keepStoreCache();
+    setChip('state-save', 'ok', '共有保存');
+    document.getElementById('warn-save').innerHTML = '';
+    if (keepLocal) saveStore();
+  } catch (e) {
+    cloudOk = false;
+    const old = /不明な操作/.test(String(e.message));
+    setChip('state-save', 'err', old ? 'この端末だけに保存' : '保存先に つながらず');
+    document.getElementById('warn-save').innerHTML = old
+      ? '<div class="note">日当や材料費は、いまは<b>この端末の中だけ</b>に保存されています。ほかの端末でも同じ内容を見るには、'
+        + 'Apps Script（shift-sync.gs）を新しい版に貼り替えてください。手順は GENBA_README.md にあります。</div>'
+      : '<div class="note">日当や材料費の保存先につながりませんでした。入れた内容はこの端末に残り、つながったときにまとめて保存します。'
+        + '<button class="linkish" onclick="reloadAll()">もう一度つなぐ</button></div>';
+  }
+}
+
+let saveTimer = null, saving = false, saveAgain = false;
+function saveStore() {
+  if (!cloudOk) localDirty = true;
+  keepStoreCache();
+  if (!cloudOk) return;
+  clearTimeout(saveTimer);
+  setChip('state-save', '', '保存中…');
+  saveTimer = setTimeout(pushStore, 800);
+}
+async function pushStore() {
+  if (saving) { saveAgain = true; return; }
+  saving = true;
+  try {
+    const body = { action: 'genbaSave', token: MASTER_TOKEN, by: userName, baseRev: storeRev, data: JSON.stringify(STORE) };
+    let r = await postMaster(body);
+    if (r && r.status === 'conflict') {
+      // ほかの端末が先に保存していた → 相手の内容に重ねて、もう一度保存
+      const server = r.data ? normalizeStore(JSON.parse(r.data)) : normalizeStore({});
+      STORE = mergeStore(server, STORE);
+      body.baseRev = r.rev || 0;
+      body.data = JSON.stringify(STORE);
+      r = await postMaster(body);
+    }
+    if (!r || r.status !== 'ok') throw new Error((r && r.message) || '保存できませんでした');
+    storeRev = r.rev;
+    keepStoreCache();
+    setChip('state-save', 'ok', '共有保存');
+  } catch (e) {
+    localDirty = true;
+    keepStoreCache();
+    setChip('state-save', 'err', '保存に失敗・この端末には残っています');
+  } finally {
+    saving = false;
+    if (saveAgain) { saveAgain = false; pushStore(); }
+  }
+}
+/* 書き込みは POST で送る（中身が長くなるため）。
+   Apps Script が POST に Google の画面を返す環境では、短ければ JSONP で送り直す */
+async function postMaster(body) {
+  try {
+    const res = await fetch(MASTER_API, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+    });
+    const t = await res.text();
+    return JSON.parse(t);
+  } catch (e) {
+    if (encodeURIComponent(body.data).length > 6000) throw e;
+    return jsonp(MASTER_API, body);
+  }
+}
+
+async function reloadAll() {
+  await Promise.all([loadCalendar(), loadStore()]);
+  rerender();
+}
+function rerender() {
+  const cur = document.querySelector('.tab.on');
+  showTab(cur ? cur.dataset.tab : 'sites');
+}
+
+/* ================= 入口（入社登録アプリと同じID・パスワード） ================= */
+const GATE_SALT = 'prostyle-onboarding-2026';
+const GATE_LS   = 'prostyle_genba_login';
+const GATE_DAYS = 14;
+// 儲けの数字を見られる人。入社登録アプリの ACCOUNTS から必要な人だけ写す
+const ACCOUNTS = [
+  { id: 'sakae', name: '飯田栄（社長）', hash: '84b12b7d46b64b0ea460d67321c37c45ff08bae5fa0a457190a475274372b35b' },
+];
+
+async function gateHash(id, pw) {
+  const data = new TextEncoder().encode(id + ':' + pw + ':' + GATE_SALT);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+function gateSession() {
+  try {
+    const o = JSON.parse(localStorage.getItem(GATE_LS) || 'null');
+    if (o && o.name && o.until > Date.now()) return o;
+  } catch (e) {}
+  return null;
+}
+function gateLogout() {
+  try { localStorage.removeItem(GATE_LS); } catch (e) {}
+  location.reload();
+}
+
+function startApp(who) {
+  userName = who.name;
+  const g = document.getElementById('gate');
+  if (g) g.remove();
+  document.getElementById('who').innerHTML = esc(who.name) + ' <button class="btn sm ghost" onclick="gateLogout()">ログアウト</button>';
+  // 前回の控えを先に出して、返事を待つあいだ真っ白にしない
+  loadStoreCache();
+  loadCalCache();
+  renderSites();
+  reloadAll();
+}
+
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && openSite) closeDetail(); });
+
+(function () {
+  const saved = gateSession();
+  if (saved) { startApp(saved); return; }
+  const form = document.getElementById('gate-form');
+  const err = document.getElementById('gate-err');
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const id = document.getElementById('gate-id').value.trim().toLowerCase();
+    const pw = document.getElementById('gate-pw').value;
+    err.textContent = '';
+    if (!id || !pw) { err.textContent = 'IDとパスワードを入れてください'; return; }
+    if (!window.crypto || !crypto.subtle) { err.textContent = 'この画面は https で開いてください'; return; }
+    let h;
+    try { h = await gateHash(id, pw); } catch (e) { err.textContent = '確かめられませんでした'; return; }
+    const hit = ACCOUNTS.find(function (a) { return a.id === id && a.hash === h; });
+    if (!hit) {
+      err.textContent = 'IDかパスワードが違います';
+      document.getElementById('gate-pw').value = '';
+      return;
+    }
+    const days = document.getElementById('gate-keep').checked ? GATE_DAYS : 0.5;
+    try {
+      localStorage.setItem(GATE_LS, JSON.stringify({ id: hit.id, name: hit.name, until: Date.now() + days * 86400000 }));
+    } catch (e) {}
+    startApp(hit);
+  });
+  document.getElementById('gate-id').focus();
+})();
+</script>
+</body>
+</html>
