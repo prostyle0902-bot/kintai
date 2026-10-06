@@ -256,10 +256,21 @@ def post_payroll(bk):
         emp = kyuyo_parse.parse(ym)[0]
         nm = kyuyo_parse.names(ym)
         who = collections.defaultdict(list)
+        # ★現場カレンダーの鳥害日数で分けた人は、両方のタブに割合つきで書く（genba_split.py）
+        genba = kyuyo_split.genba_moves(ym, "22期", emp, nm)
         for no in sorted(emp):
             tab, _how = kyuyo_split.tab_of(no, nm.get(no, ""))
-            who[(tab, kyuyo_split.row_of(no))].append(f"{nm.get(no, '')}({no})")
+            row = kyuyo_split.row_of(no)
+            if no in genba:
+                b, t = genba[no]
+                who[("鳥害対策課", row)].append(f"{nm.get(no, '')}({no})鳥害{b:.1f}/{t:.1f}日")
+                if b < t:
+                    who[("業務課", row)].append(f"{nm.get(no, '')}({no})清掃{t - b:.1f}/{t:.1f}日")
+                continue
+            who[(tab, row)].append(f"{nm.get(no, '')}({no})")
         src = f"給料一覧表-{ym}.pdf（Dropbox /※プロスタイル給与※/）"
+        if genba:
+            src += "＋現場カレンダー「予定」（鳥害の日数で業務課・鳥害対策課に分けた）"
         for (tab, row), v in sorted(split.items()):
             if row == "法定福利費":
                 note = f"給料一覧表{m}分の社会保険料計（{tab}ぶん）"

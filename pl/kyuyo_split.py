@@ -29,6 +29,7 @@
 """
 import collections
 
+import genba_split
 import kyuyo_parse
 import roster
 
@@ -112,6 +113,35 @@ def month_of(ym):
     return f"{int(ym.split('_')[0][4:6])}月"
 
 
+def _norm(s):
+    return (s or "").replace(" ", "").replace("\u3000", "")
+
+
+def genba_moves(ym, period, emp=None, nm=None):
+    """現場カレンダーの鳥害日数で分ける人 {社員番号: (鳥害の日数, 現場の日数)}。
+
+    ★22期だけ（利用者指示 2026-10-06）。規則は genba_split.py の先頭に書いてある。
+      名簿で業務課・鳥害対策課の人のうち、その月カレンダーに載っている人だけ。
+      控え（genba/days.json）にその月が無ければ、分けずに名簿どおり。
+    """
+    d = genba_split.days(period, month_of(ym))
+    if not d:
+        return {}
+    if emp is None:
+        emp = kyuyo_parse.parse(ym)[0]
+    if nm is None:
+        nm = kyuyo_parse.names(ym)
+    cal = {_norm(k): v for k, v in d.items()}
+    out = {}
+    for no in emp:
+        name = nm.get(no, "")
+        tab, _how = tab_of(no, name)
+        v = cal.get(_norm(name))
+        if tab in genba_split.TABS and v and v[1] > 0:
+            out[no] = v
+    return out
+
+
 def split(ym, period="21期"):
     """{(タブ, PL行): 金額}、名簿で引けなかった人、折半の内訳 を返す。"""
     emp, grand = kyuyo_parse.parse(ym)
@@ -126,6 +156,7 @@ def split(ym, period="21期"):
     fallback, pool_detail = [], []
     hold = collections.defaultdict(lambda: collections.Counter())
 
+    genba = genba_moves(ym, period, emp, nm)
     for no in sorted(emp):
         gross, ins = emp[no]
         name = nm.get(no, "")
@@ -134,14 +165,23 @@ def split(ym, period="21期"):
         if how == "部門コード":
             fallback.append((no, name, gross, tab))
         p = pooled.get(no)
+        g = genba.get(no)
         if p and "総支給" in p["対象"]:
             hold[id(p)]["総支給"] += gross
             pool_detail.append((no, name, gross))
+        elif g:
+            bird = genba_split.bird_part(gross, *g)
+            out[(genba_split.BIRD_TAB, row_of(no))] += bird
+            out[(genba_split.OTHER_TAB, row_of(no))] += gross - bird
         else:
             out[(tab, row_of(no))] += gross
         if ins:
             if p and "社会保険" in p["対象"]:
                 hold[id(p)]["社会保険"] += ins
+            elif g:
+                bird = genba_split.bird_part(ins, *g)
+                out[(genba_split.BIRD_TAB, "法定福利費")] += bird
+                out[(genba_split.OTHER_TAB, "法定福利費")] += ins - bird
             else:
                 out[(tab, "法定福利費")] += ins
 
