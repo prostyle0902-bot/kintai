@@ -93,7 +93,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">勤怠</span>
       </div>
-      <div class="logo-sub">Prostyle株式会社<span style="opacity:.55;margin-left:.5em">版 2026-09-13a</span></div>
+      <div class="logo-sub">Prostyle株式会社<span style="opacity:.55;margin-left:.5em">版 2026-10-06a</span></div>
     </div>
 
     <!-- PIN入力画面 -->
@@ -232,7 +232,11 @@
         const emp = { pin: String(rec.pin || ''), name: name, dept: String(rec.dept || ''), locs: locs };
         if (!emp.pin) return;                       // PINが無い人はログインできないので入れない
 
-        const i = out.findIndex(e => e.name === name);
+        /* 同じ人かどうかは、まずPINで見る。
+           名前で照らし合わせていると、名簿で氏名を直したときに別人として増えてしまい、
+           同じPINが2つ並んで、先にある古い名前のほうでログインしてしまう。 */
+        let i = out.findIndex(e => e.pin === emp.pin);
+        if (i < 0) i = out.findIndex(e => e.name === name);
         if (i >= 0) out[i] = emp; else out.push(emp);
       });
 
