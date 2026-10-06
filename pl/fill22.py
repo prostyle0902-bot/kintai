@@ -245,6 +245,7 @@ def post_bank(bk):
 def post_payroll(bk):
     import collections
     import kyuyo_parse
+    import genba_split
     import kyuyo_split
     for folder, m in MONTHS22.items():
         ym = "20" + folder[:4]
@@ -268,8 +269,19 @@ def post_payroll(bk):
                     who[("業務課", row)].append(f"{nm.get(no, '')}({no})清掃{t - b:.1f}/{t:.1f}日")
                 continue
             who[(tab, row)].append(f"{nm.get(no, '')}({no})")
+        sc = genba_split.shacho("22期", m)
+        if sc:
+            nmS = genba_split.SHACHO_NAME
+            who[("本部", "人件費　社長")] = [f"{nmS}（現場に出た{sc['鳥害日数'] + sc['清掃日数']:.1f}日ぶん"
+                                         f" {sc['鳥害'] + sc['業務課']:,}円を鳥害対策課・業務課へ移した残り）"]
+            if sc["鳥害"]:
+                who[("鳥害対策課", "人件費（店長）")].append(
+                    f"{nmS}(社長)鳥害{sc['鳥害日数']:.1f}日×日当{sc['日当']:,}")
+            if sc["業務課"]:
+                who[("業務課", "人件費（店長）")].append(
+                    f"{nmS}(社長)清掃{sc['清掃日数']:.1f}日×日当{sc['日当']:,}")
         src = f"給料一覧表-{ym}.pdf（Dropbox /※プロスタイル給与※/）"
-        if genba:
+        if genba or sc:
             src += "＋現場カレンダー「予定」（鳥害の日数で業務課・鳥害対策課に分けた）"
         for (tab, row), v in sorted(split.items()):
             if row == "法定福利費":

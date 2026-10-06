@@ -40,6 +40,15 @@ import sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DAYS = os.path.join(BASE, "genba", "days.json")
+# ★社長の日当（現場収支アプリの「日当の設定」）。月ごとに控えて動かさない。
+#   利用者指示 2026-10-06「俺（飯田栄）の日当も入れてあるよ」→ 現場に出た日だけ
+#   「日当 × 日数」を本部「人件費　社長」から 鳥害の日→鳥害対策課／清掃の日→業務課 の
+#   【人件費（店長）】へ移す。法定福利費は本部のまま。残りも本部。
+#   ほかの人の日当は控えない（ほかの人は給料一覧表の実額を日数の割合で分けるため）。
+SHACHO = os.path.join(BASE, "genba", "shacho.json")
+SHACHO_NAME = "飯田栄"
+SHACHO_NO = "0001-0001"
+STORE_ID = "1ysD43TtjdX9Cs0NfjsTS1uqeTfAfZJ6sdstgbBJhoXY"   # シフト自動作成アプリ用（genba_rieki シート）
 SHEET_ID = "1yreBklsmvcpnbvNJv1eE8wCLhmg2fC4HJrHhDbPxEQQ"   # 予定
 SHEET = "予定"
 
@@ -114,16 +123,50 @@ def fetch(refresh=()):
     os.makedirs(os.path.dirname(DAYS), exist_ok=True)
     with open(DAYS, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1, sort_keys=True)
+    # 社長の日当（アプリの保存先 genba_rieki）。控えた月の日数と同じ月だけ控える
+    v = svc.spreadsheets().values().get(spreadsheetId=STORE_ID, range="'genba_rieki'!A1:A").execute()
+    raw = "".join((r[0] if r else "") for r in v.get("values", [])[4:])
+    wage = json.loads(raw).get("wages", {}).get(SHACHO_NAME) if raw else None
+    sh = _load_shacho()
+    for ym in added:
+        if wage not in (None, "") and (ym not in sh or ym in refresh):
+            sh[ym] = int(float(wage))
+    with open(SHACHO, "w", encoding="utf-8") as f:
+        json.dump(sh, f, ensure_ascii=False, indent=1, sort_keys=True)
     return added
+
+
+def _load_shacho():
+    if not os.path.exists(SHACHO):
+        return {}
+    with open(SHACHO, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _ym(period, month):
+    n = int(month.rstrip("月"))
+    return f"{int(PERIODS[period][0][:4]) + (0 if n >= 9 else 1)}-{n:02d}"
+
+
+def shacho(period, month):
+    """社長を動かす額 {"日当", "鳥害日数", "清掃日数", "鳥害", "業務課"}。無ければ None。"""
+    if period not in PERIODS:
+        return None
+    ym = _ym(period, month)
+    wage = _load_shacho().get(ym)
+    d = _load().get(ym, {}).get(SHACHO_NAME)
+    if not wage or not d or d[1] <= 0:
+        return None
+    b, t = d
+    return {"日当": wage, "鳥害日数": b, "清掃日数": round(t - b, 4),
+            "鳥害": int(wage * b), "業務課": int(wage * (t - b))}
 
 
 def days(period, month):
     """22期の 'N月' → {名前: (鳥害の日数, 現場の日数)}。控えが無ければ None。"""
     if period not in PERIODS:
         return None
-    n = int(month.rstrip("月"))
-    y = int(PERIODS[period][0][:4]) + (0 if n >= 9 else 1)
-    got = _load().get(f"{y}-{n:02d}")
+    got = _load().get(_ym(period, month))
     return None if got is None else {k: tuple(v) for k, v in got.items()}
 
 

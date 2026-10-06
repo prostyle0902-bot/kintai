@@ -185,6 +185,15 @@ def split(ym, period="21期"):
             else:
                 out[(tab, "法定福利費")] += ins
 
+    # 社長が現場に出た日ぶん（日当 × 日数）を本部から移す（22期・genba_split.py）
+    sc = genba_split.shacho(period, month_of(ym))
+    if sc and genba_split.SHACHO_NO in emp:
+        row = HONBU_ROW[genba_split.SHACHO_NO]
+        moved = min(sc["鳥害"] + sc["業務課"], out[("本部", row)])
+        bird = min(sc["鳥害"], moved)
+        out[("本部", row)] -= moved
+        out[(genba_split.BIRD_TAB, "人件費（店長）")] += bird
+        out[(genba_split.OTHER_TAB, "人件費（店長）")] += moved - bird
     # まとめたぶんを分ける。端数は先に書いた店へ寄せる。
     for p in ps:
         h = hold.get(id(p))
