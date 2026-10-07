@@ -229,12 +229,30 @@ def post_bank(bk):
     for name, mod in (("店舗口座", store_bank), ("横丁口座", yokocho_bank),
                       ("本部口座", honbu_bank)):
         for tab, plrow, m, ex, src, note in mod.rows():
-            if bk.has(tab, plrow, m):
-                # ★請求書（inv22）が先に入れている。銀行から足すと二重になる
+            if _same_vendor_in(bk, tab, plrow, m, note):
+                # ★請求書（inv22）が先に【同じ取引先】を入れている。銀行から足すと二重になる
                 bk.hold.append((m, tab, f"{plrow}（{name}）",
                                 f"請求書から入っているので銀行（{ex:,}）は足さない。{note}"))
                 continue
             bk.add(tab, plrow, m, ex, name, src, note)
+
+
+def _same_vendor_in(bk, tab, plrow, m, note):
+    """そのセルに、銀行の引落と【同じ取引先】の請求書が既に入っているか。
+
+    ★以前はセルに何か入っていれば銀行ぶんを捨てていた。2026-10-07 に 神栖横丁
+      事務消耗品費 9月 へ アスクル（請求書）を入れたら、同じセルの 関彰商事（横丁口座の
+      引落）が消えた。yokocho_bank の注意書き「行ごとに飛ばすと事故る」と同じこと。
+      取引先の名前（メモの先頭『。』まで）で見て、別の相手なら両方入れる。
+    """
+    who = note.split("。")[0].strip()
+    for t, r, mm, _v, _k, _src, n in bk.cells:
+        if (t, r, mm) != (tab, plrow, m):
+            continue
+        head = (n or "").split("。")[0].strip()
+        if who and head and (who in (n or "") or head in who):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）
