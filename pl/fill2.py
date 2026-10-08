@@ -8,6 +8,7 @@ import debits
 import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
 import kamei
+import airpay13
 import kessai
 import sbpay
 import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, inv05, airregi, tanaoroshi
@@ -529,6 +530,17 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
         c.value = ex; c.fill = F_KESSAI; c.number_format = build2.NUMFMT
     print("SBペイメント（十三里屋）セル", len(sbp_rows), "／計", f"{sum(x[3] for x in sbp_rows):,}",
           "／半月分しか無い月", len(list(sbpay.hold_rows("21期"))), "件")
+
+    # ===== 十三里屋のAirペイ（振込明細・振込月ベース）=====
+    # 2026-10-08 利用者指示。airpay13.py。21期の十三里屋にはAirペイ手数料が入っていない（二重にならない）。
+    ap_rows = list(airpay13.rows("21期"))
+    for tab, plrow, m, ex, _tax, _v, src, note in ap_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "Airペイ（十三里屋）")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        assert not c.value, f"{tab} {plrow} {m} に既に {c.value} が入っている（二重になる）"
+        c.value = ex; c.fill = F_KESSAI; c.number_format = build2.NUMFMT
+    print("Airペイ（十三里屋）セル", len(ap_rows), "／計", f"{sum(x[3] for x in ap_rows):,}")
 
     # ===== 請求書が来ない口座引落（銀行明細CSVから12か月）=====
     # ★利用者指示 2026-09-02「銀行口座のCSV見て…引き落としの案件…口座見て入れて」

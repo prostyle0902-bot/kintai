@@ -264,6 +264,10 @@ def post_sbpay(bk):
         bk.add(tab, plrow, m, ex, "SBペイメント", src, f"{vendor}。{note}")
     for m, tab, item, reason in sbpay.hold_rows("22期"):
         bk.hold.append((m, tab, item, reason))
+    # 十三里屋のAirペイ（airpay13.py）。22期は利用月で入れる約束なので、振込明細だけでは決めず保留
+    import airpay13
+    for m, tab, item, reason in airpay13.hold_rows("22期"):
+        bk.hold.append((m, tab, item, reason))
 
 
 # ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）

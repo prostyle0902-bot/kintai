@@ -42,6 +42,7 @@
 | <店舗>_<YYYYMM>-<YYYYMM>.csv（Airレジ21期）| airegi/ 同名                | 行ごとに月 |
 | <店舗>_<YYYYMMDD>-<YYYYMMDD>.csv（22期）   | airegi/<YYMM月>/ 同名       | 行ごとに日 |
 | 【…十三里屋】<YYYYMM>_収納明細書<MMDD-MMDD>_<番号>.pdf | （置かない）sbpay.py の DATA に数字だけ | 集計期間の月 |
+| 振込明細-052393698055-<YYYYMMDD>.csv（十三里屋Airペイ） | （置かない）airpay13.py の DATA に数字だけ | 振込月 |
 
 ★ここに無いもの（NBGの乱数名CSV・なめがた/陸事のPDF・かめや・出前館など）は
   unknown で出す。置き場所や読み取りに判断が要るので、利用者に報告してから入れる。
@@ -109,6 +110,15 @@ def classify(name, path=""):
         return ("", "sbpay.py",
                 "十三里屋のSBペイメント収納明細書（半月）。`python3 sbpay.py <PDF>` で合計行を読み、"
                 "DATA に足す。Dropboxの 十三里屋カード決済明細/NN期/（集計期間の期）へ移す")
+
+    m = re.match(r"^振込明細-052393698055-\d{8}( \(\d+\))?\.csv$", name)
+    if m:
+        # 十三里屋のAirペイ（加盟店番号 052393698055）。2026-10-08 新設。
+        # ★カード番号の下4桁が載るので pl/ に置かない。合計行を読んで airpay13.py の DATA に1行足す。
+        #   Dropbox は 十三里屋カード決済明細/<期>/振込明細-052393698055-振込YYYYMM.csv に名前を変えて移す
+        return ("", "airpay13.py",
+                "十三里屋のAirペイ振込明細（振込月1か月ぶん）。`python3 airpay13.py <CSV>` で合計行を読み、"
+                "DATA に足す。Dropboxの 十三里屋カード決済明細/NN期/（振込月の期）へ移す")
 
     m = re.match(r"^NBG.+\.csv$", name)
     if m:
