@@ -94,9 +94,10 @@ def parse(path):
     rs = list(csv.reader(io.StringIO(text)))
     i = next(k for k, r in enumerate(rs) if r and r[0].startswith("売上合計"))
     body = [r for r in rs[1:i] if r]
-    pays = sorted({r[0][:7] for r in body})
+    day = lambda v: "-".join(f"{int(x):0{2 if i else 4}d}" for i, x in enumerate(v.split("/")))
+    pays = sorted({day(r[0])[:7] for r in body})
     assert len(pays) == 1, f"{path}: 振込月が {pays}（1ファイル1か月のはず）"
-    uses = sorted(r[1] for r in body)
+    uses = sorted(day(r[1]) for r in body)
     sales, fee, _tr, pay = (int(x) for x in rs[i + 1][:4])
     assert sum(int(r[5]) for r in body) == sales, f"{path}: 明細の合計が売上合計と合わない"
     return (pays[0], sales, fee, pay, f"{uses[0]}〜{uses[-1]}")

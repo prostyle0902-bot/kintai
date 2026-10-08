@@ -268,6 +268,10 @@ def post_sbpay(bk):
     import airpay13
     for tab, plrow, m, ex, _tax, vendor, src, note in airpay13.rows("22期"):
         bk.add(tab, plrow, m, ex, "Airペイ", src, f"{vendor}。{note}")
+    # ほかの4店のAirペイも振込月（kessai.AIRPAY22。利用者 2026-10-08「他も同じでいい」）
+    import kessai
+    for tab, plrow, m, ex, src, note in kessai.rows22():
+        bk.add(tab, plrow, m, ex, "Airペイ", src, f"Airペイ（リクルート）。{note}")
 
 
 # ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）
