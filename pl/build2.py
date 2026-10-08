@@ -119,7 +119,10 @@ EXTRA_SGA = {
             "タカギ（Instagramコンサル）",
             # 諸会費は 2026-09-02 新設（利用者指示「お願いします」）。
             # 佐原中央商店会の商店会費と新橋本区の区費。inv03.py が12か月按分で入れる
-            "諸会費"],
+            "諸会費",
+            # 2026-10-08 新設（利用者指示「焼きたて屋と同じ『支払手数料（Softbank）』の行を作り」）。
+            # PayPay決済端末（SBペイメント）の手数料。sbpay22.py。★22期からの行（SGA_FROM_22）
+            "支払手数料（Softbank）"],
  # 千葉銀リースは 2026-08-21 新設（利用者指示）。店舗口座から毎月定額で落ちているが
  # 既存スプシに受け皿の行が無かった。神栖横丁・本部には元からある行名にそろえた。
  "タコとハイボール": ["消耗品費（関彰商事）","雑費（本部SV巡回活動費）","支払手数料（出前館）",
@@ -264,6 +267,10 @@ for _t, _srcs in COMBINED.items():
 ALL_TABS = TABS + list(COMBINED)
 
 
+# 22期から作った販管費の行。21期のタブには出さない（21期のシートの行がずれないように）
+SGA_FROM_22 = {"さわら十三里屋": ["支払手数料（Softbank）"]}
+
+
 def layout_for(tab):
     """店舗ごとの行レイアウトを組み立てる"""
     if tab in NO_COMMON:
@@ -271,6 +278,8 @@ def layout_for(tab):
     else:
         cogs = COMMON_COGS + EXTRA_COGS[tab]
         sga = COMMON_SGA + EXTRA_SGA[tab]
+    if PERIOD == "21期":
+        sga = [x for x in sga if x not in SGA_FROM_22.get(tab, [])]
     # 使っていない売上原価の行を落とす。★販管費 sga は触らない（利用者指示）
     cogs = [c for c in cogs if c not in dropped_cogs(tab)]
     L = [(SEC, "【売上】", None)]

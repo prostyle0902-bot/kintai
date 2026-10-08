@@ -255,6 +255,14 @@ def _same_vendor_in(bk, tab, plrow, m, note):
     return False
 
 
+# ---------------------------------------------------------------- ⑧ SBペイメント（十三里屋）
+# PayPay決済端末の収納明細書（半月ごと）の手数料。sbpay22.py に読んだ数字がある。
+def post_sbpay(bk):
+    import sbpay22
+    for tab, plrow, m, ex, _tax, vendor, src, note in sbpay22.rows():
+        bk.add(tab, plrow, m, ex, "SBペイメント", src, f"{vendor}。{note}")
+
+
 # ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）
 # 利用者が ★毎月ここに入れる/04_board売上/ に置く「合計請求書の一覧」エクスポート → cards/board_YYMM.csv。
 # ★利用者指示 2026-10-06「飲食は全部出てないから、業務、鳥害だけ入れて」
@@ -368,6 +376,7 @@ def build():
     post_bank(bk)
     post_payroll(bk)
     post_board(bk)
+    post_sbpay(bk)
     _comment(bk)
     assert not bk.missing, "行が見つからない: " + "／".join(
         f"{t} {r} {m} {v:,}（{k}）" for t, r, m, v, k, _s in bk.missing)
