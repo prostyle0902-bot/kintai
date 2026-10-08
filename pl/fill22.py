@@ -256,11 +256,14 @@ def _same_vendor_in(bk, tab, plrow, m, note):
 
 
 # ---------------------------------------------------------------- ⑧ SBペイメント（十三里屋）
-# PayPay決済端末の収納明細書（半月ごと）の手数料。sbpay22.py に読んだ数字がある。
+# PayPay決済端末の収納明細書（半月ごと）の手数料。sbpay.py に読んだ数字がある。
+# 半月2枚がそろわない月は入れずに保留へ。
 def post_sbpay(bk):
-    import sbpay22
-    for tab, plrow, m, ex, _tax, vendor, src, note in sbpay22.rows():
+    import sbpay
+    for tab, plrow, m, ex, _tax, vendor, src, note in sbpay.rows("22期"):
         bk.add(tab, plrow, m, ex, "SBペイメント", src, f"{vendor}。{note}")
+    for m, tab, item, reason in sbpay.hold_rows("22期"):
+        bk.hold.append((m, tab, item, reason))
 
 
 # ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）

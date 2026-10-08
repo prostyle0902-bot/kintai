@@ -9,6 +9,7 @@ import rikuji, eneos, yokocho_bank, store_bank, transfers, honbu_bank, genkin
 import namefa, shiina, exist_fill, inv8, nihonshokken, norow, cellnote, status8, payroll_pdf
 import kamei
 import kessai
+import sbpay
 import inv2509, inv11, inv12, inv01, inv02, inv03, inv04, inv05, airregi, tanaoroshi
 
 STAMP = "2026-08-20 06:40"
@@ -515,6 +516,20 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     print("決済手数料セル", len(ke_rows), "／計", f"{sum(x[3] for x in ke_rows):,}",
           "／裏取りできていない", len(list(kessai.hold_rows())), "件")
 
+    # ===== 十三里屋のPayPay決済端末（SBペイメント）=====
+    # 2026-10-08 利用者指示。収納明細書（半月）の手数料。sbpay.py。
+    # ★21期の十三里屋には決済手数料が入っていない（既存PLにも行が無い）ので二重にならない。
+    #   半月2枚がそろわない月は入れずに保留へ（下の hold_rows）。
+    sbp_rows = list(sbpay.rows("21期"))
+    for tab, plrow, m, ex, _tax, _v, src, note in sbp_rows:
+        if plrow not in build2.RIDX[tab]:
+            missing.append((tab, plrow, "SBペイメント")); continue
+        c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
+        assert not c.value, f"{tab} {plrow} {m} に既に {c.value} が入っている（二重になる）"
+        c.value = ex; c.fill = F_KESSAI; c.number_format = build2.NUMFMT
+    print("SBペイメント（十三里屋）セル", len(sbp_rows), "／計", f"{sum(x[3] for x in sbp_rows):,}",
+          "／半月分しか無い月", len(list(sbpay.hold_rows("21期"))), "件")
+
     # ===== 請求書が来ない口座引落（銀行明細CSVから12か月）=====
     # ★利用者指示 2026-09-02「銀行口座のCSV見て…引き落としの案件…口座見て入れて」
     #   fixed_costs より前・請求書より後に置く。inv01 のリヴィン1月10,000の上に
@@ -864,6 +879,8 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for m, tab, item, reason in rikuji.hold_rows():
         hs.append(["陸事総合", m, tab, item, "", reason])
     for m, tab, item, reason in kessai.hold_rows():
+        hs.append(["決済手数料", m, tab, item, "", reason])
+    for m, tab, item, reason in sbpay.hold_rows("21期"):
         hs.append(["決済手数料", m, tab, item, "", reason])
     for m, tab, item, reason in inv2509.HOLD:
         hs.append(["請求書2509月", m, tab, item, "", reason])

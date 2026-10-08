@@ -177,14 +177,38 @@
   "id:BKWmtQDznicAAAAAAAIp2A": {
    "when": "2026-10-08",
    "name": "【Ｐｒｏｓｔｙｌｅ株式会社（J9787-001）さわら十三里屋】202609_収納明細書0901-0915_20260921776393.pdf",
-   "local": "（置かない）sbpay22.py の DATA",
+   "local": "（置かない）sbpay.py の DATA",
    "moved_to": "十三里屋カード決済明細/22期/"
   },
   "id:BKWmtQDznicAAAAAAAIp2Q": {
    "when": "2026-10-08",
    "name": "【Ｐｒｏｓｔｙｌｅ株式会社（J9787-001）さわら十三里屋】202610_収納明細書0916-0930_20261022014861.pdf",
-   "local": "（置かない）sbpay22.py の DATA",
+   "local": "（置かない）sbpay.py の DATA",
    "moved_to": "十三里屋カード決済明細/22期/"
+  },
+  "id:BKWmtQDznicAAAAAAAIp2g": {
+   "when": "2026-10-08",
+   "name": "【Ｐｒｏｓｔｙｌｅ株式会社（J9787-001）さわら十三里屋】202603_収納明細書0216-0228_20260318387283.pdf",
+   "local": "（置かない）sbpay.py の DATA",
+   "moved_to": "十三里屋カード決済明細/21期/"
+  },
+  "id:BKWmtQDznicAAAAAAAIp2w": {
+   "when": "2026-10-08",
+   "name": "【Ｐｒｏｓｔｙｌｅ株式会社（J9787-001）さわら十三里屋】202603_収納明細書0301-0315_20260318612100.pdf",
+   "local": "（置かない）sbpay.py の DATA",
+   "moved_to": "十三里屋カード決済明細/21期/"
+  },
+  "id:BKWmtQDznicAAAAAAAIp3A": {
+   "when": "2026-10-08",
+   "name": "【Ｐｒｏｓｔｙｌｅ株式会社（J9787-001）さわら十三里屋】202604_収納明細書0401-0415_20260419121784.pdf",
+   "local": "（置かない）sbpay.py の DATA",
+   "moved_to": "十三里屋カード決済明細/21期/"
+  },
+  "id:BKWmtQDznicAAAAAAAIp3Q": {
+   "when": "2026-10-08",
+   "name": "【Ｐｒｏｓｔｙｌｅ株式会社（J9787-001）さわら十三里屋】202609_収納明細書0816-0831_20260921535777.pdf",
+   "local": "（置かない）sbpay.py の DATA",
+   "moved_to": "十三里屋カード決済明細/21期/"
   }
  },
  "skipped": {

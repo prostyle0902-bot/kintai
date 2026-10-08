@@ -41,7 +41,7 @@
 | 0000042400_高速_CP請求鑑_<YYYYMM>.csv      | rikuji/CP請求鑑_<PL月>.csv  | 同月＝PL列 |
 | <店舗>_<YYYYMM>-<YYYYMM>.csv（Airレジ21期）| airegi/ 同名                | 行ごとに月 |
 | <店舗>_<YYYYMMDD>-<YYYYMMDD>.csv（22期）   | airegi/<YYMM月>/ 同名       | 行ごとに日 |
-| 【…十三里屋】<YYYYMM>_収納明細書<MMDD-MMDD>_<番号>.pdf | （置かない）sbpay22.py の DATA に数字だけ | 集計期間の月 |
+| 【…十三里屋】<YYYYMM>_収納明細書<MMDD-MMDD>_<番号>.pdf | （置かない）sbpay.py の DATA に数字だけ | 集計期間の月 |
 
 ★ここに無いもの（NBGの乱数名CSV・なめがた/陸事のPDF・かめや・出前館など）は
   unknown で出す。置き場所や読み取りに判断が要るので、利用者に報告してから入れる。
@@ -104,11 +104,11 @@ def classify(name, path=""):
     m = re.match(r"^.*(\d{6})_収納明細書(\d{4})-(\d{4})_\d+\.pdf$", name)
     if m and "十三里屋" in (name + path):
         # 十三里屋のPayPay決済端末（SBペイメント）。2026-10-08 新設。
-        # ★PDFは pl/ に置かない。合計行を読んで sbpay22.py の DATA に1行足す。
-        #   Dropbox は 十三里屋カード決済明細/<期>/ へ移す（期は集計期間の月で決める）
-        return ("", "sbpay22.py",
-                "十三里屋のSBペイメント収納明細書（半月）。`python3 sbpay22.py <PDF>` で合計行を読み、"
-                "DATA に足す。Dropboxの 十三里屋カード決済明細/NN期/ へ移す")
+        # ★PDFは pl/ に置かない。合計行を読んで sbpay.py の DATA に1行足す。
+        #   Dropbox は 十三里屋カード決済明細/<期>/ へ移す（期は集計期間の月で決める。21期・22期）
+        return ("", "sbpay.py",
+                "十三里屋のSBペイメント収納明細書（半月）。`python3 sbpay.py <PDF>` で合計行を読み、"
+                "DATA に足す。Dropboxの 十三里屋カード決済明細/NN期/（集計期間の期）へ移す")
 
     m = re.match(r"^NBG.+\.csv$", name)
     if m:
