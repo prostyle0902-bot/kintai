@@ -327,8 +327,9 @@ const CAL_CACHE_OF_CALENDAR = 'genba_cache_v2'; // カレンダー自身が残�
    wages     : { 名前: 日当 }
    costs     : { 現場名: [{ id, date, kind, item, amount }] }
    skipSales : { カレンダーの予定id: true }  … 売上に数えない日
+   splitMonthly : { 現場名: true }           … 月をまたいでも、作業した月ごとに分けて数える現場
    deleted   : { 消した経費のid: true }       … 2台で同時に触ったときに消したものが戻らないように */
-let STORE = { wages: {}, costs: {}, skipSales: {}, deleted: {} };
+let STORE = { wages: {}, costs: {}, skipSales: {}, deleted: {}, splitMonthly: {} };
 let storeRev = 0;
 let localDirty = false;    // 保存先につながらないあいだに、この端末で変えたものがある
 let cloudOk = null;        // null=確認中 / true=Apps Script に保存 / false=この端末だけ
@@ -417,6 +418,61 @@ function moveMonth(d) {
   renderSites();
 }
 
+/* ================= 月をまたぐ工事 =================
+   請求は工事が終わった月にするので、月ごとの表示では
+   月をまたいだ工事を「最後の日がある月」にまとめて数える。
+
+   同じ現場名の予定が、あいだ6日以内で続いていれば1つの工事とみなす。
+   （週1回の定期清掃のように7日おきのものは、別々の回として数える）
+   日常清掃は毎月の請求なので、まとめずに日付の月で数える。
+   現場の詳細で「月ごとに分ける」にした現場も、日付の月で数える。 */
+const RUN_GAP_DAYS = 6;
+
+function dayNum(s) { const p = s.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000; }
+function monthOf(d) { return d.slice(0, 7); }
+function monthLabel(m) { return (+m.slice(5, 7)) + '月'; }
+function curMonthKey() { return curMonth.getFullYear() + '-' + pad(curMonth.getMonth() + 1); }
+
+// 現場ごとの工事のまとまり { 現場名: [{ first, last }] }
+function buildRuns() {
+  const dates = {};
+  Object.keys(EVENTS).forEach(function (date) {
+    (EVENTS[date] || []).forEach(function (ev) {
+      const key = ev && siteKey(ev.place);
+      if (!key || ev.type === 'daily') return;
+      (dates[key] = dates[key] || {})[date] = true;
+    });
+  });
+  const runs = {};
+  Object.keys(dates).forEach(function (key) {
+    const list = Object.keys(dates[key]).sort();
+    const out = [];
+    list.forEach(function (d) {
+      const r = out[out.length - 1];
+      if (r && dayNum(d) - dayNum(r.last) <= RUN_GAP_DAYS) r.last = d;
+      else out.push({ first: d, last: d });
+    });
+    runs[key] = out;
+  });
+  return runs;
+}
+function runOf(runs, key, date) {
+  return (runs[key] || []).find(function (r) { return date >= r.first && date <= r.last; }) || null;
+}
+// その日の予定（または経費）を、何月のぶんとして数えるか
+function billMonth(runs, key, date, type) {
+  if (type === 'daily' || STORE.splitMonthly[key]) return monthOf(date);
+  const r = runOf(runs, key, date);
+  return r ? monthOf(r.last) : monthOf(date);
+}
+
+// 「同じ金額が複数日」を調べるときの目印。同じ工事の、同じ金額なら同じになる
+function dupKey(runs, key, r) {
+  if (!(r.amount > 0) || r.ev.type === 'daily') return '';
+  const run = runOf(runs, key, r.date);
+  return (run ? run.first : r.date) + '|' + r.amount;
+}
+
 /* ================= 計算 ================= */
 /* 期間内の予定を現場ごとにまとめ、人件費・売上・経費を出す。
 
@@ -427,14 +483,28 @@ function computeSites() {
   const b = periodBounds();
   const sites = {};
   const noWage = {};
+  const moved = {};   // この月に作業したが、あとの月にまとめた現場 { 現場名: '2026-11' }
+  const byMonth = periodMode === 'month';
+  const month = curMonthKey();
+  const runs = buildRuns();
+  // 数えるかどうか。月ごとなら請求する月で、期間指定なら日付で決める
+  const counts = function (key, date, type) {
+    return byMonth ? billMonth(runs, key, date, type) === month : (date >= b[0] && date <= b[1]);
+  };
 
   Object.keys(EVENTS).forEach(function (date) {
-    if (date < b[0] || date > b[1]) return;
-    const list = (EVENTS[date] || []).filter(function (ev) { return ev && siteKey(ev.place); });
+    const all = (EVENTS[date] || []).filter(function (ev) { return ev && siteKey(ev.place); });
+    const list = all.filter(function (ev) {
+      const key = siteKey(ev.place);
+      if (counts(key, date, ev.type)) return true;
+      if (byMonth && monthOf(date) === month) moved[key] = billMonth(runs, key, date, ev.type);
+      return false;
+    });
+    if (!list.length) return;
 
-    // その日、各スタッフが行った予定と時間
+    // その日、各スタッフが行った予定と時間（別の月に数える現場も、日当を分けるのに使う）
     const perStaff = {};
-    list.forEach(function (ev) {
+    all.forEach(function (ev) {
       (ev.staff || []).forEach(function (name) {
         (perStaff[name] = perStaff[name] || []).push({ ev: ev, h: hoursOf(ev) });
       });
@@ -483,7 +553,10 @@ function computeSites() {
   Object.keys(sites).forEach(function (key) {
     const s = sites[key];
     s.days.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
-    s.costItems = (STORE.costs[key] || []).filter(function (c) { return !STORE.deleted[c.id] && c.date >= b[0] && c.date <= b[1]; });
+    s.costItems = (STORE.costs[key] || []).filter(function (c) { return !STORE.deleted[c.id] && counts(key, c.date, ''); });
+    s.carried = byMonth && s.first < b[0];
+    s.run = byMonth && !STORE.splitMonthly[key] ? runOf(runs, key, s.last) : null;
+    s.crosses = !!(s.run && monthOf(s.run.first) !== monthOf(s.run.last));
     s.costByKind = {};
     s.cost = 0;
     s.costItems.forEach(function (c) {
@@ -495,17 +568,21 @@ function computeSites() {
     s.rate = s.sales > 0 ? s.profit / s.sales * 100 : NaN;
     const cl = Object.keys(s.clients).sort(function (a, b) { return s.clients[b] - s.clients[a]; });
     s.client = cl[0] || '';
-    // 同じ請負金額が2日以上入っている（1件の金額を毎日入れている）かもしれない
+    // 続けて行う1つの工事の中で、同じ請負金額が2日以上入っている（1件の金額を毎日入れている）かもしれない。
+    // 日常清掃や、週1回の定期清掃のように毎回の金額が別々のものは知らせない
     const amts = {};
-    s.days.forEach(function (r) { if (r.amount > 0 && r.counted) amts[r.amount] = (amts[r.amount] || 0) + 1; });
-    s.sameAmount = Object.keys(amts).some(function (k) { return amts[k] >= 2; }) && s.days.length >= 2;
+    s.days.forEach(function (r) {
+      r.dupKey = dupKey(runs, key, r);
+      if (r.dupKey && r.counted) amts[r.dupKey] = (amts[r.dupKey] || 0) + 1;
+    });
+    s.sameAmount = Object.keys(amts).some(function (k) { return amts[k] >= 2; });
     s.noSales = s.days.every(function (r) { return !r.amount; });
   });
 
   // 経費だけ入っていて、期間内に予定が無い現場も出す
   Object.keys(STORE.costs).forEach(function (key) {
     if (sites[key]) return;
-    const items = (STORE.costs[key] || []).filter(function (c) { return !STORE.deleted[c.id] && c.date >= b[0] && c.date <= b[1]; });
+    const items = (STORE.costs[key] || []).filter(function (c) { return !STORE.deleted[c.id] && counts(key, c.date, ''); });
     if (!items.length) return;
     const cost = items.reduce(function (a, c) { return a + num(c.amount); }, 0);
     const byKind = {};
@@ -515,11 +592,12 @@ function computeSites() {
                    costItems: items, costByKind: byKind, cost: cost, profit: -cost, rate: NaN };
   });
 
-  return { sites: sites, noWage: Object.keys(noWage) };
+  Object.keys(moved).forEach(function (k) { if (sites[k]) delete moved[k]; });
+  return { sites: sites, noWage: Object.keys(noWage), moved: moved };
 }
 
 /* ================= 現場ごとの収支 ================= */
-let LAST = { sites: {}, noWage: [] };
+let LAST = { sites: {}, noWage: [], moved: {} };
 
 function renderSites() {
   const b = periodBounds();
@@ -568,6 +646,12 @@ function renderSites() {
   } else {
     box.innerHTML = list.map(siteCard).join('');
   }
+  // この月に作業したけれど、工事が終わる月にまとめた現場
+  const mv = Object.keys(LAST.moved);
+  if (mv.length && !q) {
+    box.insertAdjacentHTML('beforeend', '<div class="muted" style="margin-top:12px">この月にも作業があり、工事が終わる月にまとめて数えている現場：'
+      + mv.map(function (k) { return esc(k) + '（' + monthLabel(LAST.moved[k]) + '）'; }).join('、') + '</div>');
+  }
   if (openSite) renderDetail();
 }
 function kpi(l, v, s) {
@@ -577,6 +661,7 @@ function siteCard(s) {
   const base = Math.max(s.sales, s.labor + s.cost, 1);
   const w = function (n) { return Math.max(0, n) / base * 100; };
   const flags = [];
+  if (s.carried) flags.push('<span class="tag plan">' + monthLabel(monthOf(s.first)) + 'からの工事をまとめて計算</span>');
   if (s.hasPlan) flags.push('<span class="tag plan">予定あり</span>');
   if (s.noSales && s.days.length) flags.push('<span class="tag warn">請負金額が未入力</span>');
   if (s.sameAmount) flags.push('<span class="tag warn">同じ金額が複数日</span>');
@@ -612,8 +697,22 @@ function renderDetail() {
   if (!s) { closeDetail(); return; }
   const b = periodBounds();
   let h = '<div class="sheet-head"><div><h2>' + esc(s.name) + '</h2><div class="muted">'
-    + (s.client ? esc(s.client) + '・' : '') + mdw(b[0]) + '〜' + mdw(b[1]) + ' のぶん</div></div>'
+    + (s.client ? esc(s.client) + '・' : '')
+    + (periodMode === 'month' ? monthLabel(curMonthKey()) + 'に請求するぶん' : mdw(b[0]) + '〜' + mdw(b[1]) + ' のぶん')
+    + '</div></div>'
     + '<button class="btn sm" onclick="closeDetail()">閉じる</button></div>';
+
+  // 月をまたぐ工事のまとめ方
+  if (periodMode === 'month' && (s.crosses || s.carried || STORE.splitMonthly[s.name])) {
+    const split = !!STORE.splitMonthly[s.name];
+    h += '<div class="note info">'
+      + (split
+        ? 'この現場は、作業した日の月ごとに分けて数えています。'
+        : 'この工事は ' + mdw(s.run ? s.run.first : s.first) + '〜' + mdw(s.run ? s.run.last : s.last)
+          + ' に続けて行っているので、終わった月（' + monthLabel(curMonthKey()) + '）にまとめて数えています。材料費なども、この期間の日付のものはここに入ります。')
+      + '<br><label class="cnt" style="margin-top:4px"><input type="checkbox" ' + (split ? '' : 'checked')
+      + ' onchange="setSplit(' + esc(JSON.stringify(s.name)) + ', !this.checked)" />月をまたぐ工事は、終わった月にまとめる</label></div>';
+  }
 
   // 計算のまとめ
   h += '<div class="card calc"><h3>儲けの計算</h3>'
@@ -686,11 +785,18 @@ function renderDetail() {
     + '<div style="grid-column: span 2"><label>内容</label><input type="text" id="c-item" placeholder="例：ワックス 18L×2" /></div>'
     + '<div class="yen"><label>金額</label><input type="number" inputmode="numeric" id="c-amount" placeholder="0" onkeydown="if(event.key===\'Enter\')addCost()" /></div>'
     + '<div><button class="btn primary" style="width:100%" onclick="addCost()">足す</button></div>'
-    + '</div><div class="muted" style="margin-top:6px">日付は、見ている期間に入る日にしてください（その期間の集計に入ります）。</div></div>';
+    + '</div><div class="muted" style="margin-top:6px">日付は、その工事をした期間の日にしてください（その日付の工事と同じ月に数えます）。</div></div>';
 
   el.innerHTML = h;
 }
 
+function setSplit(name, split) {
+  if (split) STORE.splitMonthly[name] = true; else delete STORE.splitMonthly[name];
+  saveStore();
+  renderSites();
+  // 分けた結果、この月にこの現場が無くなったら、詳細は閉じる
+  if (!LAST.sites[name]) closeDetail();
+}
 function toggleSales(id, on) {
   if (on) delete STORE.skipSales[id]; else STORE.skipSales[id] = true;
   saveStore();
@@ -701,9 +807,9 @@ function firstDayOnly() {
   if (!s) return;
   const seen = {};
   s.days.forEach(function (r) {
-    if (!r.amount) return;
-    if (seen[r.amount]) STORE.skipSales[r.ev.id] = true;
-    else { seen[r.amount] = true; delete STORE.skipSales[r.ev.id]; }
+    if (!r.dupKey) return;
+    if (seen[r.dupKey]) STORE.skipSales[r.ev.id] = true;
+    else { seen[r.dupKey] = true; delete STORE.skipSales[r.ev.id]; }
   });
   saveStore();
   renderSites();
@@ -716,9 +822,13 @@ function addCost() {
   if (!date) { alert('日付を入れてください'); return; }
   if (!amount) { alert('金額を入れてください'); return; }
   (STORE.costs[openSite] = STORE.costs[openSite] || []).push({ id: newId(), date: date, kind: kind, item: item, amount: amount });
+  const id = STORE.costs[openSite][STORE.costs[openSite].length - 1].id;
   saveStore();
   renderSites();
-  if (!inPeriod(date)) alert('入れた日付が、いま見ている期間の外なので、この画面の合計には入っていません。');
+  const s = LAST.sites[openSite];
+  if (!s || !s.costItems.some(function (c) { return c.id === id; })) {
+    alert('入れた日付は、いま見ている月（期間）のぶんに入らないので、この画面の合計には入っていません。');
+  }
 }
 function delCost(id) {
   if (!confirm('この経費を消しますか？')) return;
@@ -887,7 +997,8 @@ async function loadCalendar() {
 // --- 日当・経費 ---
 function normalizeStore(o) {
   o = o || {};
-  return { wages: o.wages || {}, costs: o.costs || {}, skipSales: o.skipSales || {}, deleted: o.deleted || {} };
+  return { wages: o.wages || {}, costs: o.costs || {}, skipSales: o.skipSales || {}, deleted: o.deleted || {},
+           splitMonthly: o.splitMonthly || {} };
 }
 function loadStoreCache() {
   try {
@@ -904,6 +1015,7 @@ function keepStoreCache() {
 function mergeStore(server, local) {
   const m = normalizeStore(JSON.parse(JSON.stringify(server)));
   Object.assign(m.wages, local.wages);
+  Object.assign(m.splitMonthly, local.splitMonthly);
   Object.assign(m.deleted, local.deleted);
   Object.keys(local.skipSales).forEach(function (k) { m.skipSales[k] = true; });
   Object.keys(local.costs).forEach(function (site) {
@@ -1055,7 +1167,8 @@ document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && op
   form.addEventListener('submit', async function (ev) {
     ev.preventDefault();
     const id = document.getElementById('gate-id').value.trim().toLowerCase();
-    const pw = document.getElementById('gate-pw').value;
+    // 日本語入力のまま打って全角になった英数字や、貼り付けたときの空白を直してから確かめる
+    const pw = String(document.getElementById('gate-pw').value || '').normalize('NFKC').trim();
     err.textContent = '';
     if (!id || !pw) { err.textContent = 'IDとパスワードを入れてください'; return; }
     if (!window.crypto || !crypto.subtle) { err.textContent = 'この画面は https で開いてください'; return; }
