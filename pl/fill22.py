@@ -131,6 +131,14 @@ def post_airregi(bk):
                 bk.hold.append((m, "焼きたて屋", "売上（税込）・消費税",
                                 "FCの月間売上集計一覧表が【税抜】版しか無い（"
                                 + "・".join(have) + "）。税込版か、かめやの合計精算書が届けば入る"))
+            elif any("税抜" in h for h in have):
+                # 税込・税抜の両方がそろった（2026-10-09 9月の税込版が届いた）。21期と同じく差＝消費税の実額
+                inc, tax = airregi._yakitate(d)
+                tab, urirow, zeirow = airregi.STORES["焼きたて屋"]
+                src = f"かめや（焼きたて屋本部）/22期/{folder}/（FC月間売上集計一覧表 税込・税抜）"
+                note = (f"FCの月間売上集計一覧表。税込{inc:,}−税抜{inc - tax:,}＝消費税{tax:,}（実額）")
+                bk.add(tab, urirow, m, inc, "かめや", src, note + "。売上行は【税込】")
+                bk.add(tab, zeirow, m, tax, "かめや", src, note + "。消費税行")
 
 
 # ---------------------------------------------------------------- ③ freeeカード
