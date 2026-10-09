@@ -471,6 +471,129 @@ def build_summary(ws):
         ws.column_dimensions[get_column_letter(j)].width = 12
 
 
+# ===== 22期の全体サマリー（利用者 2026-10-09「全体サマリーがちょっと見づらいので、
+#       セルに色を付けるとか、見やすく出来ませんか？」）=====
+# ・いちばん上に「全社」（全部門の合計）の6行。下の各ブロックの合計行を参照するだけ
+# ・ブロックごとに色を変える（売上＝青／原価＝オレンジ／粗利＝緑／販管費＝紫／営業利益＝濃い緑／比率＝灰）
+# ・0 は空欄に見せる（まだ締まっていない月が 0 で埋まって読みにくかった）
+# ・営業利益は 黒字＝緑・赤字＝赤 の背景、Food/Labor比率は目標超えを赤（条件付き書式）
+# ・見出し（店舗／年計／月）は4行目に1本だけ置いて固定。A〜B列も固定
+# ★値（数式）の参照先は今までと同じ各店舗タブの小計行。入力するところは無い。
+# ★列幅・固定・枠線なし・条件付き書式は push_sheets.py の「⑤ 見た目」が Sheets に写す（22期の全体サマリーだけ）。
+NUM0 = '#,##0;[Red]-#,##0;""'
+PCT0 = '0.0%;[Red]-0.0%;""'
+SUM_BLOCKS = [  # (小計行のキー, 見出し, 濃い色, 薄い色, 目標)
+    ("売上合計(1)", "売上", "1F4E79", "DDEBF7", None),
+    ("売上原価(a)", "売上原価", "C55A11", "FBE5D6", None),
+    ("売上総利益(3)", "売上総利益（粗利）", "548235", "E2EFDA", None),
+    ("販管費合計(4)", "販管費", "7030A0", "E4DFEC", None),
+    ("営業利益(5)", "営業利益", "375623", "C6E0B4", None),
+    ("Food比率（目標25%）", "Food比率（目標25%）", "595959", "EDEDED", 0.25),
+    ("Labor比率（目標35%）", "Labor比率（目標35%）", "595959", "EDEDED", 0.35),
+]
+G_LINE = Side(style="thin", color="D9D9D9")
+G_BORD = Border(left=G_LINE, right=G_LINE, top=G_LINE, bottom=G_LINE)
+GOOD = ("E2EFDA", "375623")      # 背景, 文字
+BAD = ("FCE4E4", "C00000")
+
+
+def _fill(hex6):
+    return PatternFill("solid", fgColor=hex6)
+
+
+def build_summary22(ws):
+    from openpyxl.formatting.rule import CellIsRule
+    last = get_column_letter(2 + len(MONTHS))            # N
+    ws.cell(1, 1, f"全体サマリー　{PERIODS[PERIOD]}／単位：円・税抜").font = Font(bold=True, size=14)
+    ws.cell(2, 1, "各店舗タブを参照しています（手入力しないでください）。0 の月は空欄で表示").font = \
+        Font(italic=True, color="808080")
+    ws.cell(3, 1, "色の見方：赤い数字＝マイナス／営業利益の背景 緑＝黒字・赤＝赤字／"
+                  "Food・Labor比率 赤＝目標をこえている").font = Font(color="808080")
+    # 4行目：見出し（固定する）
+    for j, h in enumerate(["店舗・部門", "年計"] + MONTHS, start=1):
+        c = ws.cell(4, j, h); c.font = Font(bold=True, color="FFFFFF"); c.fill = _fill("404040")
+        c.alignment = Alignment(horizontal="center"); c.border = G_BORD
+
+    # 先に各ブロックの位置を決める（全社ブロックが合計行を参照するため）
+    top = 6 + 1 + 6 + 1                  # 全社ブロック（見出し1＋6行）のあと1行あけて
+    pos, r = {}, top
+    for key, *_ in SUM_BLOCKS:
+        ratio = "比率" in key
+        pos[key] = (r, r + 1, r + len(TABS), None if ratio else r + 1 + len(TABS))
+        r += 1 + len(TABS) + (0 if ratio else 1) + 1
+
+    def bar(row, text, dark):
+        c = ws.cell(row, 1, text); c.font = Font(bold=True, color="FFFFFF")
+        for j in range(1, 3 + len(MONTHS)):
+            cc = ws.cell(row, j); cc.fill = _fill(dark); cc.border = G_BORD
+
+    def good_bad(rng):
+        ws.conditional_formatting.add(rng, CellIsRule(
+            operator="greaterThan", formula=["0"],
+            fill=PatternFill(bgColor=GOOD[0]), font=Font(color=GOOD[1])))
+        ws.conditional_formatting.add(rng, CellIsRule(
+            operator="lessThan", formula=["0"],
+            fill=PatternFill(bgColor=BAD[0]), font=Font(color=BAD[1])))
+
+    # --- 全社（全部門の合計）---
+    bar(6, "全社（全部門の合計）", "262626")
+    rows_all = [("売上", "売上合計(1)"), ("売上原価", "売上原価(a)"), ("売上総利益（粗利）", "売上総利益(3)"),
+                ("販管費", "販管費合計(4)"), ("営業利益", "営業利益(5)"), ("営業利益率", None)]
+    for i, (name, key) in enumerate(rows_all):
+        rr = 7 + i
+        a = ws.cell(rr, 1, name); a.border = G_BORD; a.font = Font(bold=True)
+        for j in range(2, 3 + len(MONTHS)):
+            col = get_column_letter(j)
+            c = ws.cell(rr, j); c.border = G_BORD; c.font = Font(bold=True)
+            if key:
+                c.value = f"={col}{pos[key][3]}"; c.number_format = NUM0
+            else:  # 営業利益率 ＝ 営業利益 ÷ 売上
+                c.value = f'=IFERROR({col}{rr-1}/{col}7,"")'; c.number_format = PCT0
+            if j == 2:
+                c.fill = _fill("F2F2F2")
+    good_bad(f"B11:{last}11"); good_bad(f"B12:{last}12")
+
+    # --- 項目ごとのブロック ---
+    for key, title, dark, light, goal in SUM_BLOCKS:
+        r0, first, lastrow, tot = pos[key]
+        ratio = "比率" in key
+        bar(r0, title, dark)
+        for i, tab in enumerate(TABS):
+            rr = first + i
+            a = ws.cell(rr, 1, tab); a.border = G_BORD
+            src = RIDX[tab][key]
+            for j in range(2, 3 + len(MONTHS)):
+                col = "B" if j == 2 else MCOL[MONTHS[j - 3]]
+                c = ws.cell(rr, j, f"='{tab}'!{col}{src}")
+                c.number_format = PCT0 if ratio else NUM0; c.border = G_BORD
+                if j == 2:
+                    c.fill = _fill("F2F2F2"); c.font = Font(bold=True)
+        if tot:
+            a = ws.cell(tot, 1, "合計"); a.font = Font(bold=True); a.fill = _fill(light); a.border = G_BORD
+            for j in range(2, 3 + len(MONTHS)):
+                col = get_column_letter(j)
+                c = ws.cell(tot, j, f"=SUM({col}{first}:{col}{lastrow})")
+                c.font = Font(bold=True); c.fill = _fill(light)
+                c.number_format = NUM0; c.border = G_BORD
+        rng = f"B{first}:{last}{lastrow}"
+        if key == "営業利益(5)":
+            good_bad(rng)
+        if goal:
+            ws.conditional_formatting.add(rng, CellIsRule(
+                operator="greaterThan", formula=[str(goal)],
+                fill=PatternFill(bgColor=BAD[0]), font=Font(color=BAD[1], bold=True)))
+            ws.conditional_formatting.add(rng, CellIsRule(
+                operator="between", formula=["0.0001", str(goal)],
+                font=Font(color=GOOD[1])))
+
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 13
+    for m in MONTHS:
+        ws.column_dimensions[MCOL[m]].width = 11
+    ws.freeze_panes = "C5"
+    ws.sheet_view.showGridLines = False
+
+
 def new_wb(period="21期"):
     global PERIOD, LAYOUTS, RIDX
     PERIOD = period
@@ -480,7 +603,7 @@ def new_wb(period="21期"):
     LAYOUTS = {t: layout_for(t) for t in ALL_TABS}
     RIDX = {t: ridx_for(LAYOUTS[t]) for t in ALL_TABS}
     wb = Workbook(); wb.remove(wb.active)
-    build_summary(wb.create_sheet("全体サマリー"))
+    (build_summary if period == "21期" else build_summary22)(wb.create_sheet("全体サマリー"))
     for t in TABS:
         build_pl_tab(wb.create_sheet(t), t)
     # 合算タブは22期から（利用者指示 2026-09-16）。全体サマリーには入れない

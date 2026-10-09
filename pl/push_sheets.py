@@ -27,6 +27,7 @@ fill2.py / build22.py が作る .xlsx を openpyxl で読んで、そのまま�
        USER_ENTERED にすると "=SUM(...)" が数式として解釈される
     ③ 書式を書く       spreadsheets().batchUpdate
     ④ セルのメモを書く  spreadsheets().batchUpdate（note）
+    ⑤ 見た目          列幅・固定・枠線・条件付き書式（LOOK_TABS のタブだけ）
        数値書式（赤字マイナス）・太字・文字色・背景色・罫線・
        列幅・結合セル・ウィンドウ枠固定
 
@@ -259,6 +260,78 @@ def _note_requests(ws, sheet_id):
     return req
 
 
+# ⑤ 見た目（列幅・固定・枠線・条件付き書式）。2026-10-09 追加。
+#   利用者「全体サマリーがちょっと見づらい…見やすく出来ませんか」→ build2.build_summary22。
+#   ①〜④ はセルの書式しか写さないので、シート全体の見た目はここで写す。
+#   ★対象は LOOK_TABS だけ（ほかのタブの列幅などは Sheets 側で手で変えていることがあるので触らない）。
+#   ★条件付き書式は「そのシートのルールを全部消してから足し直す」。足すだけだと push のたびに増える。
+LOOK_TABS = {"22期": ["全体サマリー"]}
+_CF_OP = {"greaterThan": "NUMBER_GREATER", "lessThan": "NUMBER_LESS",
+          "greaterThanOrEqual": "NUMBER_GREATER_THAN_EQ", "lessThanOrEqual": "NUMBER_LESS_THAN_EQ",
+          "between": "NUMBER_BETWEEN", "equal": "NUMBER_EQ"}
+
+
+def _grid_range(ref, sheet_id):
+    from openpyxl.utils.cell import range_boundaries
+    c1, r1, c2, r2 = range_boundaries(ref)
+    return {"sheetId": sheet_id, "startRowIndex": r1 - 1, "endRowIndex": r2,
+            "startColumnIndex": c1 - 1, "endColumnIndex": c2}
+
+
+def _look_requests(ws, sheet_id, n_old_cf):
+    req = []
+    # 固定（freeze_panes "C5" → 上4行・左2列）と枠線
+    rows = cols = 0
+    if ws.freeze_panes:
+        from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
+        col, row = coordinate_from_string(ws.freeze_panes)
+        rows, cols = row - 1, column_index_from_string(col) - 1
+    req.append({"updateSheetProperties": {
+        "properties": {"sheetId": sheet_id,
+                       "gridProperties": {"frozenRowCount": rows, "frozenColumnCount": cols,
+                                          "hideGridlines": not ws.sheet_view.showGridLines}},
+        "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount,"
+                  "gridProperties.hideGridlines"}})
+    # 列幅（Excelの幅 → だいたい 7px/文字 ＋ 余白）
+    for key, dim in ws.column_dimensions.items():
+        if dim.width:
+            from openpyxl.utils.cell import column_index_from_string
+            i = column_index_from_string(key) - 1
+            req.append({"updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS",
+                          "startIndex": i, "endIndex": i + 1},
+                "properties": {"pixelSize": int(dim.width * 7 + 5)}, "fields": "pixelSize"}})
+    # 条件付き書式：古いのを消して足し直す
+    req += [{"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}}
+            for _ in range(n_old_cf)]
+    idx = 0
+    for cf in ws.conditional_formatting:
+        ranges = [_grid_range(str(x), sheet_id) for x in str(cf.sqref).split()]
+        for rule in cf.rules:
+            assert rule.type == "cellIs" and rule.operator in _CF_OP, \
+                f"{ws.title}: 写せない条件付き書式 {rule.type}/{rule.operator}"
+            fmt = {}
+            d = rule.dxf
+            if d is not None and d.fill is not None and _rgb(d.fill.bgColor):
+                fmt["backgroundColor"] = _rgb(d.fill.bgColor)
+            if d is not None and d.font is not None:
+                t = {}
+                if _rgb(d.font.color):
+                    t["foregroundColor"] = _rgb(d.font.color)
+                if d.font.bold:
+                    t["bold"] = True
+                if t:
+                    fmt["textFormat"] = t
+            req.append({"addConditionalFormatRule": {"index": idx, "rule": {
+                "ranges": ranges,
+                "booleanRule": {"condition": {"type": _CF_OP[rule.operator],
+                                              "values": [{"userEnteredValue": str(v)}
+                                                         for v in rule.formula]},
+                                "format": fmt}}}})
+            idx += 1
+    return req
+
+
 def _chunks(seq, n):
     for i in range(0, len(seq), n):
         yield seq[i:i + n]
@@ -360,6 +433,20 @@ def push(period, sid=None, dry=False):
                                            body={"requests": part}).execute()
         total += len(req) - 1
     print(f"  セルのメモを書きました（{total:,}件）")
+
+    # ⑤ 見た目（LOOK_TABS のタブだけ）
+    look = [n for n in LOOK_TABS.get(period, []) if n in names]
+    if look:
+        cfs = {s["properties"]["title"]: len(s.get("conditionalFormats", []))
+               for s in svc.spreadsheets().get(
+                   spreadsheetId=sid,
+                   fields="sheets(properties.title,conditionalFormats)").execute()["sheets"]}
+        n_req = 0
+        for n in look:
+            req = _look_requests(wb[n], ids[n], cfs.get(n, 0))
+            svc.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": req}).execute()
+            n_req += len(req)
+        print(f"  見た目を写しました（{'・'.join(look)}／{n_req}件）")
     print(f"\nhttps://docs.google.com/spreadsheets/d/{sid}/edit")
 
 
