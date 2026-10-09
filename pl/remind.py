@@ -64,8 +64,11 @@ def items(ym):
            bool(g(f"cards/board_{yymm}.csv")), d1)
     yield ("エアレジ売上（5店）", "Airレジ → 05_",
            len(g(f"uriage/{yymm}月/*_{yyyymm}01-{yyyymm}{last}.csv")) >= 5, d1)
-    yield ("かめや 月間売上集計（焼きたて屋）", "かめや → 06_",
-           bool(g(f"uriage/{yymm}月/焼きたて屋_*.xlsx")), d1)
+    # ★税込・税抜の2つがそろって初めてPLに入る（airregi._yakitate）。片方だけでは「まだ」
+    yield ("かめや 月間売上集計（焼きたて屋・税込）", "かめや → 06_",
+           bool(g(f"uriage/{yymm}月/焼きたて屋_*税込*.xlsx")), d1)
+    yield ("かめや 月間売上集計（焼きたて屋・税抜）", "かめや → 06_",
+           bool(g(f"uriage/{yymm}月/焼きたて屋_*税抜*.xlsx")), d1)
 
     import sbpay
     halves = {r[0][8:] for r in sbpay.DATA if r[0][:7] == ym}
