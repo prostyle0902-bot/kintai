@@ -43,6 +43,8 @@
 --- 使い方 ---------------------------------------------------------------
     python3 build22.py     # 器を作って、ここのぶんを入れる
 """
+import os
+
 # (タブ, PL行, 月, 税抜, 消費税, 取引先, 元ファイル, メモ)
 INV22 = [
     ("本部", "クリーンシステム科学研究所", "9月", 9000, 900,
@@ -390,19 +392,52 @@ def check(wb=None):
         assert m in build2.MCOL, m
     if wb is None:
         return
-    for tab, plrow, m, ex, _tax, _v, _src, _b in INV22:
+    for tab, plrow, m, ex, _tax, _v, _src, _b in rows():
         c = wb[tab][f"{build2.MCOL[m]}{build2.RIDX[tab][plrow]}"]
         assert not c.value, (f"22期 {tab} {plrow} {m} に既に {c.value} が入っている。"
                              f"請求書の {ex:,} を足すと二重計上になる")
 
 
+# ★毎月入れるもの（利用者指示 2026-10-12）
+#   「神栖横丁の10月〜4月まで、タカギの請求書がすでに転記されてるが、これ、毎月入れるように変更」
+#   → 損益計算書も振込一覧も、その月が来るまで入れない（月の1日から入る）。
+#   請求書は9か月ぶんまとめて届いているので INV22 には全部書いたまま、rows() で先の月を止める。
+#   振込一覧のほうは furikomi/maitsuki.py。
+MAITSUKI = {("神栖横丁", "タカギ")}
+_M22 = {f"{m}月": (2026 if m >= 9 else 2027, m) for m in range(1, 13)}
+
+
+def today():
+    """試すときは PL_TODAY=2026-11-01 のように渡す"""
+    import datetime
+    t = os.environ.get("PL_TODAY")
+    return datetime.date.fromisoformat(t) if t else datetime.date.today()
+
+
+def due(m, d=None):
+    """22期の『m』月が来ているか（その月の1日以降か）"""
+    y, mm = _M22[m]
+    d = d or today()
+    return (d.year, d.month) >= (y, mm)
+
+
+def waiting():
+    """まだ月が来ていないので入れていない行"""
+    return [r for r in INV22 if (r[0], r[1]) in MAITSUKI and not due(r[2])]
+
+
 def rows():
     for tab, plrow, m, ex, tax, v, src, biko in INV22:
+        if (tab, plrow) in MAITSUKI and not due(m):
+            continue
         yield tab, plrow, m, ex, tax, v, src, biko
 
 
 if __name__ == "__main__":
     check()
-    print(f"22期に入れるセル {len(INV22)} 件 ／ 計 {sum(r[3] for r in INV22):,}円（税抜）")
-    for tab, plrow, m, ex, _t, v, _s, _b in INV22:
+    got = list(rows())
+    print(f"22期に入れるセル {len(got)} 件 ／ 計 {sum(r[3] for r in got):,}円（税抜）")
+    for tab, plrow, m, ex, _t, v, _s, _b in got:
         print(f"  {m:>4} {tab:<10} {plrow:<26} {ex:>9,}  {v}")
+    for tab, plrow, m, ex, _t, v, _s, _b in waiting():
+        print(f"  （{m}になったら入れる） {tab} {plrow} {ex:,}")
