@@ -315,6 +315,32 @@ def post_board(bk):
                    f"★毎月ここに入れる/04_board売上（cards/{name}）", note)
 
 
+# ---------------------------------------------------------------- ⑧ かめや（焼きたて屋本部）
+# 3点セット（合計精算書・合計請求書・インフォマート請求書）を kameya.DATA22 に起こしてある。
+# 売上（税込）・消費税は post_airregi（FC月間売上集計一覧表）が入れるので、ここでは一致だけ確かめる。
+NOTE_KAMEYA = {
+    "ロイヤリティ": "合計精算書「ロイヤリティ（税抜売上5％）」",
+    "仕入（インフォマート10％）": "インフォマート請求書 10%対象の金額（税抜）",
+    "仕入（インフォマート8％）": "インフォマート請求書 8%対象の金額（税抜）",
+    "営業外費用(7)": "合計精算書の現金過不足金を雑損失として計上（マイナス＝現金不足→損失）",
+}
+
+
+def post_kameya(bk):
+    import airregi
+    import kameya
+    for m, d in kameya.DATA22.items():
+        folder = kameya._FOLDER22[m]
+        hit = os.path.join(BASE, "uriage", folder)
+        if os.path.isdir(hit) and glob.glob(os.path.join(hit, "焼きたて屋_*税込*.xlsx")):
+            inc, tax = airregi._yakitate(hit)
+            assert (inc, tax) == (d["売上税込"], d["消費税"]), (
+                f"かめや{m}: 精算書 {d['売上税込']:,}/{d['消費税']:,} ≠ 集計一覧表 {inc:,}/{tax:,}")
+    for tab, plrow, m, v, src in kameya.rows22():
+        note = NOTE_KAMEYA.get(plrow, "合計請求書の明細（税抜）")
+        bk.add(tab, plrow, m, v, "かめや", src, note)
+
+
 # ---------------------------------------------------------------- ⑥ 給与
 # 給料一覧表PDF（Dropbox /※プロスタイル給与※/プロスタイル給与R8年/給料一覧表-YYYYMM.pdf）を
 # pl/kyuyo/YYYYMM.pdf に落としておくと入る。★個人の給与が載るのでリポジトリには入れない。
@@ -396,6 +422,7 @@ def build():
     post_payroll(bk)
     post_board(bk)
     post_sbpay(bk)
+    post_kameya(bk)
     _comment(bk)
     assert not bk.missing, "行が見つからない: " + "／".join(
         f"{t} {r} {m} {v:,}（{k}）" for t, r, m, v, k, _s in bk.missing)
