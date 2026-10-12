@@ -335,6 +335,37 @@
    "name": "振込明細-052393698055-振込202609.csv（元はダウンロードフォルダの 振込明細-052393698055-20261008*.csv）",
    "local": "（置かない）airpay13.py の DATA",
    "moved_to": "十三里屋カード決済明細/22期/"
+  },
+  "id:BKWmtQDznicAAAAAAAIpjw": {
+   "when": "2026-10-06",
+   "name": "board_2609.csv",
+   "local": "cards/board_2609.csv",
+   "moved_to": "freeeカード明細/22期/",
+   "note": "2026-10-12 月曜の全件確認で台帳に無いのに気づいて記録（取り込み・反映は2026-10-06に済み）"
+  },
+  "id:BKWmtQDznicAAAAAAAIqBA": {
+   "when": "2026-10-12",
+   "name": "2026.9 合計請求書.pdf",
+   "local": "（数字だけ）kameya.DATA22",
+   "moved_to": "かめや（焼きたて屋本部）/22期/2609月/"
+  },
+  "id:BKWmtQDznicAAAAAAAIqAw": {
+   "when": "2026-10-12",
+   "name": "2026.9 インフォマート請求書.pdf",
+   "local": "（数字だけ）kameya.DATA22",
+   "moved_to": "かめや（焼きたて屋本部）/22期/2609月/"
+  },
+  "id:BKWmtQDznicAAAAAAAIqBQ": {
+   "when": "2026-10-12",
+   "name": "2026.9 合計精算書.pdf",
+   "local": "（数字だけ）kameya.DATA22",
+   "moved_to": "かめや（焼きたて屋本部）/22期/2609月/"
+  },
+  "id:BKWmtQDznicAAAAAAAIp-A": {
+   "when": "2026-10-09",
+   "name": "20261009093037_月間売上集計一覧表（税込）.xlsx",
+   "local": "uriage/2609月/焼きたて屋_税込.xlsx",
+   "moved_to": "かめや（焼きたて屋本部）/22期/2609月/"
   }
  },
  "skipped": {
