@@ -358,6 +358,43 @@ var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek
 // はい／いいえで扱う列
 var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk',
                        'overtime', 'raise', 'bonus', 'severance', 'socialIns', 'empIns'];
+/* 時刻（HH:mm）だけを入れる列。
+
+   スプレッドシートは "09:00" を「時刻の値」として持つ。その値を取り出すと
+   1899年12月30日（シートの基準日）の9時という Date になる。
+   これを日付として文字にすると「1899-12-30」になってしまい、
+   労働条件通知書の始業・終業がその表示になっていた。
+   この列だけは HH:mm として読む。 */
+var STAFF_TIME_COLS = ['startTime', 'endTime', 'startTimeWeekend', 'endTimeWeekend'];
+
+// スプレッドシートの時間帯。時刻の値は、この時間帯で入れ直すと元の時刻に戻る
+function sheetTz_() {
+  if (!sheetTz_._v) {
+    try { sheetTz_._v = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone() || 'Asia/Tokyo'; }
+    catch (e) { sheetTz_._v = 'Asia/Tokyo'; }
+  }
+  return sheetTz_._v;
+}
+
+/* セルの中身を "09:00" の形にそろえる。
+   ・時刻の値（Date）     → その時刻
+   ・"9:00" "09:00"       → "09:00"
+   ・"1899-12-30"         → 空（時刻が失われている。入れ直してもらうしかない）
+   ・それ以外             → 空 */
+function timeText_(v) {
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return '';
+    return Utilities.formatDate(v, sheetTz_(), 'HH:mm');
+  }
+  var s = String(v === null || v === undefined ? '' : v).trim();
+  if (!s) return '';
+  if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(s)) return '';   // 日付だけ＝壊れた値
+  var m = /(\d{1,2}):(\d{2})/.exec(s);
+  if (!m) return '';
+  var h = Number(m[1]), mi = Number(m[2]);
+  if (h < 0 || h > 47 || mi < 0 || mi > 59) return '';
+  return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2);
+}
 
 function getStaffSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -420,6 +457,26 @@ function checkStaffCols() {
   out.push('足りない列：' + (miss.length ? miss.join('、') : 'なし'));
   if (miss.length) out.push('→ 入社登録アプリを開き直すか、staffHeader_ を通る操作をすると右端に足されます。');
 
+  /* 始業・終業の時刻が壊れている人（「1899-12-30」が書き込まれてしまった人）。
+     時刻そのものが失われているので、入社登録の「編集」から入れ直すしかない。 */
+  var nameIx = head.indexOf('name');
+  var broken = [];
+  if (nameIx >= 0 && sh.getLastRow() > 1) {
+    var vals = sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues();
+    for (var v = 0; v < vals.length; v++) {
+      var hit = [];
+      for (var t = 0; t < STAFF_TIME_COLS.length; t++) {
+        var ti = head.indexOf(STAFF_TIME_COLS[t]);
+        if (ti < 0) continue;
+        var cell = vals[v][ti];
+        if (cell !== '' && cell !== null && !timeText_(cell)) hit.push(STAFF_TIME_COLS[t]);
+      }
+      if (hit.length) broken.push(String(vals[v][nameIx] || '(名前なし)') + '（' + hit.join('・') + '）');
+    }
+  }
+  out.push('時刻が壊れている人：' + (broken.length ? broken.length + '名 … ' + broken.join('、') : 'なし'));
+  if (broken.length) out.push('→ 入社登録の「編集」→「勤務時間」から入れ直してください。');
+
   var msg = out.join('\n');
   Logger.log(msg);
   return msg;
@@ -451,6 +508,8 @@ function staffRowToObj_(row, head) {
     var v = row[i];
     if (STAFF_NUM_COLS.indexOf(key) >= 0) {
       o[key] = (v === '' || v === null) ? 0 : Number(v) || 0;
+    } else if (STAFF_TIME_COLS.indexOf(key) >= 0) {
+      o[key] = timeText_(v);
     } else if (STAFF_BOOL_COLS.indexOf(key) >= 0) {
       o[key] = (v === true || String(v).toLowerCase() === 'true' || String(v) === '1');
     } else if (v instanceof Date) {
@@ -475,6 +534,9 @@ function staffObjToRow_(o, head) {
     var v = o[key];
     if (STAFF_NUM_COLS.indexOf(key) >= 0) {
       row.push((v === '' || v === null || v === undefined) ? '' : Number(v) || 0);
+    } else if (STAFF_TIME_COLS.indexOf(key) >= 0) {
+      // 壊れた値（1899-12-30 など）を書き戻さないよう、ここでもそろえる
+      row.push(timeText_(v));
     } else if (STAFF_BOOL_COLS.indexOf(key) >= 0) {
       row.push(v === true || String(v).toLowerCase() === 'true' || String(v) === '1');
     } else {
@@ -2310,8 +2372,9 @@ function rosterCols_() {
       return n + (e ? '（' + e + ' まで）' : ''); }],
     ['業務内容',    function (r) { return r.jobDuties; }],
     ['勤務時間',    function (r) {
-      if (!r.startTime && !r.endTime) return 'シフトによる';
-      return r.startTime + '〜' + r.endTime; }],
+      var a = timeText_(r.startTime), b = timeText_(r.endTime);
+      if (!a && !b) return 'シフトによる';
+      return a + '〜' + b; }],
     ['休憩',        function (r) { return (+r.breakMin) ? ((+r.breakMin) + '分') : 'なし'; }],
     ['休日',        function (r) { return r.holidayRule; }],
     ['昇給',        function (r) { return r.raise ? 'あり' : 'なし'; }],
