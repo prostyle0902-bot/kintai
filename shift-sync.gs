@@ -322,6 +322,7 @@ var STAFF_COLS = [
   'renewalLimit',  // 更新の上限 例「通算3年」「上限なし」★2024年4月から必須
   'trialMonths',   // 試用期間（月）。0なら無し
   'trialDays',     // 試用期間（日）。日で決めたときだけ入る。入っていれば月より優先
+  'trialRate',     // 試用期間中の単価（円）。0・空なら本採用と同じ（payRate を使う）
   'totalYears',    // 通算の契約期間（年）。5年を超えると無期転換の申込権が出る
 
   // 働く場所と仕事
@@ -352,7 +353,7 @@ var STAFF_COLS = [
 
 // 数字として扱う列（空欄は0にする）
 var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek',
-                      'breakMin', 'trialMonths', 'trialDays', 'totalYears',
+                      'breakMin', 'trialMonths', 'trialDays', 'trialRate', 'totalYears',
                       'weekDays', 'paidAdjust'];
 // はい／いいえで扱う列
 var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk',
@@ -787,6 +788,84 @@ var PAYROLL_PREFIX = '給与一覧_';
 var PAYROLL_LIST_SHEET = '給与一覧表';   // まとめの表。名前が違うときは先頭の候補を探す
 
 // 給与一覧_2026_9_16-2026_10_15 → 期間の開始日 2026-09-16
+/* =========================================================
+   試用期間と単価
+   試用期間中と本採用後で単価が変わる人のために、
+   「その期間にはどちらの単価を使うのか」をここで決める。
+   ========================================================= */
+
+// 日付らしきものを YYYY-MM-DD にそろえる
+function isoDate_(v) {
+  if (!v && v !== 0) return '';
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return '';
+    return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  var s = String(v).trim();
+  var m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/.exec(s);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  return '';
+}
+
+/* 試用期間の満了日。民法143条の数え方に合わせる。
+   ・ふつうは「○か月後の同じ日の前日」。4/1 から3か月なら 6/30。
+   ・同じ日が無い月は、その月の末日。1/31 から1か月なら 2/28。
+   ・日で決めたときは、入社日を1日目として数える。
+   入社登録アプリ（onboarding.html の trialEnd）と同じ答えになるようにしてある。 */
+function trialEnd_(r) {
+  var days = Number(r && r.trialDays) || 0;
+  var mon  = Number(r && r.trialMonths) || 0;
+  var j = isoDate_(r && r.joinedAt);
+  if ((!mon && !days) || !j) return '';
+  var p = j.split('-');
+  var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  if (isNaN(d.getTime())) return '';
+  var e = new Date(d.getTime());
+  if (days > 0) {
+    e.setDate(e.getDate() + days - 1);
+  } else {
+    var day = d.getDate();
+    e.setMonth(e.getMonth() + mon);
+    if (e.getDate() !== day) e.setDate(0);   // 応当日が無い月 → その月の末日
+    else e.setDate(e.getDate() - 1);         // 応当日の前日
+  }
+  return e.getFullYear() + '-' + ('0' + (e.getMonth() + 1)).slice(-2)
+    + '-' + ('0' + e.getDate()).slice(-2);
+}
+
+/* その期間（start〜end）の出勤簿に入れる単価を決める。
+
+   phase は
+     'full'     … 期間まるごと本採用。本採用の単価
+     'trial'    … 期間まるごと試用期間中。試用期間中の単価
+     'straddle' … 期間の途中で試用期間が終わる
+
+   出勤簿は1つの期間に単価を1つしか持てない作りなので、途中で終わる期間は
+   自動で切り替えない（試用期間中の単価のままにして、人に知らせる）。
+   何日ぶんをどちらの単価で払うかは、人が決めることのため。 */
+function periodRate_(rec, start, end) {
+  var full = Number(rec && rec.payRate) || 0;
+  var tr   = Number(rec && rec.trialRate) || 0;
+  var te   = isoDate_(rec && rec.trialEnd) || trialEnd_(rec);
+  if (!tr || !te || tr === full) return { rate: full, phase: 'full', trialEnd: te };
+  // 期間が分からないとき（ファイル名が変わっているなど）は、今日どちらかで決める
+  if (!start && !end) {
+    var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    return (te >= today) ? { rate: tr, phase: 'trial', trialEnd: te }
+                         : { rate: full, phase: 'full', trialEnd: te };
+  }
+  if (end   && te >= end)   return { rate: tr,   phase: 'trial',    trialEnd: te };
+  if (start && te <  start) return { rate: full, phase: 'full',     trialEnd: te };
+  return { rate: tr, phase: 'straddle', trialEnd: te };
+}
+
+// 期間の途中で試用期間が終わるときに、人に見せる一文
+function straddleMsg_(name, label, pr, full) {
+  return name + '：' + label + ' の途中（' + pr.trialEnd + '）で試用期間が終わります。'
+    + '単価は ' + pr.rate + '円 のままにしました。'
+    + '翌日からの出勤ぶんは ' + full + '円 で払うのであれば、手で分けてください。';
+}
+
 function payrollPeriod_(title) {
   var m = /^給与一覧_(\d{4})_(\d{1,2})_(\d{1,2})-(\d{4})_(\d{1,2})_(\d{1,2})$/.exec(title);
   if (!m) return null;
@@ -870,7 +949,7 @@ function payrollAdd_(p) {
   var group = String(rec.group || '').trim();
   if (!group) return { status: 'error', message: '現場が指定されていません' };
 
-  var done = [], skipped = [], failed = [];
+  var done = [], skipped = [], failed = [], straddle = [];
 
   for (var i = 0; i < ids.length; i++) {
     try {
@@ -895,7 +974,13 @@ function payrollAdd_(p) {
       var sheet = tpl.copyTo(ss).setName(name);
       ss.setActiveSheet(sheet);
       ss.moveActiveSheet(tpl.getIndex() + 1);
-      payrollFillSheet_(sheet, sampleName, name, rec);
+      // 試用期間中と本採用で単価が違う人は、その期間に合うほうで作る
+      var per = payrollPeriod_(ss.getName());
+      var pr = periodRate_(rec, per ? per.start : '', per ? per.end : '');
+      if (pr.phase === 'straddle') {
+        straddle.push(straddleMsg_(name, per ? per.label : ss.getName(), pr, Number(rec.payRate) || 0));
+      }
+      payrollFillSheet_(sheet, sampleName, name, rec, pr.rate);
 
       // --- まとめの表に行を足す ---
       list.insertRowsAfter(g.last, 1);
@@ -903,17 +988,18 @@ function payrollAdd_(p) {
       list.getRange(g.last + 1, 2).setValue(name);
       payrollRenumber_(list);
 
-      done.push(ss.getName());
+      done.push(ss.getName() + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
     } catch (e) {
       failed.push(String(ids[i]) + '：' + String(e));
     }
   }
 
-  return { status: 'ok', done: done, skipped: skipped, failed: failed };
+  return { status: 'ok', done: done, skipped: skipped, failed: failed, straddle: straddle };
 }
 
-// 複製したシートの、氏名・単価・通勤手当を差し替えて、打刻の中身を消す
-function payrollFillSheet_(sheet, fromName, toName, rec) {
+/* 複製したシートの、氏名・単価・通勤手当を差し替えて、打刻の中身を消す。
+   rate を渡すと、その単価で入れる（試用期間中の単価を入れるときに使う）。 */
+function payrollFillSheet_(sheet, fromName, toName, rec, rate) {
   var rows = Math.min(sheet.getLastRow(), 60);
   var cols = Math.min(sheet.getLastColumn(), 15);
   var rng = sheet.getRange(1, 1, rows, cols);
@@ -921,7 +1007,8 @@ function payrollFillSheet_(sheet, fromName, toName, rec) {
   var formulas = rng.getFormulas();
 
   var payKind = (rec.payKind === 'daily') ? '日給' : '時給';
-  var rate = Number(rec.payRate) || 0;
+  if (rate === undefined || rate === null || rate === '') rate = Number(rec.payRate) || 0;
+  rate = Number(rate) || 0;
   var commute = Number(rec.commute) || 0;
   var ck = rec.commuteKind;
   var commuteTxt = (ck === 'none' || !commute) ? '通勤手当：なし'
@@ -1343,16 +1430,20 @@ function payrollRateAll_(p) {
     return { status: 'error', message: '給与一覧のファイルが見つかりません' };
   }
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  var ids = [];
+  var ids = [], periods = [];
   for (var f = 0; f < files.files.length; f++) {
-    if (files.files[f].end >= today) ids.push(files.files[f].id);
+    if (files.files[f].end < today) continue;
+    ids.push(files.files[f].id);
+    periods.push(files.files[f]);
   }
-  if (!ids.length) return { status: 'ok', changed: [], same: 0, missing: [], files: 0 };
+  if (!ids.length) {
+    return { status: 'ok', changed: [], same: 0, missing: [], straddle: [], files: 0 };
+  }
 
   var sh = getStaffSheet_();
   var list = readStaff_(sh, staffHeader_(sh));
 
-  var changed = [], missing = [], same = 0;
+  var changed = [], missing = [], straddle = [], same = 0;
 
   for (var i = 0; i < list.length; i++) {
     var r = list[i];
@@ -1362,7 +1453,6 @@ function payrollRateAll_(p) {
     if (!Number(r.payRate)) continue;
 
     var name = String(r.kyuyoName || r.name).trim();
-    var rate = Number(r.payRate) || 0;
     var ck = String(r.commuteKind || 'none');
     var commute = (ck === 'none') ? 0 : (Number(r.commute) || 0);
     var payKind = (r.payKind === 'daily') ? '日給' : '時給';
@@ -1377,6 +1467,14 @@ function payrollRateAll_(p) {
       } catch (e) { continue; }
       if (!sheet) continue;
       hitAny = true;
+
+      /* 試用期間中と本採用で単価が違う人は、その期間に合うほうに合わせる。
+         試用期間が終われば、次の期間から自動で本採用の単価になる。 */
+      var pr = periodRate_(r, periods[k].start, periods[k].end);
+      var rate = pr.rate;
+      if (pr.phase === 'straddle') {
+        straddle.push(straddleMsg_(name, periods[k].label, pr, Number(r.payRate) || 0));
+      }
 
       var nowRate = Number(sheet.getRange(3, 11).getValue()) || 0;
       var nowCom  = Number(sheet.getRange(3, 13).getValue()) || 0;
@@ -1401,7 +1499,87 @@ function payrollRateAll_(p) {
   }
 
   return { status: 'ok', dryRun: dryRun, files: ids.length,
-           changed: changed, same: same, missing: missing };
+           changed: changed, same: same, missing: missing, straddle: straddle };
+}
+
+/* =========================================================
+   試用期間が終わったら、本採用の単価に自動で切り替える
+   ---------------------------------------------------------
+   毎日1回ひとりでに動かすための仕掛け。
+   payrollRateAll_ がすでに「名簿のとおりの単価になっているか」を見るので、
+   ここはそれを呼ぶだけ。試用期間が終わっていれば periodRate_ が
+   本採用の単価を返すので、次の期間から自動で切り替わる。
+
+   ＜使い方＞
+   Apps Script のエディタで、関数の選択欄から
+     installTrialRateDaily  を選んで「実行」する（1回だけ）。
+   これで毎日朝4時台に動くようになる。やめたいときは
+     removeTrialRateDaily  を実行する。
+   ========================================================= */
+
+/* 自動切替のお知らせを送る先。
+   空のままなら、このスクリプトの持ち主（Apps Script を置いている Google アカウント）に送ります。
+   ほかの人にも送りたいときだけ、ここにメールアドレスをカンマ区切りで書いてください。
+   ※このファイルは公開リポジトリに置いてあるので、ここに書いた住所は誰でも見られます。 */
+var TRIAL_RATE_MAIL = '';
+
+function trialRateDaily() {
+  var res;
+  try {
+    res = payrollRateAll_({ dryRun: false });
+  } catch (e) {
+    Logger.log('単価の自動切替でエラー：' + e);
+    return;
+  }
+  if (!res || res.status !== 'ok') return;
+
+  var changed  = res.changed  || [];
+  var straddle = res.straddle || [];
+  Logger.log('単価の自動切替：直した ' + changed.length + ' 件／'
+    + '人の判断がいる ' + straddle.length + ' 件');
+
+  // 何も起きていない日はメールを送らない（毎日届くとかえって見なくなるため）
+  if (!changed.length && !straddle.length) return;
+
+  var to = TRIAL_RATE_MAIL;
+  if (!to) { try { to = Session.getEffectiveUser().getEmail(); } catch (e) { to = ''; } }
+  if (!to) return;
+
+  var body = '給与一覧の単価を、名簿のとおりに合わせました。\n'
+    + '（まだ支払いの済んでいない期間だけ。出勤・退勤の記録には触っていません）\n\n';
+  if (changed.length) {
+    body += '■ 直したところ（' + changed.length + '件）\n' + changed.join('\n') + '\n\n';
+  }
+  if (straddle.length) {
+    body += '■ 人の判断がいるところ（' + straddle.length + '件）\n'
+      + '期間の途中で試用期間が終わる人です。出勤簿は1つの期間に単価を1つしか持てないので、\n'
+      + '自動では切り替えていません。日割りが要るかどうか確かめてください。\n\n'
+      + straddle.join('\n') + '\n\n';
+  }
+  body += '※このメールは、名簿（共通名簿）の自動処理から送っています。';
+
+  try {
+    MailApp.sendEmail(to, '【勤怠】給与一覧の単価を合わせました', body);
+  } catch (e) {
+    Logger.log('お知らせメールを送れませんでした：' + e);
+  }
+}
+
+// 毎日1回、自動で動くようにする（エディタから1回だけ実行する）
+function installTrialRateDaily() {
+  removeTrialRateDaily();
+  ScriptApp.newTrigger('trialRateDaily').timeBased().atHour(4).everyDays(1).create();
+  Logger.log('毎日4時台に trialRateDaily が動くようにしました。');
+}
+
+// 自動で動くのをやめる
+function removeTrialRateDaily() {
+  var all = ScriptApp.getProjectTriggers();
+  var n = 0;
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getHandlerFunction() === 'trialRateDaily') { ScriptApp.deleteTrigger(all[i]); n++; }
+  }
+  Logger.log('自動で動く設定を ' + n + ' 件はずしました。');
 }
 
 /* いまの明細の手当と、名簿の諸手当が違うかどうかだけ見る（書き換えない） */
@@ -1437,7 +1615,7 @@ function payrollRate_(p) {
   if (!ids || !ids.length) return { status: 'error', message: '直す期間が選ばれていません' };
 
   var name = String(rec.name).trim();
-  var done = [], skipped = [], failed = [];
+  var done = [], skipped = [], failed = [], straddle = [];
 
   for (var i = 0; i < ids.length; i++) {
     try {
@@ -1451,8 +1629,15 @@ function payrollRate_(p) {
       var vals = rng.getValues();
       var formulas = rng.getFormulas();
 
+      // 試用期間中と本採用で単価が違う人は、その期間に合うほうを使う
+      var per = payrollPeriod_(ss.getName());
+      var pr = periodRate_(rec, per ? per.start : '', per ? per.end : '');
+      if (pr.phase === 'straddle') {
+        straddle.push(straddleMsg_(name, per ? per.label : ss.getName(), pr, Number(rec.payRate) || 0));
+      }
+
       var payKind = (rec.payKind === 'daily') ? '日給' : '時給';
-      var rate = Number(rec.payRate) || 0;
+      var rate = pr.rate;
       var commute = Number(rec.commute) || 0;
       var ck = rec.commuteKind;
       var commuteTxt = (ck === 'none' || !commute) ? '通勤手当：なし'
@@ -1480,12 +1665,12 @@ function payrollRate_(p) {
       payrollFixAllowances_(sheet, payrollAllowList_(rec.allowances));
       payrollFixDetail_(sheet, payKind, rate, ck, commute);
 
-      done.push(ss.getName());
+      done.push(ss.getName() + (pr.phase === 'trial' ? '（試用期間中の単価 ' + rate + '円）' : ''));
     } catch (e) {
       failed.push(String(ids[i]) + '：' + String(e));
     }
   }
-  return { status: 'ok', done: done, skipped: skipped, failed: failed };
+  return { status: 'ok', done: done, skipped: skipped, failed: failed, straddle: straddle };
 }
 
 /* ===== 給与一覧のファイルを調べる（読み取りだけ）=========================
@@ -2066,7 +2251,11 @@ function rosterCols_() {
       return [r.emgName, r.emgRel ? '（' + r.emgRel + '）' : '', r.emgTel ? ' ' + r.emgTel : '']
         .join('').trim(); }],
     ['賃金',        function (r) {
-      return (+r.payRate) ? ((r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.payRate)) : ''; }],
+      if (!(+r.payRate)) return '';
+      return (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.payRate); }],
+    ['試用期間中の賃金', function (r) {
+      if (!(+r.trialRate) || (+r.trialRate) === (+r.payRate)) return '本採用と同じ';
+      return (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.trialRate); }],
     ['通勤手当',    function (r) {
       if (!(+r.commute)) return 'なし';
       return yen_(r.commute) + (r.commuteKind === 'daily' ? '／日' : '／月'); }],
@@ -2078,9 +2267,11 @@ function rosterCols_() {
            : r.renewal === 'may'  ? '更新あり' : ''; }],
     ['更新の上限',  function (r) { return r.renewalLimit; }],
     ['試用期間',    function (r) {
-      if (+r.trialDays)   return (+r.trialDays) + '日';
-      if (+r.trialMonths) return (+r.trialMonths) + 'か月';
-      return 'なし'; }],
+      var n = (+r.trialDays) ? ((+r.trialDays) + '日')
+            : (+r.trialMonths) ? ((+r.trialMonths) + 'か月') : '';
+      if (!n) return 'なし';
+      var e = trialEnd_(r);
+      return n + (e ? '（' + e + ' まで）' : ''); }],
     ['業務内容',    function (r) { return r.jobDuties; }],
     ['勤務時間',    function (r) {
       if (!r.startTime && !r.endTime) return 'シフトによる';
