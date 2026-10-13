@@ -321,6 +321,7 @@ var STAFF_COLS = [
   'renewal',       // may（更新する場合がある） / none（更新しない） / auto（自動更新）
   'renewalLimit',  // 更新の上限 例「通算3年」「上限なし」★2024年4月から必須
   'trialMonths',   // 試用期間（月）。0なら無し
+  'trialDays',     // 試用期間（日）。日で決めたときだけ入る。入っていれば月より優先
   'totalYears',    // 通算の契約期間（年）。5年を超えると無期転換の申込権が出る
 
   // 働く場所と仕事
@@ -351,7 +352,7 @@ var STAFF_COLS = [
 
 // 数字として扱う列（空欄は0にする）
 var STAFF_NUM_COLS = ['payRate', 'commute', 'targetDays', 'maxDays', 'maxPerWeek',
-                      'breakMin', 'trialMonths', 'totalYears',
+                      'breakMin', 'trialMonths', 'trialDays', 'totalYears',
                       'weekDays', 'paidAdjust'];
 // はい／いいえで扱う列
 var STAFF_BOOL_COLS = ['kyuyo', 'holidayOk',
@@ -2076,7 +2077,10 @@ function rosterCols_() {
            : r.renewal === 'auto' ? '自動更新'
            : r.renewal === 'may'  ? '更新あり' : ''; }],
     ['更新の上限',  function (r) { return r.renewalLimit; }],
-    ['試用期間',    function (r) { return (+r.trialMonths) ? ((+r.trialMonths) + 'か月') : 'なし'; }],
+    ['試用期間',    function (r) {
+      if (+r.trialDays)   return (+r.trialDays) + '日';
+      if (+r.trialMonths) return (+r.trialMonths) + 'か月';
+      return 'なし'; }],
     ['業務内容',    function (r) { return r.jobDuties; }],
     ['勤務時間',    function (r) {
       if (!r.startTime && !r.endTime) return 'シフトによる';
