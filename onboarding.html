@@ -482,6 +482,7 @@ function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } 
 const LS_STAFF = LS_KEY + '_staff';
 const CACHE_COLS = ['id','status','kind','pin','name','kana','dept','storeIds',
   'shiftName','kyuyoName','payKind','payRate','commute','commuteKind',
+  'trialMonths','trialDays','trialRate',
   'joinedAt','retiredAt','kyuyo','days','holidayOk',
   'weekDays','paidAdjust','paidTaken','contractStatus','contractUrl'];
 
@@ -572,6 +573,7 @@ function blankForm() {
     startTime: '', endTime: '', startTimeWeekend: '', endTimeWeekend: '',
     targetDays: 0, maxDays: 0, maxPerWeek: 0,
     payKind: 'hourly', payRate: 0, commuteKind: 'none', commute: 0,
+    trialRate: 0,
     weekDays: 5, paidAdjust: 0,
     shiftName: '', kyuyoName: '', note: '',
 
@@ -835,6 +837,31 @@ function renderNew() {
             : '選んだ現場に場所の登録がないため、どこからでも打刻できます。'))
     + '</div></div></div>';
 
+  /* 試用期間中の単価。本採用と違うときだけ入れる。
+     空（0）なら、試用期間中もずっと上の単価で払う。 */
+  function trialRateField() {
+    const kindTxt = (F.payKind === 'daily' ? '日給' : '時給');
+    const tEnd = trialEnd({ joinedAt: F.joinedAt, trialMonths: F.trialMonths, trialDays: F.trialDays });
+    if (!tEnd) {
+      return '<div class="field"><label>試用期間中の' + kindTxt + '</label>'
+        + '<input type="number" value="" disabled placeholder="試用期間なし" />'
+        + '<div class="hint">試用期間を入れると、ここに入れられます'
+        + '（下の「雇用契約の条件」にあります）。</div></div>';
+    }
+    const tr = +F.trialRate || 0;
+    return '<div class="field"><label>試用期間中の' + kindTxt + '</label>'
+      + '<div class="inline"><input type="number" min="0" step="1" style="width:120px" value="' + (tr || '')
+      + '" placeholder="本採用と同じ" onchange="setFRender(\'trialRate\',+this.value||0)" /> 円</div>'
+      + '<div class="hint">'
+      + (tr
+          ? jpDate(tEnd) + ' まで <b>' + tr.toLocaleString() + '円</b>、'
+            + '翌日から <b>' + (+F.payRate || 0).toLocaleString() + '円</b> になります。'
+            + '<br />出勤簿の単価は、試用期間が終われば<b>次の給与期間から自動で</b>切り替わります。'
+          : '空のままなら、試用期間中も上の' + kindTxt + 'で払います。'
+            + '<br />試用期間だけ安い単価にするときに入れてください。')
+      + '</div></div>';
+  }
+
   // --- 給与 ---
   h += '<div class="card"><div class="card-title">給与</div>'
     + '<div class="card-desc">給与一覧のスプレッドシートに出勤簿を作るときに使います。'
@@ -845,7 +872,9 @@ function renderNew() {
     + '<span class="chip' + (F.payKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'daily\')">日給</span>'
     + '<input type="number" min="0" step="1" style="width:120px" value="' + (F.payRate || '')
     + '" placeholder="例：1200" onchange="setF(\'payRate\',+this.value||0)" /> 円</div>'
-    + '<div class="hint">' + (F.payKind === 'daily' ? '1日いくらで払う方に使います。' : '千葉県の最低賃金を下回っていないか確認してください。') + '</div></div>'
+    + '<div class="hint">' + (F.payKind === 'daily' ? '1日いくらで払う方に使います。' : '千葉県の最低賃金を下回っていないか確認してください。')
+    + '　<b>試用期間が終わったあと</b>の単価です。</div></div>'
+    + trialRateField()
     + '<div class="field"><label>通勤手当</label><div class="chip-row" style="margin-bottom:8px">'
     + '<span class="chip' + (F.commuteKind === 'none' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'none\')">なし</span>'
     + '<span class="chip' + (F.commuteKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'commuteKind\',\'daily\')">出勤1日ごと</span>'
@@ -1082,7 +1111,7 @@ async function submitNew() {
     contractType: F.contractType || 'fixed',
     contractEnd: F.contractType === 'fixed' ? F.contractEnd : '',
     renewal: F.renewal, renewalLimit: F.renewalLimit.trim(),
-    trialMonths: F.trialMonths, trialDays: F.trialDays, totalYears: 0,
+    trialMonths: F.trialMonths, trialDays: F.trialDays, trialRate: F.trialRate, totalYears: 0,
     jobDuties: F.jobDuties.trim(), jobScope: F.jobScope.trim(), placeScope: F.placeScope.trim(),
     breakMin: F.breakMin, overtime: !!F.overtime, holidayRule: F.holidayRule.trim(),
     allowances: JSON.stringify(F.allowances.filter(function (a) { return a.name && a.amount; })),
@@ -1208,6 +1237,7 @@ function doneHtml(rec) {
           + rs.failed.map(esc).join('<br />')
           + '<br />「給与一覧にも作る」→「単価だけ入れ直す」から、もう一度お試しください。</div>';
       }
+      h += straddleHtml(rs.straddle);
     }
   }
   if (rec.kyuyo && sids.length) {
@@ -1322,9 +1352,35 @@ function renderList() {
     h += '<div class="alert warn"><b>試用期間がもうすぐ終わる人：' + soon.length + ' 名</b><br />'
       + soon.map(function (r) {
           const t = trialInfo(r);
-          return esc(r.name) + '（' + jpDate(t.end) + ' まで・あと' + t.days + '日）';
+          const tr = trialRateOf(r);
+          return esc(r.name) + '（' + jpDate(t.end) + ' まで・あと' + t.days + '日）'
+            + (tr ? '　' + tr.toLocaleString() + '円 → ' + Number(r.payRate || 0).toLocaleString() + '円'
+                  : '');
         }).join('<br />')
       + '<br /><span class="muted">本採用にするか、期間を延ばすかを決めてください。</span></div>';
+  }
+
+  /* 試用期間が終わって、単価が切り替わる人。
+     出勤簿の単価は「はじめの取り込み・設定」タブの
+     「給与一覧の単価を、名簿に合わせる」で入れ直せる。
+     GASの自動切替を入れていれば、毎日ひとりでに直る。 */
+  const switched = rows.filter(function (r) {
+    if (!isActive(r) || !r.kyuyo) return false;
+    if (!trialRateOf(r)) return false;
+    const t = trialInfo(r);
+    return t.state === 'done' && t.days >= -62;     // 終わって2か月くらいの人まで
+  });
+  if (switched.length) {
+    h += '<div class="alert info"><b>試用期間が終わって、単価が切り替わる人：' + switched.length + ' 名</b><br />'
+      + switched.map(function (r) {
+          return esc(r.name) + '（' + jpDate(trialSwitchDay(r)) + ' から '
+            + Number(r.payRate || 0).toLocaleString() + '円）';
+        }).join('<br />')
+      + '<br /><span class="muted">出勤簿の単価は、切り替わった日の<b>あとに始まる給与期間</b>から'
+      + '自動で本採用の単価になります。'
+      + '期間の<b>途中</b>で切り替わった分は、下のボタンで確かめてください。</span>'
+      + '<div class="row-actions" style="margin-top:.6rem">'
+      + '<button class="btn sm" onclick="showTab(\'p-setup\')">単価を名簿に合わせる画面へ</button></div></div>';
   }
 
   h += '<div class="card" style="padding:.5rem"><div class="table-wrap"><table><thead><tr>'
@@ -1408,6 +1464,7 @@ async function openEdit(id) {
   if (F.contractType === 'fixed' && !F.contractEnd) F.contractEnd = oneYearLater(F.joinedAt);
   if (r.trialMonths !== undefined && r.trialMonths !== '') F.trialMonths = +r.trialMonths || 0;
   F.trialDays = +r.trialDays || 0;
+  F.trialRate = +r.trialRate || 0;
   if (r.breakMin !== undefined && r.breakMin !== '') F.breakMin = +r.breakMin || 0;
   ['overtime','raise','bonus','severance','socialIns','empIns'].forEach(function (k) {
     if (r[k] !== undefined && r[k] !== '') F[k] = !!r[k];
@@ -1718,7 +1775,9 @@ function renderSetup() {
       + 'まだ支払いの済んでいない期間の出勤簿にまとめて入れ直します。<br />'
       + '編集で保存したときにも自動で入りますが、通信の失敗などで入らないことがあります。'
       + '<b>給与を確定する前に一度押して</b>、ずれていないか確かめてください。<br />'
-      + '<b>支払いの済んだ過去の期間には触りません。</b>出勤・退勤の記録にも触りません。</div>'
+      + '<b>支払いの済んだ過去の期間には触りません。</b>出勤・退勤の記録にも触りません。<br />'
+      + '試用期間中の単価を入れている人は、<b>試用期間が終わったあとに始まる期間</b>から'
+      + '本採用の単価になります。期間の途中で終わる分は、ここで知らせます。</div>'
       + '<div class="row-actions">'
       + '<button class="btn" id="btn-rate-check" onclick="checkAllRates()">ずれを調べる</button>'
       + '<button class="btn primary" id="btn-rate-fix" onclick="fixAllRates()">名簿に合わせる</button></div>'
@@ -2067,16 +2126,73 @@ function trialInfo(r) {
   return { end: end, days: days, state: days < 0 ? 'done' : 'on' };
 }
 
+/* 試用期間中の単価。本採用と同じ（または未入力）なら 0 を返す。
+   0 のときは「ずっと payRate」という意味になる。 */
+function trialRateOf(r) {
+  const tr = +r.trialRate || 0;
+  if (!tr) return 0;
+  if (tr === (+r.payRate || 0)) return 0;
+  if (!trialEnd(r)) return 0;          // 試用期間が無ければ使わない
+  return tr;
+}
+
+// その日に適用される単価
+function rateOn(r, iso) {
+  const tr = trialRateOf(r);
+  if (!tr) return +r.payRate || 0;
+  const e = trialEnd(r);
+  return (iso && e && iso <= e) ? tr : (+r.payRate || 0);
+}
+
+/* 給与期間（start〜end）の出勤簿に入れる単価。
+   出勤簿は1つの期間に単価を1つしか持てないので、期間の途中で試用期間が
+   終わるときは自動では切り替えない（phase: 'straddle' で知らせる）。
+   shift-sync.gs の periodRate_ と同じ判断にしてある。 */
+function periodRate(r, start, end) {
+  const full = +r.payRate || 0;
+  const tr = trialRateOf(r);
+  const e = trialEnd(r);
+  if (!tr || !e) return { rate: full, phase: 'full', trialEnd: e };
+  // 期間が分からないときは、今日どちらかで決める
+  if (!start && !end) {
+    const t = new Date();
+    const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
+      + '-' + String(t.getDate()).padStart(2, '0');
+    return (e >= today) ? { rate: tr, phase: 'trial', trialEnd: e }
+                        : { rate: full, phase: 'full', trialEnd: e };
+  }
+  if (end && e >= end)    return { rate: tr,   phase: 'trial',    trialEnd: e };
+  if (start && e < start) return { rate: full, phase: 'full',     trialEnd: e };
+  return { rate: tr, phase: 'straddle', trialEnd: e };
+}
+
+// 本採用の単価に切り替わる日（満了日の翌日）
+function trialSwitchDay(r) {
+  const e = trialEnd(r);
+  if (!e || !trialRateOf(r)) return '';
+  const d = new Date(e + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // 名簿の一覧に出す、短い表示
 function trialShort(r) {
   if (!isActive(r)) return '<span class="muted">—</span>';
   const t = trialInfo(r);
   if (t.state === 'none') return '<span class="muted">なし</span>';
-  if (t.state === 'done') return '<span class="muted">終了</span>';
+  const tr = trialRateOf(r);
+  // 単価が変わる人は、いくらから いくらに なるのかも出す
+  const rateLine = tr
+    ? '<br /><span class="muted" style="font-size:.8em">'
+      + tr.toLocaleString() + '円 → ' + Number(r.payRate || 0).toLocaleString() + '円</span>'
+    : '';
+  if (t.state === 'done') return '<span class="muted">終了</span>' + rateLine;
   return '<span class="badge ' + (t.days <= 30 ? 'warn' : 'part') + '">試用中 '
     + esc(trialLabel(r)) + '</span>'
     + '<br /><span class="muted">' + jpDate(t.end) + ' まで'
-    + (t.days === 0 ? '（今日まで）' : '（あと' + t.days + '日）') + '</span>';
+    + (t.days === 0 ? '（今日まで）' : '（あと' + t.days + '日）') + '</span>'
+    + rateLine;
 }
 
 function jpDate(iso) {
@@ -2140,7 +2256,10 @@ function contractVars(r) {
     '試用期間': trialLabel(r)
       ? ('採用日から ' + trialLabel(r)
          + (trialEnd(r) ? '（' + jpDate(trialEnd(r)) + ' まで）' : '')
-         + '　この期間中の労働条件は本契約と同じ')
+         + (trialRateOf(r)
+             ? '　この期間中の' + (r.payKind === 'daily' ? '日給' : '時給')
+               + 'は ' + yen(trialRateOf(r)) + '。ほかの労働条件は本契約と同じ'
+             : '　この期間中の労働条件は本契約と同じ'))
       : 'なし',
 
     '就業場所': place,
@@ -2153,7 +2272,11 @@ function contractVars(r) {
     '所定時間外労働': r.overtime ? '有' : '無',
     '休日': holiday,
 
-    '賃金': (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen(r.payRate),
+    '賃金': (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen(r.payRate)
+      + (trialRateOf(r)
+          ? '（試用期間中は ' + yen(trialRateOf(r)) + '。'
+            + jpDate(trialSwitchDay(r)) + ' から ' + yen(r.payRate) + '）'
+          : ''),
     '諸手当': allow.length ? allow.join('、') : 'なし',
     '支払日': PAY_DAY,
     '昇給': r.raise ? '有（勤務成績等を考慮して決定する）' : '無',
@@ -2363,7 +2486,8 @@ async function sendImport(recs) {
 async function autoRateSync(before, after) {
   if (!before || !after) return null;                    // 新しく登録した人は「給与一覧にも作る」で作る
   if (!after.kyuyo || !after.payRate) return null;       // 給与の対象外、または単価が未設定
-  const keys = ['payKind', 'payRate', 'commute', 'commuteKind'];
+  const keys = ['payKind', 'payRate', 'commute', 'commuteKind', 'trialRate',
+                'trialMonths', 'trialDays', 'joinedAt'];
   const changed = keys.some(function (k) { return String(before[k] || '') !== String(after[k] || ''); })
     || JSON.stringify(before.allowances || []) !== JSON.stringify(after.allowances || []);
   if (!changed) return null;
@@ -2385,6 +2509,7 @@ async function autoRateSync(before, after) {
       action: 'payrollRate', fileIds: ids,
       rec: { name: after.kyuyoName || after.name, payKind: after.payKind, payRate: after.payRate,
              commute: after.commute, commuteKind: after.commuteKind,
+             trialRate: trialRateOf(after), trialEnd: trialEnd(after),
              allowances: JSON.stringify(after.allowances || []) },
     });
     if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
@@ -2434,6 +2559,7 @@ async function runAllRates(dryRun) {
         + res.missing.map(esc).join('、')
         + '<br />この人たちは「給与一覧にも作る」から出勤簿を作ってください。</div>';
     }
+    h += straddleHtml(res.straddle);
     if (el) el.innerHTML = h;
   } catch (e) {
     if (el) el.innerHTML = '<div class="alert err"><b>できませんでした：</b>' + esc(e.message)
@@ -2679,7 +2805,13 @@ function paidShort(r) {
 
 // 単価の出し方（画面に出す用）
 function rateText(r) {
-  const pay = (r.payKind === 'daily' ? '日給 ' : '時給 ') + Number(r.payRate || 0).toLocaleString() + '円';
+  const kindTxt = (r.payKind === 'daily' ? '日給 ' : '時給 ');
+  let pay = kindTxt + Number(r.payRate || 0).toLocaleString() + '円';
+  const tr = trialRateOf(r);
+  if (tr) {
+    pay = kindTxt + tr.toLocaleString() + '円（試用期間中）→ '
+      + Number(r.payRate || 0).toLocaleString() + '円（' + jpDate(trialEnd(r)) + ' まで試用）';
+  }
   const com = r.commuteKind === 'monthly' ? '通勤手当 ' + Number(r.commute || 0).toLocaleString() + '円（月ぎめ）'
     : r.commuteKind === 'daily' ? '通勤手当 ' + Number(r.commute || 0).toLocaleString() + '円 × 出勤日数'
     : '通勤手当なし';
@@ -2737,11 +2869,16 @@ function renderPayroll(r) {
     + '<b>' + esc(nm) + '</b> さんの出勤簿シートを作り、給与一覧表の <b>' + esc(grp) + '</b> に行を足します。<br />'
     + '同じ現場の人のシートをそのまま複製して、氏名と単価だけ差し替えるので、給与の計算式は崩れません。</div>';
 
+  const trRate = trialRateOf(r);
   h += '<div class="alert info">'
     + '単価：' + (r.payRate ? (r.payKind === 'daily' ? '日給' : '時給') + ' ' + Number(r.payRate).toLocaleString() + '円'
                             : '<b style="color:#a32d2d">未設定</b>')
     + '　／　通勤手当：' + (r.commuteKind === 'monthly' ? Number(r.commute).toLocaleString() + '円（月ぎめ）'
         : r.commuteKind === 'daily' ? Number(r.commute).toLocaleString() + '円 × 出勤日数' : 'なし')
+    + (trRate
+        ? '<br />試用期間中は <b>' + trRate.toLocaleString() + '円</b>（' + jpDate(trialEnd(r)) + ' まで）。'
+          + 'それより前に終わる期間には試用期間中の単価を入れます。'
+        : '')
     + '</div>';
 
   if (!r.payRate) {
@@ -2795,8 +2932,10 @@ async function runPayrollRate(id) {
   const ids = Object.keys(payrollPick).filter(function (k) { return payrollPick[k]; });
   if (!ids.length) { alert('期間を1つ以上選んでください。'); return; }
   if (!r.payRate) { alert('単価が入っていません。先に「編集」から入れてください。'); return; }
+  const tr0 = trialRateOf(r);
   if (!confirm(r.name + ' さんの出勤簿 ' + ids.length + ' 件の単価を、いまの登録内容に合わせます。\n\n'
     + (r.payKind === 'daily' ? '日給' : '時給') + ' ' + Number(r.payRate).toLocaleString() + '円\n'
+    + (tr0 ? '試用期間中は ' + tr0.toLocaleString() + '円（' + jpDate(trialEnd(r)) + ' まで）\n' : '')
     + '通勤手当 ' + (r.commuteKind === 'monthly' ? Number(r.commute).toLocaleString() + '円（月ぎめ）'
         : r.commuteKind === 'daily' ? Number(r.commute).toLocaleString() + '円 × 出勤日数' : 'なし') + '\n\n'
     + '出勤・退勤の記録には触りません。よろしいですか？')) return;
@@ -2807,7 +2946,8 @@ async function runPayrollRate(id) {
     const res = await apiPost({
       action: 'payrollRate', fileIds: ids,
       rec: { name: r.kyuyoName || r.name, payKind: r.payKind, payRate: r.payRate,
-             commute: r.commute, commuteKind: r.commuteKind },
+             commute: r.commute, commuteKind: r.commuteKind,
+             trialRate: trialRateOf(r), trialEnd: trialEnd(r) },
     });
     if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
     openSheet(payrollResultHtml('単価を入れ直しました', res));
@@ -2816,6 +2956,16 @@ async function runPayrollRate(id) {
       + '<div class="alert err">直せませんでした：' + esc(e.message) + '</div>'
       + '<div class="row-actions"><button class="btn ghost" onclick="closeSheet()">閉じる</button></div>');
   }
+}
+
+/* 期間の途中で試用期間が終わるときの知らせ。
+   出勤簿は1つの期間に単価を1つしか持てないので、ここは人が決める。 */
+function straddleHtml(list) {
+  if (!(list || []).length) return '';
+  return '<div class="alert warn"><b>人の判断がいる期間：' + list.length + ' 件</b><br />'
+    + list.map(esc).join('<br />')
+    + '<br /><span class="muted">出勤簿は1つの期間に単価を1つしか持てません。'
+    + '日割りで分けるのか、その期間はどちらかに寄せるのかを決めてください。</span></div>';
 }
 
 // 作成・入れ直しの結果を同じ形で出す
@@ -2833,6 +2983,7 @@ function payrollResultHtml(title, res) {
     h += '<div class="alert err"><b>' + res.failed.length + ' 件は直せませんでした。</b><br />'
       + res.failed.map(esc).join('<br />') + '</div>';
   }
+  h += straddleHtml(res.straddle);
   return h + '<div class="muted">スプレッドシートを開いて確認してください。</div>'
     + '<div class="row-actions"><button class="btn" onclick="closeSheet()">閉じる</button></div>';
 }
@@ -2855,6 +3006,7 @@ async function runPayroll(id) {
         group: kyuyoGroup(sids[0]),
         payKind: r.payKind, payRate: r.payRate,
         commute: r.commute, commuteKind: r.commuteKind,
+        trialRate: trialRateOf(r), trialEnd: trialEnd(r),
       },
     });
     if (res.status !== 'ok') throw new Error(res.message || '作れませんでした');
@@ -2872,6 +3024,7 @@ async function runPayroll(id) {
       h += '<div class="alert err"><b>' + res.failed.length + ' 件は作れませんでした。</b><br />'
         + res.failed.map(esc).join('<br />') + '</div>';
     }
+    h += straddleHtml(res.straddle);
     h += '<div class="muted">スプレッドシートを開いて、出勤簿シートと給与一覧表の行ができているか確認してください。</div>'
       + '<div class="row-actions"><button class="btn" onclick="closeSheet()">閉じる</button></div>';
     openSheet(h);
