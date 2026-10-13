@@ -153,6 +153,7 @@ function handle_(p, cb) {
       if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
       if (p.action === 'payrollRateAll') return json_(payrollRateAll_(p), cb);
       if (p.action === 'payrollEnsure') return json_(payrollEnsure_(p), cb);
+      if (p.action === 'payrollStatus') return json_(payrollStatus_(p), cb);
       if (p.action === 'payrollRetire') return json_(payrollRetire_(p), cb);
       if (p.action === 'payrollReinstate') return json_(payrollReinstate_(p), cb);
       // 現場収支（genba.html）の日当・材料費など。シフトと同じ方法で別シートに預かる
@@ -1006,13 +1007,25 @@ function payrollListSheet_(ss) {
   return null;
 }
 
-/* 出勤簿シートを名前で探す。
-   シート名は氏名だけにするが、前に「出勤簿　氏名」で作ったぶんも拾えるようにしておく。 */
+/* 氏名の突き合わせに使う形。
+
+   「林　史子」「林 史子」「林史子」は同じ人として扱う。
+   氏名の空白は全角・半角・有り無しが混ざりやすく、1字違うだけで
+   出勤簿が見つからず、黙って作られないことがあったため。
+   前に「出勤簿　氏名」で作ったシートも、同じ形にそろえて拾う。 */
+function payrollNameKey_(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/^出勤簿[\s　]*/, '')
+    .replace(/[\s　]+/g, '');
+}
+
+// 出勤簿シートを名前で探す
 function payrollStaffSheet_(ss, name) {
+  var key = payrollNameKey_(name);
+  if (!key) return null;
   var all = ss.getSheets();
   for (var i = 0; i < all.length; i++) {
-    var n = all[i].getName();
-    if (n === name || n === '出勤簿　' + name || n === '出勤簿 ' + name) return all[i];
+    if (payrollNameKey_(all[i].getName()) === key) return all[i];
   }
   return null;
 }
@@ -1232,7 +1245,7 @@ function payrollHideListRow_(ss, name, hide) {
   var vals = list.getRange(1, 1, last, 2).getValues();
   var moved = false;
   for (var r = 0; r < vals.length; r++) {
-    if (String(vals[r][1]).trim() !== name) continue;
+    if (payrollNameKey_(vals[r][1]) !== payrollNameKey_(name)) continue;
     var a = vals[r][0];
     var isNo = (typeof a === 'number' && a > 0) || /^[0-9]+$/.test(String(a).trim());
     if (!isNo) continue;                       // 店舗別合計などの行は触らない
@@ -1613,6 +1626,103 @@ function payrollEnsure_(p) {
     }
   }
   return out;
+}
+
+/* 出勤簿のそろい具合を調べる。読むだけで、何も書き換えない。
+
+   「登録したのにタブが無い」が起きたとき、どこで止まっているのかを
+   名指しで出すためのもの。まだ支払いの済んでいない期間について、
+   在籍していて転記の対象の人ぜんぶを見る。
+
+   groups は { 氏名: 現場 }。どの現場の見本から作るかは
+   名簿シートだけでは分からないので、アプリから渡してもらう。 */
+function payrollStatus_(p) {
+  var groups = (p && p.groups) || {};
+  if (typeof groups === 'string') { try { groups = JSON.parse(groups); } catch (e) { groups = {}; } }
+
+  var files = payrollFiles_();
+  if (files.status !== 'ok' || !files.files.length) {
+    return { status: 'error', message: '給与一覧のファイルが見つかりません' };
+  }
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  // 未了の期間だけ、1回ずつ開いて「どのシートがあるか」を控える
+  var books = [];
+  for (var i = 0; i < files.files.length; i++) {
+    var f = files.files[i];
+    if (f.end < today) continue;
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var names = {};
+      var all = ss.getSheets();
+      for (var a = 0; a < all.length; a++) names[payrollNameKey_(all[a].getName())] = true;
+      books.push({ f: f, names: names, list: payrollListSheet_(ss), sheets: all.length });
+    } catch (e) {
+      books.push({ f: f, err: String(e) });
+    }
+  }
+  if (!books.length) return { status: 'ok', files: 0, ok: [], ng: [], note: 'これから支払う期間のファイルがありません' };
+
+  var sh = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+  var okList = [], ng = [];
+
+  for (var k = 0; k < list.length; k++) {
+    var r = list[k];
+    if (!r.name) continue;
+    if (String(r.status) !== 'active') continue;
+    if (!r.kyuyo) continue;
+
+    var name = String(r.kyuyoName || r.name).trim();
+    var group = String(groups[name] || '').trim();
+    var joined = isoDate_(r.joinedAt) || '';
+    var want = [], have = [];
+
+    for (var b = 0; b < books.length; b++) {
+      var bk = books[b];
+      if (bk.err) continue;
+      if (joined && bk.f.end < joined) continue;          // 入社より前の期間は要らない
+      if (bk.names[payrollNameKey_(name)]) { have.push(bk.f.label); continue; }
+      want.push(bk.f.label);
+    }
+
+    if (!want.length) {
+      if (have.length) okList.push(name + '（' + have.length + '期間）');
+      continue;
+    }
+
+    // 作れない理由を先に見る
+    var why = '';
+    if (!Number(r.payRate)) why = '単価が入っていません';
+    else if (!group) why = '配属の現場が決まっていません';
+    else {
+      // その現場に見本になる人がいるか
+      for (var c = 0; c < books.length; c++) {
+        if (books[c].err || !books[c].list) continue;
+        var g = payrollGroup_(books[c].list, group);
+        if (!g) { why = '給与一覧表に「' + group + '」の見出し（▶' + group + '）が見つかりません'; }
+        else if (g.sample < 0) { why = '「' + group + '」に見本になる人が1人もいません（この現場の1人目）'; }
+        else { why = ''; }
+        break;
+      }
+    }
+
+    ng.push({
+      name: name,
+      rosterName: String(r.name).trim(),
+      group: group,
+      joinedAt: joined,
+      payRate: Number(r.payRate) || 0,
+      missing: want,
+      found: have,
+      why: why || '作れます（登録し直すか「名簿に合わせる」で作られます）',
+    });
+  }
+
+  var errs = [];
+  for (var e2 = 0; e2 < books.length; e2++) if (books[e2].err) errs.push(books[e2].f.label + '：' + books[e2].err);
+
+  return { status: 'ok', files: books.length, ok: okList, ng: ng, errors: errs };
 }
 
 function payrollRateAll_(p) {

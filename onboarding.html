@@ -1375,6 +1375,15 @@ function renderList() {
     el.innerHTML = h; return;
   }
 
+  /* 出勤簿のそろい具合。調べたことがあるときだけ出す。
+     ファイルを何冊も開くので、自動では調べず、押されたときに調べる。 */
+  h += '<div class="card" style="padding:.9rem 1.1rem">'
+    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+    + '<b style="font-size:13px">給与一覧の出勤簿</b>'
+    + '<button class="btn sm" id="btn-pstatus" onclick="checkPayrollStatus()">そろっているか調べる</button>'
+    + '<span class="muted" style="font-size:12px">登録した人のタブができているかを見ます（読むだけ）</span>'
+    + '</div><div id="pstatus-result" style="margin-top:.6rem">' + payrollStatusHtml() + '</div></div>';
+
   // 試用期間がもうすぐ終わる人を、見落とさないように上に出す
   const soon = rows.filter(function (r) {
     if (!isActive(r)) return false;
@@ -1451,6 +1460,59 @@ function renderList() {
   });
   h += '</tbody></table></div></div>';
   el.innerHTML = h;
+}
+
+/* 出勤簿のそろい具合。調べた結果をここに持っておき、画面を描き直しても残す。 */
+let payrollStatus = null;
+
+async function checkPayrollStatus() {
+  const btn = document.getElementById('btn-pstatus');
+  const el = document.getElementById('pstatus-result');
+  if (btn) { btn.disabled = true; btn.textContent = '調べています…'; }
+  if (el) el.innerHTML = '<div class="alert info">期間のファイルを1冊ずつ開いています。少し時間がかかります…</div>';
+  try {
+    const res = await apiPost({ action: 'payrollStatus', groups: JSON.stringify(kyuyoGroupMap()) });
+    if (res.status !== 'ok') throw new Error(res.message || '調べられませんでした');
+    payrollStatus = res;
+  } catch (e) {
+    payrollStatus = { status: 'error', message: e.message };
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'もう一度調べる'; }
+  if (el) el.innerHTML = payrollStatusHtml();
+}
+
+function payrollStatusHtml() {
+  const st = payrollStatus;
+  if (!st) return '';
+  if (st.status === 'error') {
+    return '<div class="alert err"><b>調べられませんでした：</b>' + esc(st.message || '') + '<br />'
+      + 'Apps Script が新しい版になっているか確かめてください'
+      + '（デプロイを管理 → ✏️ → 新バージョン → デプロイ）。</div>';
+  }
+  const ng = st.ng || [];
+  if (!ng.length) {
+    return '<div class="alert ok"><b>そろっています。</b>'
+      + '確かめた期間：' + st.files + '件／対象：' + (st.ok || []).length + '名</div>';
+  }
+  let h = '<div class="alert warn"><b>出勤簿が足りない人：' + ng.length + ' 名</b><br />'
+    + ng.map(function (x) {
+        return '<div style="margin-top:.5rem">・<b>' + esc(x.name) + '</b>'
+          + (x.rosterName && x.rosterName !== x.name ? '（名簿では ' + esc(x.rosterName) + '）' : '')
+          + '<br /><span class="muted" style="font-size:.9em">'
+          + '足りない期間：' + esc(x.missing.join('、'))
+          + (x.found.length ? '／ある期間：' + esc(x.found.join('、')) : '')
+          + '<br />現場：' + (x.group ? esc(x.group) : '<b>なし</b>')
+          + '　単価：' + (x.payRate ? Number(x.payRate).toLocaleString() + '円' : '<b>なし</b>')
+          + '<br />' + esc(x.why) + '</span></div>';
+      }).join('')
+    + '</div>'
+    + '<div class="row-actions" style="margin-top:0">'
+    + '<button class="btn primary" onclick="showTab(\'p-setup\')">まとめて作る画面へ</button></div>';
+  if ((st.errors || []).length) {
+    h += '<div class="alert err"><b>開けなかった期間：' + st.errors.length + '件</b><br />'
+      + st.errors.map(esc).join('<br />') + '</div>';
+  }
+  return h;
 }
 
 function findRec(id) { return STAFF.find(function (r) { return r.id === id; }) || null; }
