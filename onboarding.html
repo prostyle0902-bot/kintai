@@ -30,6 +30,9 @@
     min-height: 100vh; font-size: 14px; -webkit-text-size-adjust: 100%;
   }
   .app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  /* 名簿の一覧は列が多いので、この画面のときだけ横に広げる。
+     入社登録のような入力画面は、読みやすさのため広げない。 */
+  .app.wide { max-width: 1600px; padding-left: .5rem; padding-right: .5rem; }
 
   .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
   .logo-title { font-size: 19px; font-weight: 600; color: var(--text-primary); letter-spacing: .06em; }
@@ -147,8 +150,10 @@
   .table-wrap { overflow-x: auto; }
   /* 名簿の一覧。狭い画面で文字が1字ずつ折り返さないよう、列に幅を持たせる。
      入りきらないときは、表ごと横にスクロールさせる。 */
-  .table-wrap table { min-width: 880px; }
-  .table-wrap th, .table-wrap td { white-space: nowrap; }
+  .table-wrap table { min-width: 1080px; }
+  .table-wrap th, .table-wrap td { white-space: nowrap; padding: 8px 7px; }
+  /* 操作のボタンは数が多いので、名簿の中では少し詰める */
+  .table-wrap .btn.sm { padding: 5px 8px; }
   .col-name  { min-width: 150px; }
   .col-kind  { min-width: 64px;  text-align: center; }
   .col-pin   { min-width: 64px;  }
@@ -2889,6 +2894,9 @@ function esc(s) {
 function showTab(id) {
   document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.panel === id); });
   document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('active', p.id === id); });
+  // 名簿は列が多いので、この画面のときだけ横に広げる
+  const app = document.querySelector('.app');
+  if (app) app.classList.toggle('wide', id === 'p-list');
   renderAll();
 }
 
