@@ -383,10 +383,46 @@ function staffHeader_(sh) {
   }
   var add = STAFF_COLS.filter(function (c) { return head.indexOf(c) < 0; });
   if (add.length) {
+    /* シートの列が足りないときは先に足す。
+       使っている列ぴったりまでしか列が無いシートだと、
+       そのまま書こうとして「範囲が合いません」で止まってしまう。 */
+    var need = head.length + add.length;
+    if (sh.getMaxColumns() < need) sh.insertColumnsAfter(sh.getMaxColumns(), need - sh.getMaxColumns());
     sh.getRange(1, head.length + 1, 1, add.length).setValues([add]).setFontWeight('bold');
     head = head.concat(add);
   }
   return head;
+}
+
+/* 名簿シート（"staff"）の列がそろっているかを見る。読むだけで、何も変えない。
+   エディタの関数の選択欄から checkStaffCols を選んで「実行」すると、
+   実行ログに「どのシートの何列目にあるか」「足りない列はどれか」が出る。 */
+function checkStaffCols() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(STAFF_SHEET);
+  var out = ['スプレッドシート：' + ss.getName(),
+             'シート名：' + STAFF_SHEET + (sh ? '（あります）' : '（ありません）')];
+  if (!sh) {
+    out.push('→ このスクリプトは、名簿の入っていないスプレッドシートに付いています。');
+    Logger.log(out.join('\n'));
+    return out.join('\n');
+  }
+  var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]
+    .map(function (v) { return String(v || ''); });
+  out.push('見出しの列数：' + head.length + '（シートの最大列数 ' + sh.getMaxColumns() + '）');
+
+  var want = ['payRate', 'trialMonths', 'trialDays', 'trialRate'];
+  for (var i = 0; i < want.length; i++) {
+    var ix = head.indexOf(want[i]);
+    out.push(want[i] + '：' + (ix < 0 ? '★ありません' : (ix + 1) + '列目（' + colLetter_(ix + 1) + '列）'));
+  }
+  var miss = STAFF_COLS.filter(function (c) { return head.indexOf(c) < 0; });
+  out.push('足りない列：' + (miss.length ? miss.join('、') : 'なし'));
+  if (miss.length) out.push('→ 入社登録アプリを開き直すか、staffHeader_ を通る操作をすると右端に足されます。');
+
+  var msg = out.join('\n');
+  Logger.log(msg);
+  return msg;
 }
 
 function staffIndex_(head) {
