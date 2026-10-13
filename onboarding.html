@@ -145,6 +145,17 @@
   tbody tr:hover { background: #f8fafc; }
   td.pin { font-variant-numeric: tabular-nums; letter-spacing: .12em; }
   .table-wrap { overflow-x: auto; }
+  /* 名簿の一覧。狭い画面で文字が1字ずつ折り返さないよう、列に幅を持たせる。
+     入りきらないときは、表ごと横にスクロールさせる。 */
+  .table-wrap table { min-width: 880px; }
+  .table-wrap th, .table-wrap td { white-space: nowrap; }
+  .col-name  { min-width: 150px; }
+  .col-kind  { min-width: 64px;  text-align: center; }
+  .col-pin   { min-width: 64px;  }
+  .col-dept  { min-width: 130px; }
+  .col-site  { min-width: 180px; }
+  .col-name .muted, .col-site { white-space: normal; }
+  .badge { white-space: nowrap; }
   .badge { display: inline-block; font-size: 10.5px; padding: 2px 9px; border-radius: 20px; background: #e8edf3; color: var(--text-secondary); }
   .badge.part { background: #E7F2FA; color: #1778BC; }
   .badge.staff { background: #EEF2F7; color: #2a3f56; }
@@ -1259,25 +1270,42 @@ function renderList() {
     el.innerHTML = h; return;
   }
 
+  // 試用期間がもうすぐ終わる人を、見落とさないように上に出す
+  const soon = rows.filter(function (r) {
+    if (!isActive(r)) return false;
+    const t = trialInfo(r);
+    return t.state === 'on' && t.days <= 30;
+  });
+  if (soon.length) {
+    h += '<div class="alert warn"><b>試用期間がもうすぐ終わる人：' + soon.length + ' 名</b><br />'
+      + soon.map(function (r) {
+          const t = trialInfo(r);
+          return esc(r.name) + '（' + jpDate(t.end) + ' まで・あと' + t.days + '日）';
+        }).join('<br />')
+      + '<br /><span class="muted">本採用にするか、期間を延ばすかを決めてください。</span></div>';
+  }
+
   h += '<div class="card" style="padding:.5rem"><div class="table-wrap"><table><thead><tr>'
-    + '<th>氏名</th><th>区分</th><th>PIN</th><th>所属</th><th>シフトの現場</th><th>入社日</th>'
-    + '<th>有給</th><th></th>'
+    + '<th class="col-name">氏名</th><th class="col-kind">区分</th><th class="col-pin">PIN</th>'
+    + '<th class="col-dept">所属</th><th class="col-site">シフトの現場</th><th>入社日</th>'
+    + '<th>試用期間</th><th>有給</th><th></th>'
     + '</tr></thead><tbody>';
   rows.forEach(function (r) {
     const sids = storeIdsOf(r);
     h += '<tr>'
-      + '<td><b>' + esc(r.name) + '</b>'
+      + '<td class="col-name"><b>' + esc(r.name) + '</b>'
       + (r.shiftName ? '<br /><span class="muted">シフト表：' + esc(r.shiftName) + '</span>' : '')
       + (r.kana ? '<br /><span class="muted">' + esc(r.kana) + '</span>' : '')
       + (isActive(r) ? '' : ' <span class="badge retired">退職</span>')
       + (isActive(r) && r.kyuyo && !(+r.payRate) ? ' <span class="badge warn">単価未設定</span>' : '')
       + '</td>'
-      + '<td><span class="badge ' + (r.kind === 'staff' ? 'staff' : 'part') + '">'
+      + '<td class="col-kind"><span class="badge ' + (r.kind === 'staff' ? 'staff' : 'part') + '">'
       + (r.kind === 'staff' ? '社員' : 'パート') + '</span></td>'
-      + '<td class="pin">' + esc(r.pin) + '</td>'
-      + '<td>' + esc(r.dept) + '</td>'
-      + '<td>' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
+      + '<td class="pin col-pin">' + esc(r.pin) + '</td>'
+      + '<td class="col-dept">' + esc(r.dept) + '</td>'
+      + '<td class="col-site">' + (sids.length ? esc(sids.map(siteName).join('・')) : '<span class="muted">なし</span>') + '</td>'
       + '<td class="muted">' + esc(isoDate(r.joinedAt)) + '</td>'
+      + '<td style="white-space:nowrap">' + trialShort(r) + '</td>'
       + '<td style="white-space:nowrap">' + paidShort(r) + '</td>'
       + '<td style="text-align:right;white-space:nowrap">'
       + (isActive(r) ? contractBtn(r) : '')
@@ -1953,6 +1981,45 @@ function isoDate(v) {
   const j = t.match(/^(\d{4})[\/年](\d{1,2})[\/月](\d{1,2})/);
   if (j) return j[1] + '-' + String(+j[2]).padStart(2, '0') + '-' + String(+j[3]).padStart(2, '0');
   return '';
+}
+
+/* 試用期間の終わり（満了日）。民法の数え方に合わせる。
+   ・ふつうは「○か月後の同じ日の前日」。4/1 から3か月なら 6/30。
+   ・同じ日が無い月は、その月の末日が満了日。1/31 から1か月なら 2/28。 */
+function trialEnd(r) {
+  const m = +r.trialMonths || 0;
+  const j = isoDate(r.joinedAt);
+  if (!m || !j) return '';
+  const d = new Date(j + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  const day = d.getDate();
+  const e = new Date(d);
+  e.setMonth(e.getMonth() + m);
+  if (e.getDate() !== day) e.setDate(0);     // 応当日が無い月 → その月の末日が満了日
+  else e.setDate(e.getDate() - 1);           // 応当日の前日が満了日
+  return e.getFullYear() + '-' + String(e.getMonth() + 1).padStart(2, '0')
+    + '-' + String(e.getDate()).padStart(2, '0');
+}
+
+// 試用期間の状態。state: none=設定なし／on=試用中／done=終わった
+function trialInfo(r) {
+  const end = trialEnd(r);
+  if (!end) return { end: '', days: null, state: 'none' };
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const e = new Date(end + 'T00:00:00');
+  const days = Math.round((e.getTime() - t.getTime()) / 86400000);
+  return { end: end, days: days, state: days < 0 ? 'done' : 'on' };
+}
+
+// 名簿の一覧に出す、短い表示
+function trialShort(r) {
+  if (!isActive(r)) return '<span class="muted">—</span>';
+  const t = trialInfo(r);
+  if (t.state === 'none') return '<span class="muted">なし</span>';
+  if (t.state === 'done') return '<span class="muted">終了</span>';
+  return '<span class="badge ' + (t.days <= 30 ? 'warn' : 'part') + '">試用中</span>'
+    + '<br /><span class="muted">' + jpDate(t.end) + ' まで'
+    + (t.days === 0 ? '（今日まで）' : '（あと' + t.days + '日）') + '</span>';
 }
 
 function jpDate(iso) {
