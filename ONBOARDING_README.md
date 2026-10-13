@@ -492,6 +492,11 @@ IDは、そのスプレッドシートのURLの `/d/` と `/edit` の間の文�
 | `kyuyoName` | 給与一覧での表記（空なら `name` と同じ） |
 | `payKind` / `payRate` | `hourly`（時給）／`daily`（日給）と、その金額（本採用後） |
 | `trialRate` | 試用期間中の単価。0・空なら本採用と同じ |
+
+> **あとから足した列は、`staff` シートの一番右に付きます。**
+> `trialRate` は `trialDays` のとなりではなく、`contractUrl` より右（**BK列あたり**）です。
+> 列がそろっているか確かめたいときは、Apps Script で **`checkStaffCols`** を実行すると、
+> 実行ログに「どの列に何があるか」が出ます（読むだけで、何も変えません）。
 | `commuteKind` / `commute` | `none`／`daily`（×出勤日数）／`monthly`（月ぎめ）と、その金額 |
 | `locs` | 打刻できる場所（JSON）。空なら場所を問わない |
 | `kyuyo` | 出勤簿へ転記するか |
