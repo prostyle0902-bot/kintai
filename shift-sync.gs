@@ -1030,23 +1030,98 @@ function payrollStaffSheet_(ss, name) {
   return null;
 }
 
-// まとめの表から、その現場の見出し行と、そこに並ぶ人の行を調べる
-function payrollGroup_(list, group) {
-  var vals = list.getRange(1, 1, list.getLastRow(), Math.min(8, list.getLastColumn())).getValues();
-  var head = -1, last = -1, sample = -1;
-  for (var r = 0; r < vals.length; r++) {
-    var joined = vals[r].join(' ');
-    if (head < 0) {
-      if (joined.indexOf('▶') >= 0 && joined.indexOf(group) >= 0) head = r + 1;
-      continue;
-    }
-    // 見出しのあとに続く、番号の入った行がその現場の人
-    if (joined.indexOf('▶') >= 0) break;              // 次の現場に入った
+// まとめの表を読む（8列ぶんあれば足りる）
+function payrollListVals_(list) {
+  return list.getRange(1, 1, Math.max(list.getLastRow(), 1), Math.min(8, list.getLastColumn())).getValues();
+}
+
+/* 見出し行（1始まり）から、その現場に並ぶ人の行を数える。
+   last … いちばん下の人の行（ここの下に足す）
+   sample … いちばん上の人の行（雛形にする人） */
+function payrollGroupRows_(vals, head) {
+  var last = -1, sample = -1;
+  for (var r = head; r < vals.length; r++) {
+    if (vals[r].join(' ').indexOf('▶') >= 0) break;   // 次の現場に入った
     var no = String(vals[r][0] || '').trim();
     if (/^\d+$/.test(no)) { last = r + 1; if (sample < 0) sample = r + 1; }
   }
-  if (head < 0) return null;
   return { head: head, last: last > 0 ? last : head, sample: sample };
+}
+
+// まとめの表にある現場の見出し（▶のうしろ）を並べる
+function payrollHeads_(list) {
+  var vals = payrollListVals_(list), out = [];
+  for (var r = 0; r < vals.length; r++) {
+    var j = vals[r].join(' ');
+    var i = j.indexOf('▶');
+    if (i >= 0) {
+      var t = j.slice(i + 1).replace(/\s+/g, ' ').trim();
+      if (t) out.push(t);
+    }
+  }
+  return out;
+}
+
+// まとめの表から、その現場の見出し行と、そこに並ぶ人の行を調べる
+function payrollGroup_(list, group) {
+  if (!group) return null;
+  var vals = payrollListVals_(list);
+  for (var r = 0; r < vals.length; r++) {
+    var joined = vals[r].join(' ');
+    if (joined.indexOf('▶') >= 0 && joined.indexOf(group) >= 0) {
+      return payrollGroupRows_(vals, r + 1);
+    }
+  }
+  return null;
+}
+
+/* 現場の名前で見つからないときに、同じ現場の仲間の行から探す。
+
+   アプリの現場名（例「神宮・亀甲堂・ゆう屋」）と、給与一覧表の見出しの
+   書き方（例「▶ゆう屋」）は、同じとは限らない。名前合わせに頼ると、
+   その現場の人がすでに何人もいるのに「見本がいない」と言って止まってしまう。
+   すでに表に載っている仲間を見つけて、その人が並んでいる現場に足す。
+
+   mates は、同じ現場で働いている人の氏名（給与一覧での表記）。 */
+function payrollGroupByMate_(list, mates) {
+  if (!mates || !mates.length) return null;
+  var keys = {};
+  for (var m = 0; m < mates.length; m++) {
+    var k = payrollNameKey_(mates[m]);
+    if (k) keys[k] = true;
+  }
+  var vals = payrollListVals_(list);
+  var head = -1;
+  for (var r = 0; r < vals.length; r++) {
+    var joined = vals[r].join(' ');
+    if (joined.indexOf('▶') >= 0) { head = r + 1; continue; }
+    if (head < 0) continue;
+    if (!/^\d+$/.test(String(vals[r][0] || '').trim())) continue;
+    if (!keys[payrollNameKey_(vals[r][1])]) continue;
+    var label = vals[head - 1].join(' ');
+    label = label.slice(label.indexOf('▶') + 1).replace(/\s+/g, ' ').trim();
+    return { block: payrollGroupRows_(vals, head), label: label,
+             mate: String(vals[r][1] || '').trim() };
+  }
+  return null;
+}
+
+/* その人をどの現場の列に足すかを決める。
+   まず現場の名前で探し、だめなら同じ現場の仲間から探す。 */
+function payrollFindGroup_(list, group, mates) {
+  var g = payrollGroup_(list, group);
+  if (g && g.sample >= 0) return { block: g, label: group, how: 'name' };
+  var alt = payrollGroupByMate_(list, mates);
+  if (alt && alt.block.sample >= 0) {
+    return { block: alt.block, label: alt.label, how: 'mate', mate: alt.mate };
+  }
+  var heads = payrollHeads_(list);
+  if (g && g.sample < 0) {
+    return { block: null, why: '「' + group + '」の列に、見本になる人が1人もいません（この現場の1人目）' };
+  }
+  return { block: null,
+           why: '「' + group + '」の見出し（▶）が給与一覧表に見つかりません。'
+                + 'いまある見出し：' + (heads.length ? heads.join('、') : 'なし') };
 }
 
 function payrollAdd_(p) {
@@ -1059,7 +1134,9 @@ function payrollAdd_(p) {
 
   var name = String(rec.name).trim();
   var group = String(rec.group || '').trim();
-  if (!group) return { status: 'error', message: '現場が指定されていません' };
+  var mates = rec.mates || [];
+  if (typeof mates === 'string') { try { mates = JSON.parse(mates); } catch (e) { mates = []; } }
+  if (!group && !mates.length) return { status: 'error', message: '現場が指定されていません' };
 
   var done = [], skipped = [], failed = [], straddle = [];
 
@@ -1075,7 +1152,7 @@ function payrollAdd_(p) {
         straddle.push(straddleMsg_(name, per ? per.label : ss.getName(), pr, Number(rec.payRate) || 0));
       }
 
-      var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate);
+      var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate, mates);
       if (mk.status === 'exists') { skipped.push(ss.getName() + '（すでにあります）'); continue; }
       if (mk.status !== 'ok') { failed.push(ss.getName() + '：' + mk.message); continue; }
 
@@ -1093,17 +1170,19 @@ function payrollAdd_(p) {
    給与の計算式は崩れない。すでにシートがあるときは何もしない。
 
    戻り：{ status: 'ok' | 'exists' | 'error', message }  */
-function payrollMakeSheet_(ss, name, group, rec, rate) {
+function payrollMakeSheet_(ss, name, group, rec, rate, mates) {
   if (payrollStaffSheet_(ss, name)) return { status: 'exists' };
-  if (!group) return { status: 'error', message: '現場が決まっていないため作れません' };
 
   var list = payrollListSheet_(ss);
   if (!list) return { status: 'error', message: '給与一覧表が見つかりません' };
 
-  var g = payrollGroup_(list, group);
-  if (!g || g.sample < 0) {
-    return { status: 'error', message: group + ' に見本になる人がいないため作れません' };
+  if (!group && !(mates || []).length) {
+    return { status: 'error', message: '現場が決まっていないため作れません' };
   }
+
+  var found = payrollFindGroup_(list, group, mates);
+  if (!found.block) return { status: 'error', message: found.why };
+  var g = found.block;
 
   var sampleName = String(list.getRange(g.last, 2).getValue() || '').trim();
   var tpl = payrollStaffSheet_(ss, sampleName);
@@ -1120,7 +1199,7 @@ function payrollMakeSheet_(ss, name, group, rec, rate) {
   list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
   list.getRange(g.last + 1, 2).setValue(name);
   payrollRenumber_(list);
-  return { status: 'ok' };
+  return { status: 'ok', group: found.label, how: found.how, mate: found.mate };
 }
 
 /* 複製したシートの、氏名・単価・通勤手当を差し替えて、打刻の中身を消す。
@@ -1566,6 +1645,8 @@ function payrollEnsure_(p) {
 
   var name = String(rec.name).trim();
   var group = String(rec.group || '').trim();
+  var mates = rec.mates || [];
+  if (typeof mates === 'string') { try { mates = JSON.parse(mates); } catch (e) { mates = []; } }
   var out = { status: 'ok', name: name, created: [], updated: [], same: 0,
               skipped: [], failed: [], straddle: [] };
   if (!Number(rec.payRate)) {
@@ -1598,9 +1679,11 @@ function payrollEnsure_(p) {
 
       var sheet = payrollStaffSheet_(ss, name);
       if (!sheet) {
-        var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate);
+        var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate, mates);
         if (mk.status === 'ok') {
-          out.created.push(f.label + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
+          out.created.push(f.label
+            + (mk.how === 'mate' ? '（' + mk.mate + ' さんと同じ「' + mk.group + '」に入れました）' : '')
+            + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
         } else if (mk.status !== 'exists') {
           out.failed.push(f.label + '：' + mk.message);
         }
@@ -1639,6 +1722,8 @@ function payrollEnsure_(p) {
 function payrollStatus_(p) {
   var groups = (p && p.groups) || {};
   if (typeof groups === 'string') { try { groups = JSON.parse(groups); } catch (e) { groups = {}; } }
+  var mates = (p && p.mates) || {};
+  if (typeof mates === 'string') { try { mates = JSON.parse(mates); } catch (e) { mates = {}; } }
 
   var files = payrollFiles_();
   if (files.status !== 'ok' || !files.files.length) {
@@ -1692,17 +1777,21 @@ function payrollStatus_(p) {
     }
 
     // 作れない理由を先に見る
+    var mt = mates[name] || [];
     var why = '';
     if (!Number(r.payRate)) why = '単価が入っていません';
-    else if (!group) why = '配属の現場が決まっていません';
+    else if (!group && !mt.length) why = '配属の現場が決まっていません';
     else {
-      // その現場に見本になる人がいるか
       for (var c = 0; c < books.length; c++) {
         if (books[c].err || !books[c].list) continue;
-        var g = payrollGroup_(books[c].list, group);
-        if (!g) { why = '給与一覧表に「' + group + '」の見出し（▶' + group + '）が見つかりません'; }
-        else if (g.sample < 0) { why = '「' + group + '」に見本になる人が1人もいません（この現場の1人目）'; }
-        else { why = ''; }
+        var found = payrollFindGroup_(books[c].list, group, mt);
+        if (found.block) {
+          why = (found.how === 'mate')
+            ? '作れます（' + found.mate + ' さんと同じ「' + found.label + '」に入れます）'
+            : '';
+        } else {
+          why = found.why;
+        }
         break;
       }
     }
@@ -1733,6 +1822,9 @@ function payrollRateAll_(p) {
   var doCreate = String(p && p.create) === 'true' || (p && p.create === true);
   var groups = (p && p.groups) || {};
   if (typeof groups === 'string') { try { groups = JSON.parse(groups); } catch (e) { groups = {}; } }
+  // { 氏名: [同じ現場の仲間の氏名...] }。見出しの書き方が違っても足せるようにするため
+  var mates = (p && p.mates) || {};
+  if (typeof mates === 'string') { try { mates = JSON.parse(mates); } catch (e) { mates = {}; } }
 
   var files = payrollFiles_();
   if (files.status !== 'ok' || !files.files.length) {
@@ -1786,7 +1878,7 @@ function payrollRateAll_(p) {
         if (isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt)) continue;  // 入社前は作らない
         made.push(name + '：' + periods[k].label);
         if (dryRun) { hitAny = true; continue; }
-        var mk = payrollMakeSheet_(ss, name, String(groups[name] || ''), r, rate);
+        var mk = payrollMakeSheet_(ss, name, String(groups[name] || ''), r, rate, mates[name] || []);
         if (mk.status !== 'ok' && mk.status !== 'exists') {
           made.pop();
           changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');

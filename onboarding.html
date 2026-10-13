@@ -1471,7 +1471,8 @@ async function checkPayrollStatus() {
   if (btn) { btn.disabled = true; btn.textContent = '調べています…'; }
   if (el) el.innerHTML = '<div class="alert info">期間のファイルを1冊ずつ開いています。少し時間がかかります…</div>';
   try {
-    const res = await apiPost({ action: 'payrollStatus', groups: JSON.stringify(kyuyoGroupMap()) });
+    const res = await apiPost({ action: 'payrollStatus',
+      groups: JSON.stringify(kyuyoGroupMap()), mates: JSON.stringify(kyuyoMateMap()) });
     if (res.status !== 'ok') throw new Error(res.message || '調べられませんでした');
     payrollStatus = res;
   } catch (e) {
@@ -2615,6 +2616,7 @@ async function autoPayroll(rec) {
       action: 'payrollEnsure',
       rec: { name: rec.kyuyoName || rec.name,
              group: sids.length ? kyuyoGroup(sids[0]) : '',
+             mates: kyuyoMates(rec),
              payKind: rec.payKind, payRate: rec.payRate,
              commute: rec.commute, commuteKind: rec.commuteKind,
              trialRate: trialRateOf(rec), trialEnd: trialEnd(rec),
@@ -2637,6 +2639,38 @@ async function fixAllRates() {
     + 'まだ支払いの済んでいない期間だけが対象です。\n'
     + '支払いの済んだ過去の期間と、出勤・退勤の記録には触りません。\n\nよろしいですか？')) return;
   await runAllRates(false);
+}
+
+/* その人と同じ現場で働いている、ほかの人の名前（給与一覧での表記）。
+
+   給与一覧表の見出しの書き方（▶ゆう屋 など）と、このアプリの現場名
+   （神宮・亀甲堂・ゆう屋 など）は、同じとは限らない。名前合わせだけに
+   頼ると「見本になる人がいない」と言って止まってしまうので、
+   すでに表に載っている仲間を手がかりにする。 */
+function kyuyoMates(rec) {
+  const sids = storeIdsOf(rec);
+  if (!sids.length) return [];
+  const me = rec.kyuyoName || rec.name;
+  const out = [];
+  STAFF.forEach(function (r) {
+    if (!isActive(r) || !r.kyuyo) return;
+    const nm = r.kyuyoName || r.name;
+    if (nm === me || r.id === rec.id) return;
+    if (!storeIdsOf(r).some(function (x) { return sids.indexOf(x) >= 0; })) return;
+    out.push(nm);
+  });
+  return out.slice(0, 40);
+}
+
+// 全員ぶんの { 氏名: [仲間...] }
+function kyuyoMateMap() {
+  const m = {};
+  STAFF.forEach(function (r) {
+    if (!isActive(r) || !r.kyuyo) return;
+    const mates = kyuyoMates(r);
+    if (mates.length) m[r.kyuyoName || r.name] = mates;
+  });
+  return m;
 }
 
 /* 誰をどの現場の見本から作るか。名簿シートだけでは分からないので、
@@ -2665,6 +2699,7 @@ async function runAllRates(dryRun) {
     const res = await apiPost({
       action: 'payrollRateAll', dryRun: dryRun ? 'true' : 'false',
       create: 'true', groups: JSON.stringify(kyuyoGroupMap()),
+      mates: JSON.stringify(kyuyoMateMap()),
     });
     if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
 
@@ -3139,6 +3174,7 @@ async function runPayroll(id) {
       rec: {
         name: r.kyuyoName || r.name,
         group: kyuyoGroup(sids[0]),
+        mates: kyuyoMates(r),
         payKind: r.payKind, payRate: r.payRate,
         commute: r.commute, commuteKind: r.commuteKind,
         trialRate: trialRateOf(r), trialEnd: trialEnd(r),
