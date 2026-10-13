@@ -576,7 +576,7 @@ function blankForm() {
 
     // 雇用契約の条件（区分を選ぶと既定値が入る）
     contractType: '', contractEnd: '', renewal: '', renewalLimit: '',
-    trialMonths: 3, jobDuties: '', jobScope: '', placeScope: '',
+    trialMonths: 3, trialDays: 0, jobDuties: '', jobScope: '', placeScope: '',
     breakMin: 0, breakAuto: true, overtime: true, holidayRule: '',
     allowances: [], raise: false, bonus: false, severance: false,
     socialIns: false, empIns: false,
@@ -590,7 +590,7 @@ function contractDefaults(kind) {
   if (kind === 'staff') {
     return {
       contractType: 'permanent', contractEnd: '', renewal: 'none', renewalLimit: '',
-      trialMonths: 3, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
+      trialMonths: 3, trialDays: 0, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
       overtime: true, holidayRule: 'シフトによる。週2日以上',
       raise: true, bonus: true, severance: false,
       socialIns: true, empIns: true,
@@ -598,7 +598,7 @@ function contractDefaults(kind) {
   }
   return {
     contractType: 'fixed', contractEnd: '', renewal: 'may', renewalLimit: '上限なし',
-    trialMonths: 3, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
+    trialMonths: 3, trialDays: 0, jobScope: '会社の定める業務', placeScope: '会社の定める事業所',
     overtime: true, holidayRule: 'シフトによる',
     raise: false, bonus: false, severance: false,
     socialIns: false, empIns: false,
@@ -676,6 +676,25 @@ function toggleDay(d) {
   F.days.sort();
   renderNew();
 }
+// 試用期間の数。いま選んでいる単位の方に入れ、もう片方は 0 にする
+function setTrialNum(n) {
+  if (+F.trialDays > 0) { F.trialDays = n; F.trialMonths = 0; }
+  else { F.trialMonths = n; F.trialDays = 0; }
+  renderNew();
+}
+/* 単位の切り替え。数はそのまま持ち越さず、その単位のふつうの値にする。
+   「3か月」を日に替えて「3日」になってしまうのを防ぐため。 */
+function setTrialUnit(u) {
+  if (u === 'day') {
+    if (+F.trialDays > 0) return;      // すでに日ぎめなら何もしない
+    F.trialDays = 14; F.trialMonths = 0;
+  } else {
+    if (+F.trialDays === 0) return;    // すでに月ぎめなら何もしない
+    F.trialMonths = 3; F.trialDays = 0;
+  }
+  renderNew();
+}
+
 function setF(k, v) { F[k] = v; }
 function setKind(k) { F.kind = k; applyContractDefaults(); renderNew(); }
 function setJoinedAt(v) {
@@ -896,6 +915,26 @@ function renderNew() {
     + '<input type="tel" value="' + esc(F.emgTel) + '" onchange="setF(\'emgTel\',this.value)" /></div>'
     + '</div></div>';
 
+  // 試用期間の入力欄。か月と日のどちらでも入れられる
+  function trialField() {
+    const byDay = (+F.trialDays > 0);
+    const n = byDay ? (+F.trialDays) : (+F.trialMonths || 0);
+    return '<div class="field"><label>試用期間</label>'
+      + '<div class="inline">'
+      + '<input type="number" min="0" max="' + (byDay ? 365 : 12) + '" style="flex:1"'
+      + ' value="' + n + '" onchange="setTrialNum(+this.value||0)" />'
+      + '<span class="chip' + (byDay ? '' : ' on') + '" onclick="setTrialUnit(\'month\')">か月</span>'
+      + '<span class="chip' + (byDay ? ' on' : '') + '" onclick="setTrialUnit(\'day\')">日</span>'
+      + '</div>'
+      + '<div class="hint">' + (trialEndHint() || '0 にすると「なし」になります。') + '</div></div>';
+  }
+
+  // 入社日が決まっていれば、いつまでかを見せる
+  function trialEndHint() {
+    const e = trialEnd({ joinedAt: F.joinedAt, trialMonths: F.trialMonths, trialDays: F.trialDays });
+    return e ? jpDate(e) + ' まで' : '';
+  }
+
   // --- 雇用契約の条件 ---
   const isFixed = (F.contractType === 'fixed');
   const bAuto = autoBreak(F.timeMode === 'custom' ? F.startTime : (first ? first.start : ''),
@@ -913,8 +952,7 @@ function renderNew() {
         ? '<div class="field"><label>契約の終了日</label>'
           + '<input type="date" value="' + esc(F.contractEnd) + '" onchange="setF(\'contractEnd\',this.value)" />'
           + '<div class="hint">入社日の1年後の前日を入れてあります。</div></div>'
-        : '<div class="field"><label>試用期間（月）</label>'
-          + '<input type="number" min="0" max="12" value="' + F.trialMonths + '" onchange="setF(\'trialMonths\',+this.value||0)" /></div>')
+        : trialField())
     + '</div>'
 
     + (isFixed
@@ -927,8 +965,7 @@ function renderNew() {
           + '<div class="field"><label>更新の上限<span class="req">必須</span></label>'
           + '<input type="text" value="' + esc(F.renewalLimit) + '" placeholder="例：通算3年／上限なし" onchange="setF(\'renewalLimit\',this.value)" />'
           + '<div class="hint">2024年4月から必須です。</div></div>'
-          + '<div class="field"><label>試用期間（月）</label>'
-          + '<input type="number" min="0" max="12" value="' + F.trialMonths + '" onchange="setF(\'trialMonths\',+this.value||0)" /></div>'
+          + trialField()
           + '</div>'
         : '')
 
@@ -1040,7 +1077,7 @@ async function submitNew() {
     contractType: F.contractType || 'fixed',
     contractEnd: F.contractType === 'fixed' ? F.contractEnd : '',
     renewal: F.renewal, renewalLimit: F.renewalLimit.trim(),
-    trialMonths: F.trialMonths, totalYears: 0,
+    trialMonths: F.trialMonths, trialDays: F.trialDays, totalYears: 0,
     jobDuties: F.jobDuties.trim(), jobScope: F.jobScope.trim(), placeScope: F.placeScope.trim(),
     breakMin: F.breakMin, overtime: !!F.overtime, holidayRule: F.holidayRule.trim(),
     allowances: JSON.stringify(F.allowances.filter(function (a) { return a.name && a.amount; })),
@@ -1365,6 +1402,7 @@ async function openEdit(id) {
   }
   if (F.contractType === 'fixed' && !F.contractEnd) F.contractEnd = oneYearLater(F.joinedAt);
   if (r.trialMonths !== undefined && r.trialMonths !== '') F.trialMonths = +r.trialMonths || 0;
+  F.trialDays = +r.trialDays || 0;
   if (r.breakMin !== undefined && r.breakMin !== '') F.breakMin = +r.breakMin || 0;
   ['overtime','raise','bonus','severance','socialIns','empIns'].forEach(function (k) {
     if (r[k] !== undefined && r[k] !== '') F[k] = !!r[k];
@@ -1987,18 +2025,31 @@ function isoDate(v) {
    ・ふつうは「○か月後の同じ日の前日」。4/1 から3か月なら 6/30。
    ・同じ日が無い月は、その月の末日が満了日。1/31 から1か月なら 2/28。 */
 function trialEnd(r) {
+  const days = +r.trialDays || 0;
   const m = +r.trialMonths || 0;
   const j = isoDate(r.joinedAt);
-  if (!m || !j) return '';
+  if ((!m && !days) || !j) return '';
   const d = new Date(j + 'T00:00:00');
   if (isNaN(d.getTime())) return '';
-  const day = d.getDate();
   const e = new Date(d);
-  e.setMonth(e.getMonth() + m);
-  if (e.getDate() !== day) e.setDate(0);     // 応当日が無い月 → その月の末日が満了日
-  else e.setDate(e.getDate() - 1);           // 応当日の前日が満了日
+  if (days > 0) {
+    e.setDate(e.getDate() + days - 1);       // 入社日を1日目として数える
+  } else {
+    const day = d.getDate();
+    e.setMonth(e.getMonth() + m);
+    if (e.getDate() !== day) e.setDate(0);   // 応当日が無い月 → その月の末日が満了日
+    else e.setDate(e.getDate() - 1);         // 応当日の前日が満了日
+  }
   return e.getFullYear() + '-' + String(e.getMonth() + 1).padStart(2, '0')
     + '-' + String(e.getDate()).padStart(2, '0');
+}
+
+// 「3か月」「14日」のような言い方
+function trialLabel(r) {
+  const days = +r.trialDays || 0;
+  if (days > 0) return days + '日';
+  const m = +r.trialMonths || 0;
+  return m > 0 ? m + 'か月' : '';
 }
 
 // 試用期間の状態。state: none=設定なし／on=試用中／done=終わった
@@ -2017,7 +2068,8 @@ function trialShort(r) {
   const t = trialInfo(r);
   if (t.state === 'none') return '<span class="muted">なし</span>';
   if (t.state === 'done') return '<span class="muted">終了</span>';
-  return '<span class="badge ' + (t.days <= 30 ? 'warn' : 'part') + '">試用中</span>'
+  return '<span class="badge ' + (t.days <= 30 ? 'warn' : 'part') + '">試用中 '
+    + esc(trialLabel(r)) + '</span>'
     + '<br /><span class="muted">' + jpDate(t.end) + ' まで'
     + (t.days === 0 ? '（今日まで）' : '（あと' + t.days + '日）') + '</span>';
 }
@@ -2080,8 +2132,10 @@ function contractVars(r) {
     '更新': r.renewal === 'none' ? '更新しない'
           : r.renewal === 'auto' ? '自動的に更新する' : '更新する場合がある',
     '更新の上限': r.renewalLimit || '上限なし',
-    '試用期間': (+r.trialMonths > 0)
-      ? ('採用日から ' + (+r.trialMonths) + " か月（この期間中の労働条件は本契約と同じ）")
+    '試用期間': trialLabel(r)
+      ? ('採用日から ' + trialLabel(r)
+         + (trialEnd(r) ? '（' + jpDate(trialEnd(r)) + ' まで）' : '')
+         + '　この期間中の労働条件は本契約と同じ')
       : 'なし',
 
     '就業場所': place,
