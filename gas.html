@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Apps Script 貼り付け用</title>
+<meta name="theme-color" content="#1778BC" />
+<style>
+  :root {
+    --bg: #f1f4f8;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text-primary: #161d28;
+    --text-secondary: #646d7c;
+    --text-danger: #a32d2d;
+    --ok: #0F6E56;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --accent: #1778BC;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--bg); color: var(--text-primary);
+    min-height: 100vh; font-size: 14px; -webkit-text-size-adjust: 100%;
+  }
+  .app { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+  .head { margin-bottom: 1.25rem; }
+  .logo-title { font-size: 19px; font-weight: 600; letter-spacing: .06em; }
+  .sub { color: var(--text-secondary); font-size: 12.5px; margin-top: 3px; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: .5rem; }
+  .card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.75; }
+
+  .btn { padding: 9px 16px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    background: var(--surface); color: var(--text-primary); font-size: 13px; font-family: inherit;
+    cursor: pointer; transition: all .12s; white-space: nowrap; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: #eceff5; }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: #125F96; }
+  .btn.primary.done { background: var(--ok); border-color: var(--ok); }
+  .btn.ghost { border-color: var(--border); color: var(--text-secondary); background: transparent; }
+  .btn.big { padding: 13px 26px; font-size: 15px; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .alert { border-radius: var(--radius-md); padding: .8rem 1rem; font-size: 12.5px;
+    line-height: 1.75; margin-bottom: .75rem; }
+  .alert.info { background: #eef4fb; border: 0.5px solid rgba(23,120,188,.25); }
+  .alert.warn { background: #fdf6e8; border: 0.5px solid rgba(180,130,20,.3); }
+  .alert.err  { background: #fdeeee; border: 0.5px solid rgba(163,45,45,.3); color: var(--text-danger); }
+  .alert.ok   { background: #ecf6f2; border: 0.5px solid rgba(15,110,86,.3); }
+
+  ol.steps { margin: .5rem 0 0 1.2rem; font-size: 13px; line-height: 2; }
+  ol.steps b { background: #eef4fb; padding: 1px 6px; border-radius: 4px; }
+
+  .meta { display: flex; gap: 1rem; flex-wrap: wrap; color: var(--text-secondary);
+    font-size: 12px; margin-top: .6rem; }
+
+  /* コードの枠。長いので高さを決めて、中だけスクロールさせる */
+  .code-wrap { position: relative; margin-top: .75rem; }
+  pre {
+    background: #0f1722; color: #dfe6f0; border-radius: var(--radius-md);
+    padding: 1rem; overflow: auto; max-height: 60vh;
+    font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.6;
+    white-space: pre; tab-size: 2;
+  }
+  /* コピー用の控え。画面には出さないが、選択してコピーはできる */
+  textarea.fallback {
+    width: 100%; height: 180px; margin-top: .6rem; font-size: 11px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    border: 0.5px solid var(--border-md); border-radius: var(--radius-md); padding: .6rem;
+  }
+  .hidden { display: none; }
+
+  .files { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: .9rem; }
+  .chip { padding: 7px 14px; border-radius: 20px; border: 0.5px solid var(--border-md);
+    background: var(--surface); font-size: 12.5px; cursor: pointer; transition: all .12s; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  @media (max-width: 560px) {
+    .app { padding: 1rem .75rem 3rem; }
+    pre { font-size: 10.5px; max-height: 45vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="head">
+    <div class="logo-title">Apps Script 貼り付け用</div>
+    <div class="sub">いちばん新しいコードをそのままコピーできます</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">貼り方</div>
+    <ol class="steps">
+      <li>下の <b>全部コピー</b> を押す</li>
+      <li>スプレッドシートで <b>拡張機能 → Apps Script</b> を開く</li>
+      <li>エディタの中身を全部消して（<b>Ctrl+A</b> → <b>Delete</b>）貼り付ける</li>
+      <li><b>保存</b>（💾）</li>
+      <li><b>デプロイ → デプロイを管理 → ✏️ → バージョン「新バージョン」→ デプロイ</b></li>
+    </ol>
+    <div class="alert warn" style="margin-top:.9rem">
+      <b>5番の「新バージョン」を忘れずに。</b>
+      ここを飛ばすと、貼り替えても古いコードのまま動き続けます。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="files" id="files"></div>
+
+    <div class="row-actions">
+      <button class="btn primary big" id="copy" onclick="doCopy()">全部コピー</button>
+      <a class="btn" id="raw" href="#" target="_blank" rel="noopener">生ファイルを開く</a>
+      <button class="btn ghost" onclick="reload()">読み直す</button>
+    </div>
+    <div class="meta" id="meta"></div>
+
+    <div id="msg"></div>
+
+    <div class="code-wrap">
+      <pre id="code">読み込んでいます…</pre>
+      <textarea class="fallback hidden" id="fallback" readonly></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">貼ったあとの確認</div>
+    <div class="card-desc">
+      Apps Script の上にある関数の選択欄から <b>checkStaffCols</b> を選んで <b>▷実行</b> すると、
+      下の「実行ログ」に名簿の列の状態が出ます。読むだけで、何も書き換えません。<br />
+      <b>足りない列：なし</b> と <b>時刻が壊れている人：なし</b> が出れば大丈夫です。
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* 置いてあるスクリプト。追加するときはここに1行足す。
+   path は、このページと同じ場所からの相対で書く。 */
+const FILES = [
+  { path: 'shift-sync.gs', name: 'shift-sync.gs',
+    note: 'シフト作成・共通名簿・給与一覧（ふだん使うのはこれ）' },
+  { path: 'kyuyo-list-fix.gs', name: 'kyuyo-list-fix.gs',
+    note: '給与一覧表の直し（必要なときだけ）' },
+  { path: 'kyuyo-fix-kaiji.gs', name: 'kyuyo-fix-kaiji.gs',
+    note: '海事の出勤簿の直し（必要なときだけ）' },
+  { path: 'kyuyo-roster-patch.gs', name: 'kyuyo-roster-patch.gs',
+    note: '名簿の直し（必要なときだけ）' },
+];
+
+let pick = 0;
+let text = '';
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderFiles() {
+  document.getElementById('files').innerHTML = FILES.map(function (f, i) {
+    return '<span class="chip' + (i === pick ? ' on' : '') + '" onclick="choose(' + i + ')">'
+      + esc(f.name) + '</span>';
+  }).join('');
+}
+
+function choose(i) {
+  if (i === pick) return;
+  pick = i;
+  renderFiles();
+  load();
+}
+
+function reload() { load(true); }
+
+async function load(force) {
+  const f = FILES[pick];
+  const code = document.getElementById('code');
+  const btn = document.getElementById('copy');
+  text = '';
+  btn.disabled = true;
+  btn.textContent = '全部コピー';
+  btn.classList.remove('done');
+  code.textContent = '読み込んでいます…';
+  document.getElementById('msg').innerHTML = '';
+  document.getElementById('meta').textContent = '';
+  document.getElementById('fallback').classList.add('hidden');
+
+  // GitHub Pages の生ファイル。?t= は、古いものが残らないようにするため
+  document.getElementById('raw').href = f.path;
+
+  try {
+    const res = await fetch(f.path + (force ? '?t=' + Date.now() : ''), { cache: force ? 'reload' : 'default' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    text = await res.text();
+    if (!text.trim()) throw new Error('中身が空でした');
+
+    code.textContent = text;
+    btn.disabled = false;
+
+    const lines = text.split('\n').length;
+    const kb = Math.round(text.length / 1024);
+    const when = res.headers.get('last-modified');
+    document.getElementById('meta').textContent =
+      f.note + '　／　' + lines.toLocaleString() + ' 行・約 ' + kb + ' KB'
+      + (when ? '　／　更新 ' + new Date(when).toLocaleString('ja-JP') : '');
+  } catch (e) {
+    code.textContent = '';
+    document.getElementById('msg').innerHTML =
+      '<div class="alert err"><b>読み込めませんでした：</b>' + esc(e.message) + '<br />'
+      + 'このページをファイルとして直接開いていると、この出方になります。'
+      + '<a href="https://raw.githubusercontent.com/prostyle0902-bot/kintai/main/'
+      + esc(f.path) + '" target="_blank" rel="noopener">GitHub の生ファイル</a>'
+      + 'から取ってください。</div>';
+  }
+}
+
+async function doCopy() {
+  if (!text) return;
+  const btn = document.getElementById('copy');
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (e) {
+    /* 許可が下りない場合がある（古いブラウザ、http、許可を切っている など）。
+       そのときは、選んでコピーできる箱を出す。 */
+    ok = false;
+  }
+  if (ok) {
+    btn.textContent = 'コピーしました ✓';
+    btn.classList.add('done');
+    setTimeout(function () {
+      btn.textContent = '全部コピー';
+      btn.classList.remove('done');
+    }, 2500);
+    return;
+  }
+  const fb = document.getElementById('fallback');
+  fb.value = text;
+  fb.classList.remove('hidden');
+  fb.focus();
+  fb.select();
+  document.getElementById('msg').innerHTML =
+    '<div class="alert warn">このブラウザでは自動でコピーできませんでした。'
+    + '下の枠の中身を選んである状態にしたので、<b>Ctrl+C</b>（スマホは長押し→コピー）でコピーしてください。</div>';
+}
+
+renderFiles();
+load();
+</script>
+</body>
+</html>

@@ -1156,9 +1156,10 @@ async function submitNew() {
     if (res.status !== 'ok') throw new Error(res.message || '登録できませんでした');
     lastDone = res.rec;
     lastDone._created = res.created !== false;
-    // 時給・通勤手当を直したときは、これから支払う期間の出勤簿にも反映する
-    btn.textContent = '給与一覧に反映中…';
-    lastDone._rateSync = await autoRateSync(before, lastDone);
+    /* 出勤簿がまだ無ければ作り、あれば単価を合わせる。
+       before は使わなくなったが、氏名を変えたときの確認で使っている */
+    btn.textContent = '給与一覧を確かめています…';
+    lastDone._payroll = await autoPayroll(lastDone);
     await reload();
   } catch (e) {
     /* 返事が届かなかっただけで、実は保存できていることがある。
@@ -1182,6 +1183,74 @@ async function submitNew() {
       + '名簿を確かめたところ、保存もされていません。もう一度お試しください。');
     btn.disabled = false; btn.textContent = 'この内容で登録する';
   }
+}
+
+/* 登録・編集のあと、給与一覧に何をしたかを出す。
+   出勤簿が無いまま気づかれないことがあったので、
+   「作った」「合わせた」「できなかった」をはっきり出す。 */
+function payrollDoneHtml(rec) {
+  const sids = storeIdsOf(rec);
+  if (!rec.kyuyo) return '';
+  if (!sids.length) {
+    return '<div class="alert info" style="margin-top:1.25rem">'
+      + '<b>給与一覧の出勤簿は作っていません。</b><br />'
+      + '配属する現場が決まっていないため、どの現場の見本から作ればよいか分かりません。'
+      + '「編集」から現場を選ぶと、そのときに作ります。</div>';
+  }
+  if (!rec.payRate) {
+    return '<div class="alert warn" style="margin-top:1.25rem">'
+      + '<b>給与一覧の出勤簿は作っていません。</b><br />'
+      + '<b>単価が入っていません。</b>「編集」から時給または日給を入れて登録すると、そのときに作ります。</div>'
+      + '<div class="row-actions" style="margin-top:.75rem">'
+      + '<button class="btn" onclick="openEdit(\'' + rec.id + '\')">編集する</button></div>';
+  }
+
+  const ps = rec._payroll;
+  if (!ps) return '';
+  if (ps.status === 'error') {
+    return '<div class="alert err" style="margin-top:1.25rem">'
+      + '<b>給与一覧に手が届きませんでした。</b>' + esc(ps.message || '') + '<br />'
+      + '名簿には登録できています。下のボタンからやり直してください。</div>'
+      + '<div class="row-actions" style="margin-top:.75rem">'
+      + '<button class="btn primary" onclick="openPayroll(\'' + rec.id + '\')">給与一覧に作る</button></div>';
+  }
+
+  const made = ps.created || [], upd = ps.updated || [];
+  let h = '';
+  if (made.length) {
+    h += '<div class="alert ok" style="margin-top:1.25rem">'
+      + '<b>給与一覧に出勤簿を作りました（' + made.length + '件）。</b><br />'
+      + esc(rateText(rec)) + '<br />'
+      + made.map(esc).join('<br />')
+      + '<br /><span class="muted">同じ現場の人のシートを複製しているので、計算式は崩れていません。'
+      + '給与一覧表にも行を足しました。</span></div>';
+  }
+  if (upd.length) {
+    h += '<div class="alert ok" style="margin-top:' + (made.length ? '.5rem' : '1.25rem') + '">'
+      + '<b>すでにある出勤簿の単価も合わせました（' + upd.length + '件）。</b><br />'
+      + upd.map(esc).join('<br />')
+      + '<br /><span class="muted">出勤・退勤の記録と、支払いの済んだ過去の期間には触っていません。</span></div>';
+  }
+  if (!made.length && !upd.length) {
+    h += '<div class="alert ok" style="margin-top:1.25rem">'
+      + '<b>給与一覧はすでに登録のとおりでした。</b>'
+      + (ps.same ? '確かめた期間：' + ps.same + '件。' : '')
+      + '直すところはありませんでした。</div>';
+  }
+  if ((ps.skipped || []).length) {
+    h += '<div class="alert info"><b>手つかずの期間：' + ps.skipped.length + '件</b><br />'
+      + ps.skipped.map(esc).join('<br />') + '</div>';
+  }
+  if ((ps.failed || []).length) {
+    h += '<div class="alert err"><b>できなかった期間：' + ps.failed.length + '件</b><br />'
+      + ps.failed.map(esc).join('<br />')
+      + '<br />よくあるのは「その現場に見本になる人が1人もいない」です。'
+      + 'その現場の1人目であれば、スプレッドシートで手で作ってください。</div>'
+      + '<div class="row-actions" style="margin-top:.75rem">'
+      + '<button class="btn" onclick="openPayroll(\'' + rec.id + '\')">期間を選んでやり直す</button></div>';
+  }
+  h += straddleHtml(ps.straddle);
+  return h;
 }
 
 function doneHtml(rec) {
@@ -1210,45 +1279,9 @@ function doneHtml(rec) {
   h += '<li>出勤簿（給与）への転記 … ' + (rec.kyuyo ? '対象にしました' : '対象外です') + '</li>';
   h += '</ul>';
 
-  // 時給・通勤手当を直したときの、給与一覧への反映結果
-  const rs = rec._rateSync;
-  if (rs) {
-    if (rs.status === 'error') {
-      h += '<div class="alert err" style="margin-top:1.25rem">'
-        + '<b>給与一覧の単価は直せませんでした。</b>' + esc(rs.message || '') + '<br />'
-        + '名簿は直っています。下の「給与一覧にも作る」→「単価だけ入れ直す」から、もう一度お試しください。</div>';
-    } else if (rs.status === 'none' || !(rs.done || []).length) {
-      h += '<div class="alert info" style="margin-top:1.25rem">'
-        + '<b>給与一覧に直す対象がありませんでした。</b><br />'
-        + 'この人の出勤簿がまだ無いか、これから支払う期間のファイルが無い状態です。'
-        + '支払いの済んだ過去の期間には触っていません。</div>';
-    } else {
-      h += '<div class="alert ok" style="margin-top:1.25rem">'
-        + '<b>給与一覧の単価も直しました（' + rs.done.length + '件）。</b><br />'
-        + esc(rateText(rec)) + '<br />'
-        + rs.done.map(esc).join('<br />')
-        + '<br /><span class="muted">出勤・退勤の記録と、支払いの済んだ過去の期間には触っていません。</span></div>';
-      if ((rs.skipped || []).length) {
-        h += '<div class="alert warn"><b>手つかずの期間：' + rs.skipped.length + '件</b><br />'
-          + rs.skipped.map(esc).join('<br />') + '</div>';
-      }
-      if ((rs.failed || []).length) {
-        h += '<div class="alert err"><b>直せなかった期間：' + rs.failed.length + '件</b><br />'
-          + rs.failed.map(esc).join('<br />')
-          + '<br />「給与一覧にも作る」→「単価だけ入れ直す」から、もう一度お試しください。</div>';
-      }
-      h += straddleHtml(rs.straddle);
-    }
-  }
-  if (rec.kyuyo && sids.length) {
-    h += '<div class="alert warn" style="margin-top:1.25rem">'
-      + '<b>給与一覧のスプレッドシートには、まだ作っていません。</b><br />'
-      + 'この人の出勤簿シートと、給与一覧表の行を作るには下のボタンを押してください。'
-      + (rec.payRate ? '' : '<br /><b>単価が入っていません。</b>先に「編集」から時給または日給を入れてください。')
-      + '</div>'
-      + '<div class="row-actions" style="margin-top:.75rem">'
-      + '<button class="btn primary" onclick="openPayroll(\'' + rec.id + '\')">給与一覧にも作る</button></div>';
-  }
+  // 給与一覧（出勤簿）に何をしたか
+  h += payrollDoneHtml(rec);
+
   h += ''
     + '<div class="alert info" style="margin-top:1.25rem">すでに開いている勤怠アプリ・シフト作成アプリの画面は、'
     + '一度読み込み直す（再読み込み）と新しい名簿になります。</div>'
@@ -1778,6 +1811,7 @@ function renderSetup() {
       + '<b>支払いの済んだ過去の期間には触りません。</b>出勤・退勤の記録にも触りません。<br />'
       + '試用期間中の単価を入れている人は、<b>試用期間が終わったあとに始まる期間</b>から'
       + '本採用の単価になります。期間の途中で終わる分は、ここで知らせます。</div>'
+      + '<b>出勤簿がまだ無い人の分も、ここでまとめて作れます。</b></div>'
       + '<div class="row-actions">'
       + '<button class="btn" id="btn-rate-check" onclick="checkAllRates()">ずれを調べる</button>'
       + '<button class="btn primary" id="btn-rate-fix" onclick="fixAllRates()">名簿に合わせる</button></div>'
@@ -2501,38 +2535,31 @@ async function sendImport(recs) {
    期間ごとのスプレッドシートに、その人の出勤簿シートと
    給与一覧表の行を作る。給与に触るので、押したときだけ動かす。
    ========================================================= */
-/* 時給・通勤手当を直したときに、出勤簿の単価も自動で合わせる。
-   直すのは「まだ終わっていない期間」だけ。支払いの済んだ過去の月には触らない。 */
-async function autoRateSync(before, after) {
-  if (!before || !after) return null;                    // 新しく登録した人は「給与一覧にも作る」で作る
-  if (!after.kyuyo || !after.payRate) return null;       // 給与の対象外、または単価が未設定
-  const keys = ['payKind', 'payRate', 'commute', 'commuteKind', 'trialRate',
-                'trialMonths', 'trialDays', 'joinedAt'];
-  const changed = keys.some(function (k) { return String(before[k] || '') !== String(after[k] || ''); })
-    || JSON.stringify(before.allowances || []) !== JSON.stringify(after.allowances || []);
-  if (!changed) return null;
+/* 登録・編集のあと、給与一覧の面倒を自動で見る。
 
+   まだ支払いの済んでいない期間（入社日以降）について
+     ・出勤簿がまだ無い → 作る
+     ・出勤簿がある     → 単価を名簿に合わせる
+
+   前は「給与一覧にも作る」を押さないと出勤簿ができなかったので、
+   押し忘れるとその人の給与がまるごと抜けていた（林さんでこれが起きた）。
+   登録しただけでできるようにしてある。
+   支払いの済んだ過去の期間と、出勤・退勤の記録には触らない。 */
+async function autoPayroll(rec) {
+  if (!rec || !rec.kyuyo || !rec.payRate) return null;   // 給与の対象外、または単価が未設定
+  const sids = storeIdsOf(rec);
   try {
-    if (!payrollFiles) {
-      const list = await apiGet({ action: 'payrollFiles' });
-      if (list.status !== 'ok') throw new Error(list.message || '給与一覧のファイルを読めませんでした');
-      payrollFiles = list.files || [];
-      payrollErrors = list.errors || [];
-    }
-    const t = new Date();
-    const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
-      + '-' + String(t.getDate()).padStart(2, '0');
-    const ids = payrollFiles.filter(function (f) { return f.end >= today; }).map(function (f) { return f.id; });
-    if (!ids.length) return { status: 'none' };
-
     const res = await apiPost({
-      action: 'payrollRate', fileIds: ids,
-      rec: { name: after.kyuyoName || after.name, payKind: after.payKind, payRate: after.payRate,
-             commute: after.commute, commuteKind: after.commuteKind,
-             trialRate: trialRateOf(after), trialEnd: trialEnd(after),
-             allowances: JSON.stringify(after.allowances || []) },
+      action: 'payrollEnsure',
+      rec: { name: rec.kyuyoName || rec.name,
+             group: sids.length ? kyuyoGroup(sids[0]) : '',
+             payKind: rec.payKind, payRate: rec.payRate,
+             commute: rec.commute, commuteKind: rec.commuteKind,
+             trialRate: trialRateOf(rec), trialEnd: trialEnd(rec),
+             joinedAt: isoDate(rec.joinedAt),
+             allowances: JSON.stringify(rec.allowances || []) },
     });
-    if (res.status !== 'ok') throw new Error(res.message || '直せませんでした');
+    if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
     return res;
   } catch (e) {
     return { status: 'error', message: e.message };
@@ -2544,9 +2571,24 @@ async function autoRateSync(before, after) {
 async function checkAllRates() { await runAllRates(true); }
 async function fixAllRates() {
   if (!confirm('在籍している人の時給・通勤手当を、名簿の内容に合わせます。\n\n'
+    + '出勤簿がまだ無い人は、その人の出勤簿シートと給与一覧表の行も作ります。\n\n'
     + 'まだ支払いの済んでいない期間だけが対象です。\n'
     + '支払いの済んだ過去の期間と、出勤・退勤の記録には触りません。\n\nよろしいですか？')) return;
   await runAllRates(false);
+}
+
+/* 誰をどの現場の見本から作るか。名簿シートだけでは分からないので、
+   こちらで { 氏名: 現場 } を作って渡す。 */
+function kyuyoGroupMap() {
+  const m = {};
+  STAFF.forEach(function (r) {
+    if (!isActive(r) || !r.kyuyo) return;
+    const sids = storeIdsOf(r);
+    if (!sids.length) return;
+    const g = kyuyoGroup(sids[0]);
+    if (g) m[r.kyuyoName || r.name] = g;
+  });
+  return m;
 }
 
 async function runAllRates(dryRun) {
@@ -2558,26 +2600,37 @@ async function runAllRates(dryRun) {
   if (el) el.innerHTML = '<div class="alert info">' + (dryRun ? '調べています…' : '直しています…') + '</div>';
 
   try {
-    const res = await apiPost({ action: 'payrollRateAll', dryRun: dryRun ? 'true' : 'false' });
+    const res = await apiPost({
+      action: 'payrollRateAll', dryRun: dryRun ? 'true' : 'false',
+      create: 'true', groups: JSON.stringify(kyuyoGroupMap()),
+    });
     if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
 
     let h = '';
+    const made = res.made || [];
+    if (made.length) {
+      h += '<div class="alert ' + (dryRun ? 'warn' : 'ok') + '">'
+        + '<b>出勤簿が無い' + (dryRun ? 'ところ' : 'ところに作りました') + '：' + made.length + '件</b><br />'
+        + made.map(esc).join('<br />')
+        + (dryRun ? '<br /><br />「名簿に合わせる」を押すと作ります。' : '') + '</div>';
+    }
     if (!res.changed.length) {
-      h = '<div class="alert ok"><b>ずれはありません。</b>'
+      h += '<div class="alert ok"><b>単価のずれはありません。</b>'
         + '確かめた期間：' + res.files + '件／一致：' + res.same + '件</div>';
     } else if (dryRun) {
-      h = '<div class="alert warn"><b>名簿とずれています（' + res.changed.length + '件）。</b><br />'
+      h += '<div class="alert warn"><b>名簿とずれています（' + res.changed.length + '件）。</b><br />'
         + res.changed.map(esc).join('<br />')
         + '<br /><br />「名簿に合わせる」を押すと、名簿の内容に直します。</div>';
     } else {
-      h = '<div class="alert ok"><b>名簿に合わせました（' + res.changed.length + '件）。</b><br />'
+      h += '<div class="alert ok"><b>名簿に合わせました（' + res.changed.length + '件）。</b><br />'
         + res.changed.map(esc).join('<br />')
         + '<br /><span class="muted">支払いの済んだ過去の期間と、出勤・退勤の記録には触っていません。</span></div>';
     }
     if ((res.missing || []).length) {
-      h += '<div class="alert warn"><b>出勤簿が1つも見つからない人：' + res.missing.length + '名</b><br />'
+      h += '<div class="alert warn"><b>出勤簿が1つも作れなかった人：' + res.missing.length + '名</b><br />'
         + res.missing.map(esc).join('、')
-        + '<br />この人たちは「給与一覧にも作る」から出勤簿を作ってください。</div>';
+        + '<br />よくあるのは「配属の現場が決まっていない」「その現場に見本になる人が1人もいない」です。'
+        + '名簿の「給与一覧」から期間を選んでお試しください。</div>';
     }
     h += straddleHtml(res.straddle);
     if (el) el.innerHTML = h;
