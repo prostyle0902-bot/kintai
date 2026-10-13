@@ -152,6 +152,7 @@ function handle_(p, cb) {
       if (p.action === 'payrollAdd') return json_(payrollAdd_(p), cb);
       if (p.action === 'payrollRate') return json_(payrollRate_(p), cb);
       if (p.action === 'payrollRateAll') return json_(payrollRateAll_(p), cb);
+      if (p.action === 'payrollEnsure') return json_(payrollEnsure_(p), cb);
       if (p.action === 'payrollRetire') return json_(payrollRetire_(p), cb);
       if (p.action === 'payrollReinstate') return json_(payrollReinstate_(p), cb);
       // 現場収支（genba.html）の日当・材料費など。シフトと同じ方法で別シートに預かる
@@ -1054,37 +1055,16 @@ function payrollAdd_(p) {
       var ss = SpreadsheetApp.openById(String(ids[i]));
       if (payrollStaffSheet_(ss, name)) { skipped.push(ss.getName() + '（すでにあります）'); continue; }
 
-      var list = payrollListSheet_(ss);
-      if (!list) { failed.push(ss.getName() + '：給与一覧表が見つかりません'); continue; }
-
-      var g = payrollGroup_(list, group);
-      if (!g || g.sample < 0) {
-        failed.push(ss.getName() + '：' + group + ' に見本になる人がいないため作れません');
-        continue;
-      }
-
-      // 同じ現場の人のシートを雛形にする
-      var sampleName = String(list.getRange(g.last, 2).getValue() || '').trim();
-      var tpl = payrollStaffSheet_(ss, sampleName);
-      if (!tpl) { failed.push(ss.getName() + '：' + sampleName + ' の出勤簿が見つかりません'); continue; }
-
-      // --- 出勤簿シートを作る ---
-      var sheet = tpl.copyTo(ss).setName(name);
-      ss.setActiveSheet(sheet);
-      ss.moveActiveSheet(tpl.getIndex() + 1);
       // 試用期間中と本採用で単価が違う人は、その期間に合うほうで作る
       var per = payrollPeriod_(ss.getName());
       var pr = periodRate_(rec, per ? per.start : '', per ? per.end : '');
       if (pr.phase === 'straddle') {
         straddle.push(straddleMsg_(name, per ? per.label : ss.getName(), pr, Number(rec.payRate) || 0));
       }
-      payrollFillSheet_(sheet, sampleName, name, rec, pr.rate);
 
-      // --- まとめの表に行を足す ---
-      list.insertRowsAfter(g.last, 1);
-      list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
-      list.getRange(g.last + 1, 2).setValue(name);
-      payrollRenumber_(list);
+      var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate);
+      if (mk.status === 'exists') { skipped.push(ss.getName() + '（すでにあります）'); continue; }
+      if (mk.status !== 'ok') { failed.push(ss.getName() + '：' + mk.message); continue; }
 
       done.push(ss.getName() + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
     } catch (e) {
@@ -1093,6 +1073,41 @@ function payrollAdd_(p) {
   }
 
   return { status: 'ok', done: done, skipped: skipped, failed: failed, straddle: straddle };
+}
+
+/* 1つの期間ファイルに、その人の出勤簿シートを作る。
+   同じ現場の人のシートをそのまま複製して、氏名と単価だけ差し替えるので、
+   給与の計算式は崩れない。すでにシートがあるときは何もしない。
+
+   戻り：{ status: 'ok' | 'exists' | 'error', message }  */
+function payrollMakeSheet_(ss, name, group, rec, rate) {
+  if (payrollStaffSheet_(ss, name)) return { status: 'exists' };
+  if (!group) return { status: 'error', message: '現場が決まっていないため作れません' };
+
+  var list = payrollListSheet_(ss);
+  if (!list) return { status: 'error', message: '給与一覧表が見つかりません' };
+
+  var g = payrollGroup_(list, group);
+  if (!g || g.sample < 0) {
+    return { status: 'error', message: group + ' に見本になる人がいないため作れません' };
+  }
+
+  var sampleName = String(list.getRange(g.last, 2).getValue() || '').trim();
+  var tpl = payrollStaffSheet_(ss, sampleName);
+  if (!tpl) return { status: 'error', message: sampleName + ' の出勤簿が見つかりません' };
+
+  // --- 出勤簿シートを作る ---
+  var sheet = tpl.copyTo(ss).setName(name);
+  ss.setActiveSheet(sheet);
+  ss.moveActiveSheet(tpl.getIndex() + 1);
+  payrollFillSheet_(sheet, sampleName, name, rec, rate);
+
+  // --- まとめの表に行を足す ---
+  list.insertRowsAfter(g.last, 1);
+  list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
+  list.getRange(g.last + 1, 2).setValue(name);
+  payrollRenumber_(list);
+  return { status: 'ok' };
 }
 
 /* 複製したシートの、氏名・単価・通勤手当を差し替えて、打刻の中身を消す。
@@ -1520,8 +1535,94 @@ function fixSheetNames() {
 
    直すのは「まだ終わっていない期間」だけ。支払いの済んだ過去には触らない。
    p.dryRun が true のときは、何も書かずに違いだけ返す。 */
+/* 登録・編集のあとに、1回で面倒を見る。
+
+   まだ支払いの済んでいない期間（入社日以降）について
+     ・出勤簿が無い   → 作る
+     ・出勤簿がある   → 単価を名簿に合わせる
+   を、ファイルを1回開くだけで済ませる。
+
+   これまでは「給与一覧にも作る」を押さないと出勤簿ができなかったので、
+   押し忘れるとその人の給与がまるごと抜けていた。登録しただけで
+   できるようにするために足した。何度動かしても結果は同じ
+   （すでにあるシートは作り直さない）。 */
+function payrollEnsure_(p) {
+  var rec = p.rec;
+  if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch (e) { rec = null; } }
+  if (!rec || !String(rec.name || '').trim()) return { status: 'error', message: '氏名が入っていません' };
+
+  var name = String(rec.name).trim();
+  var group = String(rec.group || '').trim();
+  var out = { status: 'ok', name: name, created: [], updated: [], same: 0,
+              skipped: [], failed: [], straddle: [] };
+  if (!Number(rec.payRate)) {
+    out.skipped.push('単価が入っていないため、何もしていません');
+    return out;
+  }
+
+  var files = payrollFiles_();
+  if (files.status !== 'ok' || !files.files.length) {
+    return { status: 'error', message: '給与一覧のファイルが見つかりません' };
+  }
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var from = isoDate_(rec.joinedAt) || '';
+
+  var ck = String(rec.commuteKind || 'none');
+  var commute = (ck === 'none') ? 0 : (Number(rec.commute) || 0);
+  var payKind = (rec.payKind === 'daily') ? '日給' : '時給';
+  var allow = payrollAllowList_(rec.allowances);
+
+  for (var i = 0; i < files.files.length; i++) {
+    var f = files.files[i];
+    if (f.end < today) continue;            // 支払いの済んだ期間には触らない
+    if (from && f.end < from) continue;     // 入社より前の期間にも触らない
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var pr = periodRate_(rec, f.start, f.end);
+      if (pr.phase === 'straddle') {
+        out.straddle.push(straddleMsg_(name, f.label, pr, Number(rec.payRate) || 0));
+      }
+
+      var sheet = payrollStaffSheet_(ss, name);
+      if (!sheet) {
+        var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate);
+        if (mk.status === 'ok') {
+          out.created.push(f.label + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
+        } else if (mk.status !== 'exists') {
+          out.failed.push(f.label + '：' + mk.message);
+        }
+        continue;
+      }
+
+      // すでにある → 単価を名簿に合わせる（違うときだけ書く）
+      var nowRate = Number(sheet.getRange(3, 11).getValue()) || 0;
+      var nowCom  = Number(sheet.getRange(3, 13).getValue()) || 0;
+      var allowMsg = payrollAllowDiff_(sheet, allow);
+      if (nowRate === pr.rate && nowCom === commute && !allowMsg) { out.same++; continue; }
+
+      sheet.getRange(3, 11).setValue(pr.rate);
+      sheet.getRange(3, 13).setValue(commute);
+      sheet.getRange(3, 2).setValue(payKind + '：' + pr.rate + '円');
+      sheet.getRange(3, 6).setValue(payrollCommuteText_(ck, commute)
+        + '　深夜割増：22:00〜翌5:00（法定）');
+      payrollFixAllowances_(sheet, allow);
+      payrollFixDetail_(sheet, payKind, pr.rate, ck, commute);
+      out.updated.push(f.label + '（' + payKind + ' ' + nowRate + '→' + pr.rate + '）');
+    } catch (e) {
+      out.failed.push(f.label + '：' + String(e));
+    }
+  }
+  return out;
+}
+
 function payrollRateAll_(p) {
   var dryRun = String(p && p.dryRun) === 'true' || (p && p.dryRun === true);
+  /* 出勤簿がまだ無い人のぶんも作るかどうか。
+     groups は { 氏名: 現場 }。どの現場の見本から作るかは名簿シートだけでは
+     分からないので、アプリから渡してもらう。 */
+  var doCreate = String(p && p.create) === 'true' || (p && p.create === true);
+  var groups = (p && p.groups) || {};
+  if (typeof groups === 'string') { try { groups = JSON.parse(groups); } catch (e) { groups = {}; } }
 
   var files = payrollFiles_();
   if (files.status !== 'ok' || !files.files.length) {
@@ -1541,7 +1642,7 @@ function payrollRateAll_(p) {
   var sh = getStaffSheet_();
   var list = readStaff_(sh, staffHeader_(sh));
 
-  var changed = [], missing = [], straddle = [], same = 0;
+  var changed = [], missing = [], straddle = [], made = [], same = 0;
 
   for (var i = 0; i < list.length; i++) {
     var r = list[i];
@@ -1563,13 +1664,29 @@ function payrollRateAll_(p) {
         ss = SpreadsheetApp.openById(ids[k]);
         sheet = payrollStaffSheet_(ss, name);
       } catch (e) { continue; }
-      if (!sheet) continue;
-      hitAny = true;
 
       /* 試用期間中と本採用で単価が違う人は、その期間に合うほうに合わせる。
          試用期間が終われば、次の期間から自動で本採用の単価になる。 */
       var pr = periodRate_(r, periods[k].start, periods[k].end);
       var rate = pr.rate;
+
+      // 出勤簿がまだ無い人。作る指定があれば、ここで作る
+      if (!sheet) {
+        if (!doCreate) continue;
+        if (isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt)) continue;  // 入社前は作らない
+        made.push(name + '：' + periods[k].label);
+        if (dryRun) { hitAny = true; continue; }
+        var mk = payrollMakeSheet_(ss, name, String(groups[name] || ''), r, rate);
+        if (mk.status !== 'ok' && mk.status !== 'exists') {
+          made.pop();
+          changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');
+          continue;
+        }
+        hitAny = true;
+        continue;
+      }
+      hitAny = true;
+
       if (pr.phase === 'straddle') {
         straddle.push(straddleMsg_(name, periods[k].label, pr, Number(r.payRate) || 0));
       }
@@ -1597,7 +1714,7 @@ function payrollRateAll_(p) {
   }
 
   return { status: 'ok', dryRun: dryRun, files: ids.length,
-           changed: changed, same: same, missing: missing, straddle: straddle };
+           changed: changed, same: same, missing: missing, straddle: straddle, made: made };
 }
 
 /* =========================================================
