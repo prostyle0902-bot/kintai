@@ -1504,6 +1504,10 @@ function payrollStatusHtml() {
               ? (x.missing.length ? '<br />' : '')
                 + '<b>タブはあるが給与一覧表に行が無い期間</b>：' + esc(x.noRow.join('、'))
               : '')
+          + ((x.hidden || []).length
+              ? ((x.missing.length || (x.noRow || []).length) ? '<br />' : '')
+                + '<b>タブが隠れている期間</b>：' + esc(x.hidden.join('、'))
+              : '')
           + (x.found.length ? '／ある期間：' + esc(x.found.join('、')) : '')
           + '<br />現場：' + (x.group ? esc(x.group) : '<b>なし</b>')
           + '　単価：' + (x.payRate ? Number(x.payRate).toLocaleString() + '円' : '<b>なし</b>')
@@ -2695,45 +2699,77 @@ async function runAllRates(dryRun) {
   const b2 = document.getElementById('btn-rate-fix');
   if (b1) b1.disabled = true;
   if (b2) b2.disabled = true;
-  if (el) el.innerHTML = '<div class="alert info">' + (dryRun ? '調べています…' : '直しています…') + '</div>';
 
+  /* Apps Script は1回の実行が6分までなので、人数が多いと途中で切れる。
+     GASは時間が尽きる前に「ここまで終わった」を返すので、
+     続きから何度か呼び直して、最後まで通す。 */
+  const all = { changed: [], made: [], missing: [], straddle: [], same: 0, files: 0 };
+  let at = 0, round = 0, total = 0;
   try {
-    const res = await apiPost({
-      action: 'payrollRateAll', dryRun: dryRun ? 'true' : 'false',
-      create: 'true', groups: JSON.stringify(kyuyoGroupMap()),
-    });
-    if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
+    for (;;) {
+      round++;
+      if (el) {
+        el.innerHTML = '<div class="alert info">' + (dryRun ? '調べています' : '直しています')
+          + (total ? '…' + at + ' / ' + total + ' 人目' : '…')
+          + (round > 1 ? '（' + round + '回目）' : '')
+          + '<br /><span class="muted">期間のファイルを1冊ずつ開くので、少し時間がかかります。'
+          + 'この画面を閉じないでください。</span></div>';
+      }
+      const res = await apiPost({
+        action: 'payrollRateAll', dryRun: dryRun ? 'true' : 'false',
+        create: 'true', groups: JSON.stringify(kyuyoGroupMap()),
+        startAt: String(at),
+      });
+      if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
+
+      ['changed', 'made', 'missing', 'straddle'].forEach(function (k) {
+        (res[k] || []).forEach(function (x) { if (all[k].indexOf(x) < 0) all[k].push(x); });
+      });
+      all.same += (res.same || 0);
+      all.files = res.files || all.files;
+      total = res.total || total;
+
+      if (!res.nextAt) break;
+      if (res.nextAt <= at) break;        // 進まなくなったら止める（念のため）
+      at = res.nextAt;
+      if (round > 30) throw new Error('途中で終わりませんでした。もう一度お試しください');
+    }
 
     let h = '';
-    const made = res.made || [];
+    if (round > 1) {
+      h += '<div class="alert info"><b>' + round + '回に分けて通しました。</b>'
+        + '人数が多いので、1回では時間が足りません（Apps Script は1回6分まで）。</div>';
+    }
+    const made = all.made;
     if (made.length) {
       h += '<div class="alert ' + (dryRun ? 'warn' : 'ok') + '">'
         + '<b>出勤簿が無い' + (dryRun ? 'ところ' : 'ところに作りました') + '：' + made.length + '件</b><br />'
         + made.map(esc).join('<br />')
         + (dryRun ? '<br /><br />「名簿に合わせる」を押すと作ります。' : '') + '</div>';
     }
-    if (!res.changed.length) {
+    if (!all.changed.length) {
       h += '<div class="alert ok"><b>単価のずれはありません。</b>'
-        + '確かめた期間：' + res.files + '件／一致：' + res.same + '件</div>';
+        + '確かめた期間：' + all.files + '件／一致：' + all.same + '件</div>';
     } else if (dryRun) {
-      h += '<div class="alert warn"><b>名簿とずれています（' + res.changed.length + '件）。</b><br />'
-        + res.changed.map(esc).join('<br />')
+      h += '<div class="alert warn"><b>名簿とずれています（' + all.changed.length + '件）。</b><br />'
+        + all.changed.map(esc).join('<br />')
         + '<br /><br />「名簿に合わせる」を押すと、名簿の内容に直します。</div>';
     } else {
-      h += '<div class="alert ok"><b>名簿に合わせました（' + res.changed.length + '件）。</b><br />'
-        + res.changed.map(esc).join('<br />')
+      h += '<div class="alert ok"><b>名簿に合わせました（' + all.changed.length + '件）。</b><br />'
+        + all.changed.map(esc).join('<br />')
         + '<br /><span class="muted">支払いの済んだ過去の期間と、出勤・退勤の記録には触っていません。</span></div>';
     }
-    if ((res.missing || []).length) {
-      h += '<div class="alert warn"><b>出勤簿が1つも作れなかった人：' + res.missing.length + '名</b><br />'
-        + res.missing.map(esc).join('、')
+    if (all.missing.length) {
+      h += '<div class="alert warn"><b>出勤簿が1つも作れなかった人：' + all.missing.length + '名</b><br />'
+        + all.missing.map(esc).join('、')
         + '<br />よくあるのは「配属の現場が決まっていない」「その現場に見本になる人が1人もいない」です。'
         + '名簿の「給与一覧」から期間を選んでお試しください。</div>';
     }
-    h += straddleHtml(res.straddle);
+    h += straddleHtml(all.straddle);
     if (el) el.innerHTML = h;
   } catch (e) {
     if (el) el.innerHTML = '<div class="alert err"><b>できませんでした：</b>' + esc(e.message)
+      + (at ? '<br />' + at + ' 人目まではできています。もう一度押すと、そこから先も通ります。' : '')
       + '<br />シフト作成のGASが新しい版になっているか確かめてください。</div>';
   }
   if (b1) b1.disabled = false;
