@@ -1106,6 +1106,30 @@ function payrollGroupByMate_(list, mates) {
   return null;
 }
 
+/* 在籍している人の出勤簿が隠れていたら、出す（シートもまとめの表の行も）。
+
+   退職の片づけ（payrollRetire_）は、シートとまとめの表の行を
+   「隠す」作りになっている。消さずに隠すのは記録を残すためだが、
+   そのせいで次の2つが起きる。
+
+   ・隠れた人のシートを雛形にして複製すると、新しい人のシートまで
+     隠れたまま作られる
+   ・在籍に戻した人の期間が、隠れたまま残ることがある
+
+   どちらも、スクリプトからは「シートはある」ように見えるのに、
+   人からはタブが見えない。「出勤簿ができていない」と言われる形に
+   なるので、在籍している人のぶんは必ず出す。 */
+function payrollShowBack_(ss, sheet, name) {
+  if (!sheet) return false;
+  var hidden = false;
+  try { hidden = sheet.isSheetHidden(); } catch (e) { return false; }
+  // 隠れていないときは、重いまとめの表の読み直しをしない（人数×期間ぶん効く）
+  if (!hidden) return false;
+  try { sheet.showSheet(); } catch (e) { return false; }
+  try { payrollHideListRow_(ss, name, false); } catch (e) { /* 行は出せなくても止めない */ }
+  return true;
+}
+
 /* まとめの表（給与一覧）で、その人の行が何行目かを返す。無ければ -1。 */
 function payrollListRow_(list, name) {
   var key = payrollNameKey_(name);
@@ -1132,6 +1156,7 @@ function payrollEnsureRow_(list, name, group, mates) {
   list.insertRowsAfter(g.last, 1);
   list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
   list.getRange(g.last + 1, 2).setValue(name);
+  try { list.showRows(g.last + 1); } catch (e) { /* 隠れた行の下に足したとき用 */ }
   payrollRenumber_(list);
   return { status: 'ok', group: found.label, how: found.how, mate: found.mate };
 }
@@ -1207,10 +1232,14 @@ function payrollMakeSheet_(ss, name, group, rec, rate, mates) {
   /* 出勤簿のタブがもうある人でも、まとめの表に行が無いことがある。
      タブがある＝できている、と見なすと、その人の給与が合計に入らない
      まま誰も気づけないので、行だけ足りないときはここで埋める。 */
-  if (payrollStaffSheet_(ss, name)) {
+  var had = payrollStaffSheet_(ss, name);
+  if (had) {
+    // 隠れていたら出す。タブが見えないと「できていない」としか見えないため
+    var shown = payrollShowBack_(ss, had, name);
     var row = payrollEnsureRow_(list, name, group, mates);
+    if (row.status === 'exists' && shown) return { status: 'shown' };
     if (row.status === 'ok') {
-      return { status: 'row', group: row.group, how: row.how, mate: row.mate };
+      return { status: 'row', shown: shown, group: row.group, how: row.how, mate: row.mate };
     }
     if (row.status === 'error') return { status: 'exists', warn: row.message };
     return { status: 'exists' };
@@ -1230,6 +1259,9 @@ function payrollMakeSheet_(ss, name, group, rec, rate, mates) {
 
   // --- 出勤簿シートを作る ---
   var sheet = tpl.copyTo(ss).setName(name);
+  /* 雛形にした人のシートが隠れていると、複製も隠れたまま作られる
+     （退職にした人のシートは隠してあるため）。必ず出す。 */
+  if (sheet.isSheetHidden()) sheet.showSheet();
   ss.setActiveSheet(sheet);
   ss.moveActiveSheet(tpl.getIndex() + 1);
   payrollFillSheet_(sheet, sampleName, name, rec, rate);
@@ -1726,8 +1758,11 @@ function payrollEnsure_(p) {
           + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
         continue;
       }
-      if (mk.status === 'row') {
-        out.created.push(f.label + '：出勤簿のタブはすでにあったので、給与一覧表の行だけ足しました' + where);
+      if (mk.status === 'shown') {
+        out.created.push(f.label + '：出勤簿のタブが隠れていたので、出しました');
+      } else if (mk.status === 'row') {
+        out.created.push(f.label + '：出勤簿のタブはすでにあったので、給与一覧表の行だけ足しました'
+          + (mk.shown ? '（隠れていたタブも出しました）' : '') + where);
       }
 
       var sheet = payrollStaffSheet_(ss, name);
@@ -1807,7 +1842,7 @@ function payrollStatus_(p) {
       var ss = SpreadsheetApp.openById(f.id);
       var names = {};
       var all = ss.getSheets();
-      for (var a = 0; a < all.length; a++) names[payrollNameKey_(all[a].getName())] = true;
+      for (var a = 0; a < all.length; a++) names[payrollNameKey_(all[a].getName())] = all[a];
       // まとめの表に行がある人も控える（タブだけあって行が無い人を見つけるため）
       var rows = {}, lst = payrollListSheet_(ss);
       if (lst) {
@@ -1840,19 +1875,23 @@ function payrollStatus_(p) {
     var joined = isoDate_(r.joinedAt) || '';
     var want = [], have = [];
 
-    var noRow = [];
+    var noRow = [], hidden = [];
     var key = payrollNameKey_(name);
     for (var b = 0; b < books.length; b++) {
       var bk = books[b];
       if (bk.err) continue;
       if (joined && bk.f.end < joined) continue;          // 入社より前の期間は要らない
       if (!bk.names[key]) { want.push(bk.f.label); continue; }
+      // タブが隠れていないか（隠れていると、人からは無いのと同じ）
+      var hid = false;
+      try { hid = bk.names[key].isSheetHidden(); } catch (e) { hid = false; }
+      if (hid) { hidden.push(bk.f.label); continue; }
       // タブはある。まとめの表に行があるかも見る
       if (!bk.rows[key]) { noRow.push(bk.f.label); continue; }
       have.push(bk.f.label);
     }
 
-    if (!want.length && !noRow.length) {
+    if (!want.length && !noRow.length && !hidden.length) {
       if (have.length) okList.push(name + '（' + have.length + '期間）');
       continue;
     }
@@ -1881,6 +1920,10 @@ function payrollStatus_(p) {
       why = '出勤簿のタブはありますが、給与一覧表にその人の行がありません。'
           + '「名簿に合わせる」を押すと足します';
     }
+    if (!want.length && hidden.length) {
+      why = '出勤簿のタブはありますが、隠れています（退職の片づけの名残）。'
+          + '「名簿に合わせる」を押すと出します';
+    }
 
     ng.push({
       name: name,
@@ -1890,6 +1933,7 @@ function payrollStatus_(p) {
       payRate: Number(r.payRate) || 0,
       missing: want,
       noRow: noRow,
+      hidden: hidden,
       found: have,
       why: why || '作れます（登録し直すか「名簿に合わせる」で作られます）',
     });
@@ -1901,7 +1945,19 @@ function payrollStatus_(p) {
   return { status: 'ok', files: books.length, ok: okList, ng: ng, errors: errs };
 }
 
+/* 時間切れで途中までしか直らないのを防ぐため、途中で切り上げて
+   「ここまで終わった」を返す。アプリは続きから呼び直す。
+
+   Apps Script は1回の実行が6分までで、それを超えると何の知らせも
+   なく切れる。人数×期間ぶんのシートを触るので、全員ぶんを1回で
+   やろうとすると届かない。途中まで直った状態で止まり、
+   どこまで終わったのかも分からない、というのがいちばん困る。 */
+var PAYROLL_BUDGET_MS = 240000;   // 4分。6分の手前で切り上げる
+
 function payrollRateAll_(p) {
+  var t0 = new Date().getTime();
+  var startAt = Number(p && p.startAt) || 0;
+  var nextAt = 0;
   var dryRun = String(p && p.dryRun) === 'true' || (p && p.dryRun === true);
   /* 出勤簿がまだ無い人のぶんも作るかどうか。
      groups は { 氏名: 現場 }。どの現場の見本から作るかは名簿シートだけでは
@@ -1965,7 +2021,10 @@ function payrollRateAll_(p) {
 
   var changed = [], missing = [], straddle = [], made = [], same = 0;
 
-  for (var i = 0; i < list.length; i++) {
+  for (var i = startAt; i < list.length; i++) {
+    // 時間が尽きそうなら、ここまでにして続きをアプリに任せる
+    if (i > startAt && (new Date().getTime() - t0) > PAYROLL_BUDGET_MS) { nextAt = i; break; }
+
     var r = list[i];
     if (!r.name) continue;
     if (String(r.status) !== 'active') continue;
@@ -2011,15 +2070,29 @@ function payrollRateAll_(p) {
       /* 出勤簿がまだ無い人は作る。
          タブはあるのにまとめの表に行が無い人は、行だけ足す。
          どちらもそろっているときは、何も読まずに次へ（時間を使わないため）。 */
-      if (doCreate && (!sheet || !bk.rows[key])
+      // タブが隠れている人（退職の片づけの名残）は、在籍なら出す
+      var wasHidden = false;
+      if (sheet && !dryRun) {
+        try { wasHidden = sheet.isSheetHidden(); } catch (e) { wasHidden = false; }
+      } else if (sheet && dryRun) {
+        try { if (sheet.isSheetHidden()) made.push(name + '：' + periods[k].label + '（タブが隠れています）'); }
+        catch (e) { /* 読めなくても止めない */ }
+      }
+
+      if (doCreate && (!sheet || !bk.rows[key] || wasHidden)
           && !(isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt))) {
         if (dryRun) {
-          made.push(name + '：' + periods[k].label + (sheet ? '（給与一覧表の行だけ）' : ''));
+          if (!sheet || !bk.rows[key]) {
+            made.push(name + '：' + periods[k].label + (sheet ? '（給与一覧表の行だけ）' : ''));
+          }
         } else {
           var mk = payrollMakeSheet_(ss, name, groupOf_(name, r), r, rate, matesOf_(name, r));
           if (mk.status === 'ok') { made.push(name + '：' + periods[k].label); bk.rows[key] = true; }
+          else if (mk.status === 'shown') { made.push(name + '：' + periods[k].label + '（隠れていたタブを出しました）'); }
           else if (mk.status === 'row') {
-            made.push(name + '：' + periods[k].label + '（給与一覧表の行だけ）'); bk.rows[key] = true;
+            made.push(name + '：' + periods[k].label + '（給与一覧表の行だけ'
+              + (mk.shown ? '／隠れていたタブも出しました' : '') + '）');
+            bk.rows[key] = true;
           } else if (mk.status === 'error') {
             changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');
             continue;
@@ -2057,7 +2130,9 @@ function payrollRateAll_(p) {
   }
 
   return { status: 'ok', dryRun: dryRun, files: ids.length,
-           changed: changed, same: same, missing: missing, straddle: straddle, made: made };
+           changed: changed, same: same, missing: missing, straddle: straddle, made: made,
+           // 続きがあるときだけ入る。アプリはこれを startAt にして呼び直す
+           nextAt: nextAt, total: list.length, doneTo: nextAt || list.length };
 }
 
 /* =========================================================
