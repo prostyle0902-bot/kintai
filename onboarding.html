@@ -1500,7 +1500,11 @@ function payrollStatusHtml() {
         return '<div style="margin-top:.5rem">・<b>' + esc(x.name) + '</b>'
           + (x.rosterName && x.rosterName !== x.name ? '（名簿では ' + esc(x.rosterName) + '）' : '')
           + '<br /><span class="muted" style="font-size:.9em">'
-          + '足りない期間：' + esc(x.missing.join('、'))
+          + (x.missing.length ? '出勤簿が無い期間：' + esc(x.missing.join('、')) : '')
+          + ((x.noRow || []).length
+              ? (x.missing.length ? '<br />' : '')
+                + '<b>タブはあるが給与一覧表に行が無い期間</b>：' + esc(x.noRow.join('、'))
+              : '')
           + (x.found.length ? '／ある期間：' + esc(x.found.join('、')) : '')
           + '<br />現場：' + (x.group ? esc(x.group) : '<b>なし</b>')
           + '　単価：' + (x.payRate ? Number(x.payRate).toLocaleString() + '円' : '<b>なし</b>')

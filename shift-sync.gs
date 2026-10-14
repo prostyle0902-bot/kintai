@@ -1106,6 +1106,36 @@ function payrollGroupByMate_(list, mates) {
   return null;
 }
 
+/* まとめの表（給与一覧）で、その人の行が何行目かを返す。無ければ -1。 */
+function payrollListRow_(list, name) {
+  var key = payrollNameKey_(name);
+  if (!key) return -1;
+  var vals = payrollListVals_(list);
+  for (var r = 0; r < vals.length; r++) {
+    if (!/^\d+$/.test(String(vals[r][0] || '').trim())) continue;
+    if (payrollNameKey_(vals[r][1]) === key) return r + 1;
+  }
+  return -1;
+}
+
+/* まとめの表に、その人の行が無ければ足す。
+
+   出勤簿のタブはあるのに、まとめの表に行が無い、ということが起きる
+   （途中で止まったとき、手でタブだけ作ったとき）。この形になると
+   タブがある＝できている、と見なして誰も直さないまま、
+   その人の給与だけ合計に入らない。ここで必ず埋める。 */
+function payrollEnsureRow_(list, name, group, mates) {
+  if (payrollListRow_(list, name) > 0) return { status: 'exists' };
+  var found = payrollFindGroup_(list, group, mates);
+  if (!found.block) return { status: 'error', message: found.why };
+  var g = found.block;
+  list.insertRowsAfter(g.last, 1);
+  list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
+  list.getRange(g.last + 1, 2).setValue(name);
+  payrollRenumber_(list);
+  return { status: 'ok', group: found.label, how: found.how, mate: found.mate };
+}
+
 /* その人をどの現場の列に足すかを決める。
    まず現場の名前で探し、だめなら同じ現場の仲間から探す。 */
 function payrollFindGroup_(list, group, mates) {
@@ -1171,10 +1201,20 @@ function payrollAdd_(p) {
 
    戻り：{ status: 'ok' | 'exists' | 'error', message }  */
 function payrollMakeSheet_(ss, name, group, rec, rate, mates) {
-  if (payrollStaffSheet_(ss, name)) return { status: 'exists' };
-
   var list = payrollListSheet_(ss);
   if (!list) return { status: 'error', message: '給与一覧表が見つかりません' };
+
+  /* 出勤簿のタブがもうある人でも、まとめの表に行が無いことがある。
+     タブがある＝できている、と見なすと、その人の給与が合計に入らない
+     まま誰も気づけないので、行だけ足りないときはここで埋める。 */
+  if (payrollStaffSheet_(ss, name)) {
+    var row = payrollEnsureRow_(list, name, group, mates);
+    if (row.status === 'ok') {
+      return { status: 'row', group: row.group, how: row.how, mate: row.mate };
+    }
+    if (row.status === 'error') return { status: 'exists', warn: row.message };
+    return { status: 'exists' };
+  }
 
   if (!group && !(mates || []).length) {
     return { status: 'error', message: '現場が決まっていないため作れません' };
@@ -1195,10 +1235,8 @@ function payrollMakeSheet_(ss, name, group, rec, rate, mates) {
   payrollFillSheet_(sheet, sampleName, name, rec, rate);
 
   // --- まとめの表に行を足す ---
-  list.insertRowsAfter(g.last, 1);
-  list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
-  list.getRange(g.last + 1, 2).setValue(name);
-  payrollRenumber_(list);
+  var added = payrollEnsureRow_(list, name, group, mates);
+  if (added.status === 'error') return { status: 'ok', warn: added.message, group: found.label };
   return { status: 'ok', group: found.label, how: found.how, mate: found.mate };
 }
 
@@ -1677,18 +1715,23 @@ function payrollEnsure_(p) {
         out.straddle.push(straddleMsg_(name, f.label, pr, Number(rec.payRate) || 0));
       }
 
-      var sheet = payrollStaffSheet_(ss, name);
-      if (!sheet) {
-        var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate, mates);
-        if (mk.status === 'ok') {
-          out.created.push(f.label
-            + (mk.how === 'mate' ? '（' + mk.mate + ' さんと同じ「' + mk.group + '」に入れました）' : '')
-            + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
-        } else if (mk.status !== 'exists') {
-          out.failed.push(f.label + '：' + mk.message);
-        }
+      /* 出勤簿のタブを作る（無ければ）。
+         タブはあるのにまとめの表に行が無いときは、行だけ足す。 */
+      var mk = payrollMakeSheet_(ss, name, group, rec, pr.rate, mates);
+      var where = (mk.how === 'mate') ? '（' + mk.mate + ' さんと同じ「' + mk.group + '」に入れました）' : '';
+      if (mk.status === 'error') { out.failed.push(f.label + '：' + mk.message); continue; }
+      if (mk.warn) out.skipped.push(f.label + '：' + mk.warn);
+      if (mk.status === 'ok') {
+        out.created.push(f.label + where
+          + (pr.phase === 'trial' ? '（試用期間中の単価 ' + pr.rate + '円）' : ''));
         continue;
       }
+      if (mk.status === 'row') {
+        out.created.push(f.label + '：出勤簿のタブはすでにあったので、給与一覧表の行だけ足しました' + where);
+      }
+
+      var sheet = payrollStaffSheet_(ss, name);
+      if (!sheet) continue;
 
       // すでにある → 単価を名簿に合わせる（違うときだけ書く）
       var nowRate = Number(sheet.getRange(3, 11).getValue()) || 0;
@@ -1763,15 +1806,19 @@ function payrollStatus_(p) {
     var joined = isoDate_(r.joinedAt) || '';
     var want = [], have = [];
 
+    var noRow = [];
+    var key = payrollNameKey_(name);
     for (var b = 0; b < books.length; b++) {
       var bk = books[b];
       if (bk.err) continue;
       if (joined && bk.f.end < joined) continue;          // 入社より前の期間は要らない
-      if (bk.names[payrollNameKey_(name)]) { have.push(bk.f.label); continue; }
-      want.push(bk.f.label);
+      if (!bk.names[key]) { want.push(bk.f.label); continue; }
+      // タブはある。まとめの表に行があるかも見る
+      if (!bk.rows[key]) { noRow.push(bk.f.label); continue; }
+      have.push(bk.f.label);
     }
 
-    if (!want.length) {
+    if (!want.length && !noRow.length) {
       if (have.length) okList.push(name + '（' + have.length + '期間）');
       continue;
     }
@@ -1796,6 +1843,11 @@ function payrollStatus_(p) {
       }
     }
 
+    if (!want.length && noRow.length) {
+      why = '出勤簿のタブはありますが、給与一覧表にその人の行がありません。'
+          + '「名簿に合わせる」を押すと足します';
+    }
+
     ng.push({
       name: name,
       rosterName: String(r.name).trim(),
@@ -1803,6 +1855,7 @@ function payrollStatus_(p) {
       joinedAt: joined,
       payRate: Number(r.payRate) || 0,
       missing: want,
+      noRow: noRow,
       found: have,
       why: why || '作れます（登録し直すか「名簿に合わせる」で作られます）',
     });
@@ -1872,21 +1925,23 @@ function payrollRateAll_(p) {
       var pr = periodRate_(r, periods[k].start, periods[k].end);
       var rate = pr.rate;
 
-      // 出勤簿がまだ無い人。作る指定があれば、ここで作る
-      if (!sheet) {
-        if (!doCreate) continue;
-        if (isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt)) continue;  // 入社前は作らない
-        made.push(name + '：' + periods[k].label);
-        if (dryRun) { hitAny = true; continue; }
-        var mk = payrollMakeSheet_(ss, name, String(groups[name] || ''), r, rate, mates[name] || []);
-        if (mk.status !== 'ok' && mk.status !== 'exists') {
-          made.pop();
-          changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');
-          continue;
+      /* 出勤簿がまだ無い人は作る。
+         タブはあるのにまとめの表に行が無い人は、行だけ足す。 */
+      if (doCreate && !(isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt))) {
+        if (dryRun) {
+          if (!sheet) made.push(name + '：' + periods[k].label);
+        } else {
+          var mk = payrollMakeSheet_(ss, name, String(groups[name] || ''), r, rate, mates[name] || []);
+          if (mk.status === 'ok') made.push(name + '：' + periods[k].label);
+          else if (mk.status === 'row') made.push(name + '：' + periods[k].label + '（給与一覧表の行だけ）');
+          else if (mk.status === 'error') {
+            changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');
+            continue;
+          }
+          if (!sheet) sheet = payrollStaffSheet_(ss, name);
         }
-        hitAny = true;
-        continue;
       }
+      if (!sheet) continue;
       hitAny = true;
 
       if (pr.phase === 'straddle') {
