@@ -1765,8 +1765,32 @@ function payrollEnsure_(p) {
 function payrollStatus_(p) {
   var groups = (p && p.groups) || {};
   if (typeof groups === 'string') { try { groups = JSON.parse(groups); } catch (e) { groups = {}; } }
-  var mates = (p && p.mates) || {};
-  if (typeof mates === 'string') { try { mates = JSON.parse(mates); } catch (e) { mates = {}; } }
+  // 同じ現場の仲間は groups をひっくり返して出す（送る中身を小さく保つため）
+  var byGroup = {};
+  for (var gk in groups) {
+    if (!groups.hasOwnProperty(gk)) continue;
+    var gv = String(groups[gk] || '');
+    if (!gv) continue;
+    if (!byGroup[gv]) byGroup[gv] = [];
+    byGroup[gv].push(gk);
+  }
+  // 現場名。送られてこない人は、名簿の所属をそのまま使う
+  function groupOf_(nm, rec) { return String(groups[nm] || (rec && rec.dept) || ''); }
+  function matesOf_(nm, rec) {
+    var gv = groupOf_(nm, rec);
+    if (!gv) return [];
+    var out = [];
+    if (byGroup[gv]) {
+      for (var z = 0; z < byGroup[gv].length; z++) if (byGroup[gv][z] !== nm) out.push(byGroup[gv][z]);
+    }
+    for (var y = 0; y < list.length; y++) {
+      if (String(list[y].status) !== 'active' || !list[y].kyuyo) continue;
+      var on = String(list[y].kyuyoName || list[y].name).trim();
+      if (!on || on === nm) continue;
+      if (groupOf_(on, list[y]) === gv && out.indexOf(on) < 0) out.push(on);
+    }
+    return out;
+  }
 
   var files = payrollFiles_();
   if (files.status !== 'ok' || !files.files.length) {
@@ -1784,7 +1808,17 @@ function payrollStatus_(p) {
       var names = {};
       var all = ss.getSheets();
       for (var a = 0; a < all.length; a++) names[payrollNameKey_(all[a].getName())] = true;
-      books.push({ f: f, names: names, list: payrollListSheet_(ss), sheets: all.length });
+      // まとめの表に行がある人も控える（タブだけあって行が無い人を見つけるため）
+      var rows = {}, lst = payrollListSheet_(ss);
+      if (lst) {
+        var lv = payrollListVals_(lst);
+        for (var q = 0; q < lv.length; q++) {
+          if (!/^\d+$/.test(String(lv[q][0] || '').trim())) continue;
+          var nk = payrollNameKey_(lv[q][1]);
+          if (nk) rows[nk] = true;
+        }
+      }
+      books.push({ f: f, names: names, rows: rows, list: lst, sheets: all.length });
     } catch (e) {
       books.push({ f: f, err: String(e) });
     }
@@ -1802,7 +1836,7 @@ function payrollStatus_(p) {
     if (!r.kyuyo) continue;
 
     var name = String(r.kyuyoName || r.name).trim();
-    var group = String(groups[name] || '').trim();
+    var group = groupOf_(name, r).trim();
     var joined = isoDate_(r.joinedAt) || '';
     var want = [], have = [];
 
@@ -1824,7 +1858,7 @@ function payrollStatus_(p) {
     }
 
     // 作れない理由を先に見る
-    var mt = mates[name] || [];
+    var mt = matesOf_(name, r);
     var why = '';
     if (!Number(r.payRate)) why = '単価が入っていません';
     else if (!group && !mt.length) why = '配属の現場が決まっていません';
@@ -1875,9 +1909,35 @@ function payrollRateAll_(p) {
   var doCreate = String(p && p.create) === 'true' || (p && p.create === true);
   var groups = (p && p.groups) || {};
   if (typeof groups === 'string') { try { groups = JSON.parse(groups); } catch (e) { groups = {}; } }
-  // { 氏名: [同じ現場の仲間の氏名...] }。見出しの書き方が違っても足せるようにするため
-  var mates = (p && p.mates) || {};
-  if (typeof mates === 'string') { try { mates = JSON.parse(mates); } catch (e) { mates = {}; } }
+  /* 同じ現場の仲間は、groups をひっくり返せば分かる。
+     アプリから仲間の一覧まで送ると、送る中身が大きくなりすぎて
+     通らなくなるので、ここで組み立てる。 */
+  var byGroup = {};
+  for (var gk in groups) {
+    if (!groups.hasOwnProperty(gk)) continue;
+    var gv = String(groups[gk] || '');
+    if (!gv) continue;
+    if (!byGroup[gv]) byGroup[gv] = [];
+    byGroup[gv].push(gk);
+  }
+  // 現場名。送られてこない人は、名簿の所属をそのまま使う
+  function groupOf_(nm, rec) { return String(groups[nm] || (rec && rec.dept) || ''); }
+  function matesOf_(nm, rec) {
+    var gv = groupOf_(nm, rec);
+    if (!gv) return [];
+    var out = [];
+    if (byGroup[gv]) {
+      for (var z = 0; z < byGroup[gv].length; z++) if (byGroup[gv][z] !== nm) out.push(byGroup[gv][z]);
+    }
+    // 所属が同じ人も仲間とみなす
+    for (var y = 0; y < list.length; y++) {
+      if (String(list[y].status) !== 'active' || !list[y].kyuyo) continue;
+      var on = String(list[y].kyuyoName || list[y].name).trim();
+      if (!on || on === nm) continue;
+      if (groupOf_(on, list[y]) === gv && out.indexOf(on) < 0) out.push(on);
+    }
+    return out;
+  }
 
   var files = payrollFiles_();
   if (files.status !== 'ok' || !files.files.length) {
@@ -1897,6 +1957,12 @@ function payrollRateAll_(p) {
   var sh = getStaffSheet_();
   var list = readStaff_(sh, staffHeader_(sh));
 
+  /* 期間のファイルは、1回だけ開いて中身を控える。
+     人ごとに「まとめの表」を読み直すと、人数×期間ぶん読むことになり、
+     Apps Script の実行時間（6分）を超えて途中で切れてしまう。 */
+  var books = [];
+  for (var b0 = 0; b0 < ids.length; b0++) books.push({ ss: null, rows: null, bad: false });
+
   var changed = [], missing = [], straddle = [], made = [], same = 0;
 
   for (var i = 0; i < list.length; i++) {
@@ -1914,11 +1980,28 @@ function payrollRateAll_(p) {
 
     var hitAny = false;
     for (var k = 0; k < ids.length; k++) {
-      var ss, sheet;
-      try {
-        ss = SpreadsheetApp.openById(ids[k]);
-        sheet = payrollStaffSheet_(ss, name);
-      } catch (e) { continue; }
+      var bk = books[k];
+      if (bk.bad) continue;
+      if (!bk.ss) {
+        try { bk.ss = SpreadsheetApp.openById(ids[k]); } catch (e) { bk.bad = true; continue; }
+        // 出勤簿のタブと、まとめの表の行を、このファイルで1回だけ控える
+        bk.rows = {};
+        bk.tabs = {};
+        var all0 = bk.ss.getSheets();
+        for (var a0 = 0; a0 < all0.length; a0++) bk.tabs[payrollNameKey_(all0[a0].getName())] = all0[a0];
+        var bl = payrollListSheet_(bk.ss);
+        if (bl) {
+          var lv = payrollListVals_(bl);
+          for (var q = 0; q < lv.length; q++) {
+            if (!/^\d+$/.test(String(lv[q][0] || '').trim())) continue;
+            var nk = payrollNameKey_(lv[q][1]);
+            if (nk) bk.rows[nk] = true;
+          }
+        }
+      }
+      var ss = bk.ss;
+      var key = payrollNameKey_(name);
+      var sheet = bk.tabs[key] || null;
 
       /* 試用期間中と本採用で単価が違う人は、その期間に合うほうに合わせる。
          試用期間が終われば、次の期間から自動で本採用の単価になる。 */
@@ -1926,19 +2009,22 @@ function payrollRateAll_(p) {
       var rate = pr.rate;
 
       /* 出勤簿がまだ無い人は作る。
-         タブはあるのにまとめの表に行が無い人は、行だけ足す。 */
-      if (doCreate && !(isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt))) {
+         タブはあるのにまとめの表に行が無い人は、行だけ足す。
+         どちらもそろっているときは、何も読まずに次へ（時間を使わないため）。 */
+      if (doCreate && (!sheet || !bk.rows[key])
+          && !(isoDate_(r.joinedAt) && periods[k].end < isoDate_(r.joinedAt))) {
         if (dryRun) {
-          if (!sheet) made.push(name + '：' + periods[k].label);
+          made.push(name + '：' + periods[k].label + (sheet ? '（給与一覧表の行だけ）' : ''));
         } else {
-          var mk = payrollMakeSheet_(ss, name, String(groups[name] || ''), r, rate, mates[name] || []);
-          if (mk.status === 'ok') made.push(name + '：' + periods[k].label);
-          else if (mk.status === 'row') made.push(name + '：' + periods[k].label + '（給与一覧表の行だけ）');
-          else if (mk.status === 'error') {
+          var mk = payrollMakeSheet_(ss, name, groupOf_(name, r), r, rate, matesOf_(name, r));
+          if (mk.status === 'ok') { made.push(name + '：' + periods[k].label); bk.rows[key] = true; }
+          else if (mk.status === 'row') {
+            made.push(name + '：' + periods[k].label + '（給与一覧表の行だけ）'); bk.rows[key] = true;
+          } else if (mk.status === 'error') {
             changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');
             continue;
           }
-          if (!sheet) sheet = payrollStaffSheet_(ss, name);
+          if (!sheet) { sheet = payrollStaffSheet_(ss, name); if (sheet) bk.tabs[key] = sheet; }
         }
       }
       if (!sheet) continue;
