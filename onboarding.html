@@ -1471,8 +1471,7 @@ async function checkPayrollStatus() {
   if (btn) { btn.disabled = true; btn.textContent = '調べています…'; }
   if (el) el.innerHTML = '<div class="alert info">期間のファイルを1冊ずつ開いています。少し時間がかかります…</div>';
   try {
-    const res = await apiPost({ action: 'payrollStatus',
-      groups: JSON.stringify(kyuyoGroupMap()), mates: JSON.stringify(kyuyoMateMap()) });
+    const res = await apiPost({ action: 'payrollStatus', groups: JSON.stringify(kyuyoGroupMap()) });
     if (res.status !== 'ok') throw new Error(res.message || '調べられませんでした');
     payrollStatus = res;
   } catch (e) {
@@ -2666,19 +2665,18 @@ function kyuyoMates(rec) {
   return out.slice(0, 40);
 }
 
-// 全員ぶんの { 氏名: [仲間...] }
-function kyuyoMateMap() {
-  const m = {};
-  STAFF.forEach(function (r) {
-    if (!isActive(r) || !r.kyuyo) return;
-    const mates = kyuyoMates(r);
-    if (mates.length) m[r.kyuyoName || r.name] = mates;
-  });
-  return m;
-}
+/* 全員ぶんの仲間の一覧は、ここでは作らない。
+   送る中身が大きくなりすぎて通らなくなるため
+   （POSTが通らずGETで送り直すときに、URLの長さを超えてしまう）。
+   まとめて直すときは、現場の対応表だけを送り、GAS側で組み立てる。 */
 
 /* 誰をどの現場の見本から作るか。名簿シートだけでは分からないので、
-   こちらで { 氏名: 現場 } を作って渡す。 */
+   こちらで { 氏名: 現場 } を作って渡す。
+
+   ただし全員ぶん送ると中身が大きくなり、POSTが通らなかったときの
+   送り直し（GET）でURLの長さを超えてしまう。
+   ほとんどの人は現場名＝所属なので、GAS側では所属を既定として使い、
+   ここでは<b>所属と違う人だけ</b>を送る。 */
 function kyuyoGroupMap() {
   const m = {};
   STAFF.forEach(function (r) {
@@ -2686,7 +2684,7 @@ function kyuyoGroupMap() {
     const sids = storeIdsOf(r);
     if (!sids.length) return;
     const g = kyuyoGroup(sids[0]);
-    if (g) m[r.kyuyoName || r.name] = g;
+    if (g && g !== String(r.dept || '')) m[r.kyuyoName || r.name] = g;
   });
   return m;
 }
@@ -2703,7 +2701,6 @@ async function runAllRates(dryRun) {
     const res = await apiPost({
       action: 'payrollRateAll', dryRun: dryRun ? 'true' : 'false',
       create: 'true', groups: JSON.stringify(kyuyoGroupMap()),
-      mates: JSON.stringify(kyuyoMateMap()),
     });
     if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
 
