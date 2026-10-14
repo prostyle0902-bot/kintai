@@ -1375,14 +1375,17 @@ function renderList() {
     el.innerHTML = h; return;
   }
 
-  /* 出勤簿のそろい具合。調べたことがあるときだけ出す。
-     ファイルを何冊も開くので、自動では調べず、押されたときに調べる。 */
+  /* 出勤簿のそろい具合。
+     毎日の見回りの結果は、開いたときに自動で出す（軽いので）。
+     その場で調べ直すのはファイルを何冊も開くので、押されたときだけ。 */
   h += '<div class="card" style="padding:.9rem 1.1rem">'
     + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
     + '<b style="font-size:13px">給与一覧の出勤簿</b>'
-    + '<button class="btn sm" id="btn-pstatus" onclick="checkPayrollStatus()">そろっているか調べる</button>'
+    + '<button class="btn sm" id="btn-pstatus" onclick="checkPayrollStatus()">いま調べる</button>'
     + '<span class="muted" style="font-size:12px">登録した人のタブができているかを見ます（読むだけ）</span>'
-    + '</div><div id="pstatus-result" style="margin-top:.6rem">' + payrollStatusHtml() + '</div></div>';
+    + '</div>'
+    + '<div id="plast-result" style="margin-top:.6rem">' + lastCheckHtml() + '</div>'
+    + '<div id="pstatus-result" style="margin-top:.6rem">' + payrollStatusHtml() + '</div></div>';
 
   // 試用期間がもうすぐ終わる人を、見落とさないように上に出す
   const soon = rows.filter(function (r) {
@@ -1464,6 +1467,44 @@ function renderList() {
 
 /* 出勤簿のそろい具合。調べた結果をここに持っておき、画面を描き直しても残す。 */
 let payrollStatus = null;
+
+/* 毎日の見回り（GAS側）の、最後の結果。
+   出勤簿の抜けは画面に出ないまま何週間も気づかれないことがあったので、
+   名簿を開いたら黙って出るようにしてある。読むだけで、すぐ返る。 */
+let lastCheck = null;
+
+async function loadLastCheck() {
+  if (lastCheck || !apiOn()) return;
+  try {
+    const res = await apiGet({ action: 'payrollLastCheck' });
+    if (res.status !== 'ok') return;
+    lastCheck = res.never ? { never: true } : (res.check || { never: true });
+  } catch (e) {
+    lastCheck = null;                 // 読めなければ何も出さない（邪魔しない）
+    return;
+  }
+  const el = document.getElementById('plast-result');
+  if (el) el.innerHTML = lastCheckHtml();
+}
+
+function lastCheckHtml() {
+  const c = lastCheck;
+  if (!c) return '';
+  if (c.never) {
+    return '<div class="alert info" style="margin:0"><b>毎日の見回りは、まだ動いていません。</b><br />'
+      + 'Apps Script のエディタで <b>installTrialRateDaily</b> を1回実行すると、'
+      + '毎日朝4時台にひとりでに点検して、抜けがあればメールで知らせます。</div>';
+  }
+  if ((c.left || []).length) {
+    return '<div class="alert warn" style="margin:0">'
+      + '<b>手を入れないと直らない抜けが ' + c.left.length + ' 件あります。</b>'
+      + '<span class="muted">（最後の点検：' + esc(c.at || '') + '）</span><br />'
+      + c.left.map(esc).join('<br />') + '</div>';
+  }
+  return '<div class="alert ok" style="margin:0"><b>抜けはありません。</b>'
+    + '<span class="muted">最後の点検：' + esc(c.at || '') + ''
+    + (c.fixed ? '／そのとき直したところ：' + c.fixed + '件' : '') + '</span></div>';
+}
 
 async function checkPayrollStatus() {
   const btn = document.getElementById('btn-pstatus');
@@ -3259,6 +3300,8 @@ function showTab(id) {
   const app = document.querySelector('.app');
   if (app) app.classList.toggle('wide', id === 'p-list');
   renderAll();
+  // 毎日の見回りの結果を、名簿を開いたときに黙って出す
+  if (id === 'p-list') loadLastCheck();
 }
 
 function renderAll() { renderNew(); renderList(); renderSetup(); }
