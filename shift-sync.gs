@@ -154,6 +154,7 @@ function handle_(p, cb) {
       if (p.action === 'payrollRateAll') return json_(payrollRateAll_(p), cb);
       if (p.action === 'payrollEnsure') return json_(payrollEnsure_(p), cb);
       if (p.action === 'payrollStatus') return json_(payrollStatus_(p), cb);
+      if (p.action === 'payrollLastCheck') return json_(payrollLastCheck_(), cb);
       if (p.action === 'payrollRetire') return json_(payrollRetire_(p), cb);
       if (p.action === 'payrollReinstate') return json_(payrollReinstate_(p), cb);
       // 現場収支（genba.html）の日当・材料費など。シフトと同じ方法で別シートに預かる
@@ -1942,6 +1943,9 @@ function payrollStatus_(p) {
   var errs = [];
   for (var e2 = 0; e2 < books.length; e2++) if (books[e2].err) errs.push(books[e2].f.label + '：' + books[e2].err);
 
+  // 手で押したときも、最後の見回りの控えを新しくする
+  payrollSaveCheck_(ng.map(function (x) { return x.name + '：' + x.why; }), [], []);
+
   return { status: 'ok', files: books.length, ok: okList, ng: ng, errors: errs };
 }
 
@@ -2156,64 +2160,182 @@ function payrollRateAll_(p) {
    ※このファイルは公開リポジトリに置いてあるので、ここに書いた住所は誰でも見られます。 */
 var TRIAL_RATE_MAIL = '';
 
-function trialRateDaily() {
+/* 毎日の見回り。
+
+   ＜なぜ要るか＞
+   出勤簿が作られていない・タブが隠れている・給与一覧表に行が無い、
+   といった抜けは、どれも画面に出ないまま何週間も気づかれなかった。
+   給与に直結するのに、人が気づく手がかりがどこにも無かったのが問題。
+
+   毎日ひとりでに
+     1) 名簿のとおりに直す（出勤簿を作る・隠れたタブを出す・単価を合わせる）
+     2) 直し終わったあとに、それでも残っている抜けを調べる
+     3) 直したところか、残っている抜けがある日だけメールを送る
+   を行う。何も無い日は送らない（毎日届くと見なくなるため）。
+
+   1回の実行は6分までなので、途中までしか進まないことがある。
+   そのときは続きの場所を覚えておいて、少しあとにもう一度動かす。 */
+function payrollDailyCheck() {
+  var props = PropertiesService.getScriptProperties();
+  var startAt = Number(props.getProperty('payrollDailyAt') || 0);
+  var carry = {};
+  try { carry = JSON.parse(props.getProperty('payrollDailyCarry') || '{}'); } catch (e) { carry = {}; }
+
   var res;
   try {
-    res = payrollRateAll_({ dryRun: false });
+    res = payrollRateAll_({ dryRun: false, create: true, startAt: startAt });
   } catch (e) {
-    Logger.log('単価の自動切替でエラー：' + e);
+    Logger.log('毎日の見回りでエラー：' + e);
+    payrollDailyMail_('【勤怠】毎日の見回りが止まりました',
+      '給与一覧の自動点検が、途中で止まりました。\n\n' + String(e)
+      + '\n\n入社登録アプリの「はじめの取り込み・設定」→「名簿に合わせる」から'
+      + '手で動かしてみてください。');
+    props.deleteProperty('payrollDailyAt');
+    props.deleteProperty('payrollDailyCarry');
     return;
   }
   if (!res || res.status !== 'ok') return;
 
-  var changed  = res.changed  || [];
-  var straddle = res.straddle || [];
-  Logger.log('単価の自動切替：直した ' + changed.length + ' 件／'
-    + '人の判断がいる ' + straddle.length + ' 件');
+  // 途中までの結果を持ち越す
+  ['made', 'changed', 'straddle'].forEach(function (k) {
+    carry[k] = (carry[k] || []).concat(res[k] || []);
+  });
 
-  // 何も起きていない日はメールを送らない（毎日届くとかえって見なくなるため）
-  if (!changed.length && !straddle.length) return;
+  if (res.nextAt) {
+    // まだ続きがある。少しあとに、もう一度動かす
+    props.setProperty('payrollDailyAt', String(res.nextAt));
+    props.setProperty('payrollDailyCarry', JSON.stringify(carry));
+    payrollDailyAgainSoon_();
+    Logger.log('毎日の見回り：' + res.nextAt + ' 人目まで。続きはあとで。');
+    return;
+  }
 
+  // ここまでで全員ぶん終わった
+  props.deleteProperty('payrollDailyAt');
+  props.deleteProperty('payrollDailyCarry');
+  payrollDailyClearTriggers_('payrollDailyContinue');
+
+  // 直したあとに、それでも残っている抜けを調べる（読むだけ）
+  var left = [];
+  try {
+    var st = payrollStatus_({});
+    if (st && st.status === 'ok') {
+      (st.ng || []).forEach(function (x) {
+        left.push(x.name + '：' + x.why
+          + (x.missing.length ? '（出勤簿が無い：' + x.missing.join('、') + '）' : '')
+          + ((x.noRow || []).length ? '（表に行が無い：' + x.noRow.join('、') + '）' : '')
+          + ((x.hidden || []).length ? '（タブが隠れている：' + x.hidden.join('、') + '）' : ''));
+      });
+    }
+  } catch (e) { Logger.log('点検でエラー：' + e); }
+
+  var made = carry.made || [], changed = carry.changed || [], straddle = carry.straddle || [];
+  Logger.log('毎日の見回り：作った/出した ' + made.length + '件／単価 ' + changed.length
+    + '件／人の判断 ' + straddle.length + '件／残り ' + left.length + '件');
+
+  payrollSaveCheck_(left, made, changed);
+
+  // 何も起きていない日は送らない
+  if (!made.length && !changed.length && !straddle.length && !left.length) return;
+
+  var body = '給与一覧の毎日の見回りです。\n'
+    + '（まだ支払いの済んでいない期間だけ。出勤・退勤の記録には触っていません）\n\n';
+  if (made.length) {
+    body += '■ 出勤簿を作った／隠れていたタブを出した（' + made.length + '件）\n'
+      + made.join('\n') + '\n\n';
+  }
+  if (changed.length) {
+    body += '■ 単価を名簿に合わせた（' + changed.length + '件）\n' + changed.join('\n') + '\n\n';
+  }
+  if (straddle.length) {
+    body += '■ 人の判断がいる（' + straddle.length + '件）\n'
+      + '期間の途中で試用期間が終わる人です。出勤簿は1つの期間に単価を1つしか\n'
+      + '持てないので、自動では切り替えていません。日割りが要るか確かめてください。\n\n'
+      + straddle.join('\n') + '\n\n';
+  }
+  if (left.length) {
+    body += '★ 直せなかった抜け（' + left.length + '件）\n'
+      + 'ここは人が手を入れないと直りません。\n\n' + left.join('\n') + '\n\n';
+  } else {
+    body += '■ 残っている抜けはありません。\n\n';
+  }
+  body += '※このメールは、名簿（共通名簿）の自動処理から送っています。\n'
+    + '　入社登録アプリ → 名簿タブ →「そろっているか調べる」でも同じことを確かめられます。';
+
+  payrollDailyMail_((left.length ? '【勤怠】★要対応 ' + left.length + '件 ' : '【勤怠】')
+    + '給与一覧の見回り', body);
+}
+
+/* 最後の見回りの結果を控えておき、アプリがすぐ出せるようにする。
+   毎回スプレッドシートを開き直すと重いので、結果だけを持っておく。 */
+function payrollSaveCheck_(left, made, changed) {
+  try {
+    PropertiesService.getScriptProperties().setProperty('payrollLastCheck', JSON.stringify({
+      at: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      left: (left || []).slice(0, 40),
+      fixed: (made || []).length + (changed || []).length,
+    }));
+  } catch (e) { /* 控えられなくても止めない */ }
+}
+
+// 最後の見回りの結果を返す（読むだけ・すぐ返る）
+function payrollLastCheck_() {
+  var raw = '';
+  try { raw = PropertiesService.getScriptProperties().getProperty('payrollLastCheck') || ''; }
+  catch (e) { raw = ''; }
+  if (!raw) return { status: 'ok', never: true };
+  try { return { status: 'ok', check: JSON.parse(raw) }; }
+  catch (e) { return { status: 'ok', never: true }; }
+}
+
+// 続きを動かす（持ち越し用の一時的な仕掛け）
+function payrollDailyContinue() { payrollDailyCheck(); }
+
+function payrollDailyAgainSoon_() {
+  payrollDailyClearTriggers_('payrollDailyContinue');
+  try {
+    ScriptApp.newTrigger('payrollDailyContinue').timeBased().after(2 * 60 * 1000).create();
+  } catch (e) { Logger.log('続きの仕掛けを作れませんでした：' + e); }
+}
+
+function payrollDailyClearTriggers_(fn) {
+  var all = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getHandlerFunction() === fn) ScriptApp.deleteTrigger(all[i]);
+  }
+}
+
+function payrollDailyMail_(subject, body) {
   var to = TRIAL_RATE_MAIL;
   if (!to) { try { to = Session.getEffectiveUser().getEmail(); } catch (e) { to = ''; } }
   if (!to) return;
-
-  var body = '給与一覧の単価を、名簿のとおりに合わせました。\n'
-    + '（まだ支払いの済んでいない期間だけ。出勤・退勤の記録には触っていません）\n\n';
-  if (changed.length) {
-    body += '■ 直したところ（' + changed.length + '件）\n' + changed.join('\n') + '\n\n';
-  }
-  if (straddle.length) {
-    body += '■ 人の判断がいるところ（' + straddle.length + '件）\n'
-      + '期間の途中で試用期間が終わる人です。出勤簿は1つの期間に単価を1つしか持てないので、\n'
-      + '自動では切り替えていません。日割りが要るかどうか確かめてください。\n\n'
-      + straddle.join('\n') + '\n\n';
-  }
-  body += '※このメールは、名簿（共通名簿）の自動処理から送っています。';
-
-  try {
-    MailApp.sendEmail(to, '【勤怠】給与一覧の単価を合わせました', body);
-  } catch (e) {
-    Logger.log('お知らせメールを送れませんでした：' + e);
-  }
+  try { MailApp.sendEmail(to, subject, body); }
+  catch (e) { Logger.log('お知らせメールを送れませんでした：' + e); }
 }
 
-// 毎日1回、自動で動くようにする（エディタから1回だけ実行する）
+// 前の名前。すでに入れている人のために残してある
+function trialRateDaily() { payrollDailyCheck(); }
+
+/* 毎日1回、自動で動くようにする（エディタから1回だけ実行する）。
+   すでに入れてある場合も、これを実行し直せば新しいほうに入れ替わる。 */
 function installTrialRateDaily() {
   removeTrialRateDaily();
-  ScriptApp.newTrigger('trialRateDaily').timeBased().atHour(4).everyDays(1).create();
-  Logger.log('毎日4時台に trialRateDaily が動くようにしました。');
+  ScriptApp.newTrigger('payrollDailyCheck').timeBased().atHour(4).everyDays(1).create();
+  Logger.log('毎日4時台に payrollDailyCheck が動くようにしました。');
 }
+var installDailyCheck = installTrialRateDaily;   // 分かりやすい名前でも呼べるように
 
 // 自動で動くのをやめる
 function removeTrialRateDaily() {
-  var all = ScriptApp.getProjectTriggers();
-  var n = 0;
-  for (var i = 0; i < all.length; i++) {
-    if (all[i].getHandlerFunction() === 'trialRateDaily') { ScriptApp.deleteTrigger(all[i]); n++; }
-  }
-  Logger.log('自動で動く設定を ' + n + ' 件はずしました。');
+  payrollDailyClearTriggers_('trialRateDaily');
+  payrollDailyClearTriggers_('payrollDailyCheck');
+  payrollDailyClearTriggers_('payrollDailyContinue');
+  var props = PropertiesService.getScriptProperties();
+  props.deleteProperty('payrollDailyAt');
+  props.deleteProperty('payrollDailyCarry');
+  Logger.log('自動で動く設定をはずしました。');
 }
+var removeDailyCheck = removeTrialRateDaily;
 
 /* いまの明細の手当と、名簿の諸手当が違うかどうかだけ見る（書き換えない） */
 function payrollAllowDiff_(sheet, want) {
