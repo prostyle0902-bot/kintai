@@ -36,6 +36,10 @@
 
   .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
   .logo-title { font-size: 19px; font-weight: 600; color: var(--text-primary); letter-spacing: .06em; }
+  /* 版の番号。古い画面のまま直らない、を切り分けるための目印。
+     押すと、ブラウザの覚えを捨てて読み直す。 */
+  .ver { opacity: .55; margin-left: .5em; cursor: pointer; text-decoration: underline dotted; }
+  .ver:hover { opacity: 1; }
   .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
 
   /* ログイン画面 */
@@ -214,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span style="opacity:.55;margin-left:.5em">版 2026-10-04a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-15a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -3291,6 +3295,14 @@ function esc(s) {
   return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
+}
+
+/* 版の番号を押したら、ブラウザの覚えを捨てて読み直す。
+   「直したはずなのに直っていない」の多くは、古い画面が残っているだけ。
+   Ctrl+Shift+R を説明するより、押せるようにしておくほうが早い。 */
+function reloadFresh() {
+  const u = location.href.split('#')[0].replace(/[?&]_=\d+/, '');
+  location.replace(u + (u.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now());
 }
 
 function showTab(id) {
