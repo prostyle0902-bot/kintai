@@ -293,7 +293,8 @@ const SITES = [
     locs:[{name:'神栖横丁',   lat:35.8998,    lng:140.6404,    radius:300}], start:'07:00', end:'11:00' },
   { id:'s_yakitate',    grp:'飲食事業部', name:'焼きたて屋鹿島',     dept:'焼きたて屋',
     locs:[{name:'焼きたて屋', lat:35.9831,    lng:140.6368,    radius:300}], start:'10:00', end:'19:00' },
-  { id:'s_beer',        grp:'飲食事業部', name:'ビアガーデン',       dept:'ビアガーデン',
+  // ビアガーデンの人は、給与一覧表では「▶バッシング」に並んでいる
+  { id:'s_beer',        grp:'飲食事業部', name:'ビアガーデン',       dept:'ビアガーデン', kyuyoGroup:'バッシング',
     locs:[{name:'ビアガーデン',lat:35.990552, lng:140.638966,  radius:300}], start:'16:00', end:'23:00' },
   // --- 業務課 ---
   { id:'s_totalstay',   grp:'業務課', name:'トータルステイ',   dept:'トータルステイ',
@@ -304,9 +305,13 @@ const SITES = [
     locs:[{name:'海事・横河', lat:35.8885, lng:140.6527, radius:300}], start:'07:00', end:'18:00' },
   { id:'s_chibashoyu',  grp:'業務課', name:'ちば醬油',         dept:'ちば醤油', kyuyoGroup:'ちば醬油',
     locs:[{name:'ちば醤油',   lat:35.8569, lng:140.5562, radius:300}], start:'07:00', end:'18:00' },
-  { id:'s_yuya',        grp:'業務課', name:'ゆう屋',           dept:'神宮・亀甲堂・ゆう屋',
+  /* 所属の表示は「神宮・亀甲堂・ゆう屋」でひとまとめだが、
+     給与一覧表は「▶ゆう屋」「▶神宮・亀甲堂」で分かれている。
+     どちらの列に入れるかが決まらず、林　史子さんが違う列に入ってしまったので、
+     現場ごとに給与一覧表での呼び名を持たせる。 */
+  { id:'s_yuya',        grp:'業務課', name:'ゆう屋',           dept:'神宮・亀甲堂・ゆう屋', kyuyoGroup:'ゆう屋',
     locs:[], start:'07:00', end:'18:00' },
-  { id:'s_jingu',       grp:'業務課', name:'神宮・亀甲堂',     dept:'神宮・亀甲堂・ゆう屋',
+  { id:'s_jingu',       grp:'業務課', name:'神宮・亀甲堂',     dept:'神宮・亀甲堂・ゆう屋', kyuyoGroup:'神宮・亀甲堂',
     locs:[], start:'07:00', end:'18:00' },
   { id:'s_katorijingu', grp:'業務課', name:'香取神宮',         dept:'香取神宮',
     locs:[{name:'香取神宮',   lat:35.8862, lng:140.5287, radius:300}], start:'07:00', end:'18:00' },

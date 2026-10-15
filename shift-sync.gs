@@ -1064,9 +1064,9 @@ function payrollHeads_(list) {
 }
 
 // まとめの表から、その現場の見出し行と、そこに並ぶ人の行を調べる
-function payrollGroup_(list, group) {
+function payrollGroup_(list, group, vals) {
   if (!group) return null;
-  var vals = payrollListVals_(list);
+  vals = vals || payrollListVals_(list);
   for (var r = 0; r < vals.length; r++) {
     var joined = vals[r].join(' ');
     if (joined.indexOf('▶') >= 0 && joined.indexOf(group) >= 0) {
@@ -1084,14 +1084,14 @@ function payrollGroup_(list, group) {
    すでに表に載っている仲間を見つけて、その人が並んでいる現場に足す。
 
    mates は、同じ現場で働いている人の氏名（給与一覧での表記）。 */
-function payrollGroupByMate_(list, mates) {
+function payrollGroupByMate_(list, mates, vals) {
   if (!mates || !mates.length) return null;
   var keys = {};
   for (var m = 0; m < mates.length; m++) {
     var k = payrollNameKey_(mates[m]);
     if (k) keys[k] = true;
   }
-  var vals = payrollListVals_(list);
+  vals = vals || payrollListVals_(list);
   var head = -1;
   for (var r = 0; r < vals.length; r++) {
     var joined = vals[r].join(' ');
@@ -1132,15 +1132,54 @@ function payrollShowBack_(ss, sheet, name) {
 }
 
 /* まとめの表（給与一覧）で、その人の行が何行目かを返す。無ければ -1。 */
-function payrollListRow_(list, name) {
+function payrollListRow_(list, name, vals) {
   var key = payrollNameKey_(name);
   if (!key) return -1;
-  var vals = payrollListVals_(list);
+  vals = vals || payrollListVals_(list);
   for (var r = 0; r < vals.length; r++) {
     if (!/^\d+$/.test(String(vals[r][0] || '').trim())) continue;
     if (payrollNameKey_(vals[r][1]) === key) return r + 1;
   }
   return -1;
+}
+
+/* 計算式の中のシート名を、別の人のものに差し替える。
+
+   まとめの表の行は、同じ現場の人の行を複製して作る。そのとき
+   C〜F列の計算式は「='鎌形房枝'!D10」のように<b>複製元の人のシート</b>を
+   指したままになる。氏名だけ書き換えても、出勤日数も支給額も
+   他人の数字が出てしまう。給与そのものが狂うので、必ず直す。
+
+   「'鎌形房枝'!」でも「鎌形房枝!」でも拾い、引用符を付けて書き戻す
+   （氏名に空白が入っていると、引用符なしでは壊れるため）。 */
+function payrollRefix_(formula, fromName, toName) {
+  if (!formula) return '';
+  var esc = escapeForRegex_(fromName);
+  var re = new RegExp("('" + esc + "'|" + esc + ")(?=\\s*!)", 'g');
+  return String(formula).replace(re, "'" + String(toName).split("'").join("''") + "'");
+}
+
+/* まとめの表の1行ぶんの計算式が、その人のシートを指しているか見て、
+   違う人を指していたら直す。tabNames は、そのファイルにある出勤簿の名前。
+   直したら true。 */
+function payrollFixRowRefs_(list, row, name, tabNames, formulas) {
+  var lastCol = list.getLastColumn();
+  var fs = formulas || list.getRange(row, 1, 1, lastCol).getFormulas()[0];
+  var myKey = payrollNameKey_(name);
+  var did = false;
+  for (var c = 0; c < fs.length; c++) {
+    var f = fs[c];
+    if (!f || f.indexOf('!') < 0) continue;
+    var fixed = f;
+    for (var t = 0; t < tabNames.length; t++) {
+      var other = tabNames[t];
+      if (payrollNameKey_(other) === myKey) continue;       // 自分のシートはそのまま
+      if (fixed.indexOf(other) < 0) continue;
+      fixed = payrollRefix_(fixed, other, name);
+    }
+    if (fixed !== f) { list.getRange(row, c + 1).setFormula(fixed); did = true; }
+  }
+  return did;
 }
 
 /* まとめの表に、その人の行が無ければ足す。
@@ -1154,20 +1193,48 @@ function payrollEnsureRow_(list, name, group, mates) {
   var found = payrollFindGroup_(list, group, mates);
   if (!found.block) return { status: 'error', message: found.why };
   var g = found.block;
+  var from = String(list.getRange(g.last, 2).getValue() || '').trim();
   list.insertRowsAfter(g.last, 1);
   list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
   list.getRange(g.last + 1, 2).setValue(name);
   try { list.showRows(g.last + 1); } catch (e) { /* 隠れた行の下に足したとき用 */ }
+  /* 複製した行の計算式は、まだ複製元の人のシートを指している。
+     ここを直さないと、その人の出勤日数も支給額も他人のものになる。 */
+  if (from) payrollFixRowRefs_(list, g.last + 1, name, [from]);
   payrollRenumber_(list);
   return { status: 'ok', group: found.label, how: found.how, mate: found.mate };
 }
 
+/* その人の行が、正しい現場の列に入っているか見て、違えば入れ直す。
+
+   現場の呼び名が足りず、別の列に入ってしまうことがあった
+   （「神宮・亀甲堂・ゆう屋」が ▶ゆう屋 と ▶神宮・亀甲堂 の
+   どちらを指すのか決まらなかった）。行を動かすのではなく、
+   いったん消してから正しい位置に足し直す。合計の計算式を
+   崩さない、いつもの足し方をそのまま使うため。 */
+function payrollMoveRow_(list, name, group, mates, vals) {
+  var row = payrollListRow_(list, name, vals);
+  if (row < 0) return { status: 'none' };
+
+  var found = payrollFindGroup_(list, group, mates, vals);
+  if (!found.block) return { status: 'error', message: found.why };
+  var g = found.block;
+  if (row > g.head && row <= g.last) return { status: 'ok-here' };   // すでに正しい列
+
+  list.deleteRow(row);
+  var added = payrollEnsureRow_(list, name, group, mates);
+  if (added.status !== 'ok') {
+    return { status: 'error', message: '動かしたあとに置けませんでした：' + (added.message || '') };
+  }
+  return { status: 'moved', group: added.group || found.label };
+}
+
 /* その人をどの現場の列に足すかを決める。
    まず現場の名前で探し、だめなら同じ現場の仲間から探す。 */
-function payrollFindGroup_(list, group, mates) {
-  var g = payrollGroup_(list, group);
+function payrollFindGroup_(list, group, mates, vals) {
+  var g = payrollGroup_(list, group, vals);
   if (g && g.sample >= 0) return { block: g, label: group, how: 'name' };
-  var alt = payrollGroupByMate_(list, mates);
+  var alt = payrollGroupByMate_(list, mates, vals);
   if (alt && alt.block.sample >= 0) {
     return { block: alt.block, label: alt.label, how: 'mate', mate: alt.mate };
   }
@@ -1958,6 +2025,21 @@ function payrollStatus_(p) {
    どこまで終わったのかも分からない、というのがいちばん困る。 */
 var PAYROLL_BUDGET_MS = 240000;   // 4分。6分の手前で切り上げる
 
+/* まとめの表を書き換えたあと、控えを取り直す。
+   行が増えたり動いたりすると、覚えていた行番号がずれるため。 */
+function payrollReread_(bk) {
+  if (!bk || !bk.list) return;
+  bk.lv = payrollListVals_(bk.list);
+  bk.fs = bk.list.getRange(1, 1, Math.max(bk.list.getLastRow(), 1),
+                           bk.list.getLastColumn()).getFormulas();
+  bk.rows = {};
+  for (var q = 0; q < bk.lv.length; q++) {
+    if (!/^\d+$/.test(String(bk.lv[q][0] || '').trim())) continue;
+    var nk = payrollNameKey_(bk.lv[q][1]);
+    if (nk) bk.rows[nk] = q + 1;
+  }
+}
+
 function payrollRateAll_(p) {
   var t0 = new Date().getTime();
   var startAt = Number(p && p.startAt) || 0;
@@ -1982,19 +2064,34 @@ function payrollRateAll_(p) {
   }
   // 現場名。送られてこない人は、名簿の所属をそのまま使う
   function groupOf_(nm, rec) { return String(groups[nm] || (rec && rec.dept) || ''); }
+
+  /* 同じ現場で働いている人。
+     まず<b>同じ現場ID</b>の人を挙げる。所属名だけで見ると
+     「神宮・亀甲堂・ゆう屋」のように2つの列をまたぐ所属で
+     違う列の人を仲間と見なしてしまうため。 */
   function matesOf_(nm, rec) {
-    var gv = groupOf_(nm, rec);
-    if (!gv) return [];
+    var mine = String((rec && rec.storeIds) || '').split(',').filter(String);
     var out = [];
-    if (byGroup[gv]) {
-      for (var z = 0; z < byGroup[gv].length; z++) if (byGroup[gv][z] !== nm) out.push(byGroup[gv][z]);
-    }
-    // 所属が同じ人も仲間とみなす
     for (var y = 0; y < list.length; y++) {
       if (String(list[y].status) !== 'active' || !list[y].kyuyo) continue;
       var on = String(list[y].kyuyoName || list[y].name).trim();
       if (!on || on === nm) continue;
-      if (groupOf_(on, list[y]) === gv && out.indexOf(on) < 0) out.push(on);
+      var theirs = String(list[y].storeIds || '').split(',').filter(String);
+      var share = mine.some(function (x) { return theirs.indexOf(x) >= 0; });
+      if (share && out.indexOf(on) < 0) out.push(on);
+    }
+    if (out.length) return out;
+    // 現場IDで見つからないときだけ、同じ現場名の人を手がかりにする
+    var gv = groupOf_(nm, rec);
+    if (!gv) return out;
+    if (byGroup[gv]) {
+      for (var z = 0; z < byGroup[gv].length; z++) if (byGroup[gv][z] !== nm) out.push(byGroup[gv][z]);
+    }
+    for (var w = 0; w < list.length; w++) {
+      if (String(list[w].status) !== 'active' || !list[w].kyuyo) continue;
+      var wn = String(list[w].kyuyoName || list[w].name).trim();
+      if (!wn || wn === nm) continue;
+      if (groupOf_(wn, list[w]) === gv && out.indexOf(wn) < 0) out.push(wn);
     }
     return out;
   }
@@ -2050,15 +2147,23 @@ function payrollRateAll_(p) {
         // 出勤簿のタブと、まとめの表の行を、このファイルで1回だけ控える
         bk.rows = {};
         bk.tabs = {};
+        bk.tabNames = [];
         var all0 = bk.ss.getSheets();
-        for (var a0 = 0; a0 < all0.length; a0++) bk.tabs[payrollNameKey_(all0[a0].getName())] = all0[a0];
-        var bl = payrollListSheet_(bk.ss);
-        if (bl) {
-          var lv = payrollListVals_(bl);
-          for (var q = 0; q < lv.length; q++) {
-            if (!/^\d+$/.test(String(lv[q][0] || '').trim())) continue;
-            var nk = payrollNameKey_(lv[q][1]);
-            if (nk) bk.rows[nk] = true;
+        for (var a0 = 0; a0 < all0.length; a0++) {
+          var tn = all0[a0].getName();
+          bk.tabs[payrollNameKey_(tn)] = all0[a0];
+          bk.tabNames.push(tn);
+        }
+        bk.list = payrollListSheet_(bk.ss);
+        if (bk.list) {
+          // 中身と計算式を1回だけ読む（人ごとに読み直すと時間が足りない）
+          bk.lv = payrollListVals_(bk.list);
+          bk.fs = bk.list.getRange(1, 1, Math.max(bk.list.getLastRow(), 1),
+                                   bk.list.getLastColumn()).getFormulas();
+          for (var q = 0; q < bk.lv.length; q++) {
+            if (!/^\d+$/.test(String(bk.lv[q][0] || '').trim())) continue;
+            var nk = payrollNameKey_(bk.lv[q][1]);
+            if (nk) bk.rows[nk] = q + 1;            // 何行目かを覚える
           }
         }
       }
@@ -2091,12 +2196,12 @@ function payrollRateAll_(p) {
           }
         } else {
           var mk = payrollMakeSheet_(ss, name, groupOf_(name, r), r, rate, matesOf_(name, r));
-          if (mk.status === 'ok') { made.push(name + '：' + periods[k].label); bk.rows[key] = true; }
+          if (mk.status === 'ok') { made.push(name + '：' + periods[k].label); payrollReread_(bk); }
           else if (mk.status === 'shown') { made.push(name + '：' + periods[k].label + '（隠れていたタブを出しました）'); }
           else if (mk.status === 'row') {
             made.push(name + '：' + periods[k].label + '（給与一覧表の行だけ'
               + (mk.shown ? '／隠れていたタブも出しました' : '') + '）');
-            bk.rows[key] = true;
+            payrollReread_(bk);
           } else if (mk.status === 'error') {
             changed.push(name + '：' + periods[k].label + ' に作れませんでした（' + mk.message + '）');
             continue;
@@ -2106,6 +2211,26 @@ function payrollRateAll_(p) {
       }
       if (!sheet) continue;
       hitAny = true;
+
+      /* まとめの表の行を点検する（作る指定のときだけ）。
+         ・違う現場の列に入っていたら、正しい列に入れ直す
+         ・計算式が他人のシートを指していたら、その人のシートに直す */
+      if (doCreate && !dryRun && bk.list && bk.rows[key]) {
+        var mv = payrollMoveRow_(bk.list, name, groupOf_(name, r), matesOf_(name, r), bk.lv);
+        if (mv.status === 'moved') {
+          made.push(name + '：' + periods[k].label + '（「' + mv.group + '」の列に入れ直しました）');
+          payrollReread_(bk);                        // 行が動いたので読み直す
+        } else if (mv.status === 'error') {
+          changed.push(name + '：' + periods[k].label + ' の列を直せませんでした（' + mv.message + '）');
+        }
+        var rw = bk.rows[key];
+        if (rw > 0 && bk.fs && bk.fs[rw - 1]) {
+          if (payrollFixRowRefs_(bk.list, rw, name, bk.tabNames, bk.fs[rw - 1])) {
+            made.push(name + '：' + periods[k].label + '（計算式が他の人を指していたので直しました）');
+            payrollReread_(bk);
+          }
+        }
+      }
 
       if (pr.phase === 'straddle') {
         straddle.push(straddleMsg_(name, periods[k].label, pr, Number(r.payRate) || 0));
