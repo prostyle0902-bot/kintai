@@ -1162,24 +1162,64 @@ function payrollRefix_(formula, fromName, toName) {
 /* まとめの表の1行ぶんの計算式が、その人のシートを指しているか見て、
    違う人を指していたら直す。tabNames は、そのファイルにある出勤簿の名前。
    直したら true。 */
-function payrollFixRowRefs_(list, row, name, tabNames, formulas) {
+function payrollFixRowRefs_(list, row, name, tabNames, formulas, mateRows, allFs) {
   var lastCol = list.getLastColumn();
   var fs = formulas || list.getRange(row, 1, 1, lastCol).getFormulas()[0];
   var myKey = payrollNameKey_(name);
-  var did = false;
+  var did = false, warn = [];
+
   for (var c = 0; c < fs.length; c++) {
     var f = fs[c];
     if (!f || f.indexOf('!') < 0) continue;
+
+    /* 1) シート名が他の人を指していたら、その人のシートに直す。
+          （行は同じ現場の人の行を複製して作るので、氏名だけ書き換えると
+            中身は複製元の人のままになる） */
     var fixed = f;
     for (var t = 0; t < tabNames.length; t++) {
       var other = tabNames[t];
-      if (payrollNameKey_(other) === myKey) continue;       // 自分のシートはそのまま
+      if (payrollNameKey_(other) === myKey) continue;
       if (fixed.indexOf(other) < 0) continue;
       fixed = payrollRefix_(fixed, other, name);
     }
+
+    /* 2) 指しているセルが、同じ列に並ぶ人たちと揃っているかを見る。
+          行を複製すると参照が1行ずれることがあり、出勤日数や支給額が
+          1行ずれた場所を見てしまう。
+
+          ただし見るのは「1) で向き先を直した式」だけにする。
+          もともと自分のシートを指していた式まで多数決で動かすと、
+          正しく動いている人の参照を壊しかねないため。 */
+    if (fixed !== f && mateRows && mateRows.length && allFs) {
+      var want = null, agree = true;
+      for (var m = 0; m < mateRows.length; m++) {
+        var mf = (allFs[mateRows[m] - 1] || [])[c];
+        var cell = payrollCellRef_(mf);
+        if (!cell) { agree = false; break; }
+        if (want === null) want = cell;
+        else if (want !== cell) { agree = false; break; }
+      }
+      var mine = payrollCellRef_(fixed);
+      if (agree && want && mine && mine !== want) {
+        fixed = fixed.split('!' + mine).join('!' + want);
+      } else if (!agree && want === null) {
+        /* 比べる相手がいない。そのまま */
+      } else if (!agree && mine) {
+        warn.push(colLetter_(c + 1) + '列');
+      }
+    }
+
     if (fixed !== f) { list.getRange(row, c + 1).setFormula(fixed); did = true; }
   }
-  return did;
+  return { fixed: did, warn: warn };
+}
+
+/* 「='宮内眞知子'!D38」から「D38」の部分だけを取り出す。
+   どのセルを見ているかを、人どうしで比べるために使う。 */
+function payrollCellRef_(formula) {
+  if (!formula) return '';
+  var m = /!\s*(\$?[A-Z]{1,3}\$?\d{1,5})/.exec(String(formula));
+  return m ? m[1] : '';
 }
 
 /* まとめの表に、その人の行が無ければ足す。
@@ -1193,14 +1233,28 @@ function payrollEnsureRow_(list, name, group, mates) {
   var found = payrollFindGroup_(list, group, mates);
   if (!found.block) return { status: 'error', message: found.why };
   var g = found.block;
+  var lastCol = list.getLastColumn();
   var from = String(list.getRange(g.last, 2).getValue() || '').trim();
+  // 複製する前の計算式を控える（複製すると参照が1行ずれるため）
+  var srcFs = list.getRange(g.last, 1, 1, lastCol).getFormulas()[0];
+
   list.insertRowsAfter(g.last, 1);
-  list.getRange(g.last, 1, 1, list.getLastColumn()).copyTo(list.getRange(g.last + 1, 1));
+  list.getRange(g.last, 1, 1, lastCol).copyTo(list.getRange(g.last + 1, 1));
   list.getRange(g.last + 1, 2).setValue(name);
   try { list.showRows(g.last + 1); } catch (e) { /* 隠れた行の下に足したとき用 */ }
-  /* 複製した行の計算式は、まだ複製元の人のシートを指している。
-     ここを直さないと、その人の出勤日数も支給額も他人のものになる。 */
-  if (from) payrollFixRowRefs_(list, g.last + 1, name, [from]);
+
+  /* 複製した行の計算式は
+       ・複製元の人のシートを指したまま
+       ・参照が1行ずれている（相対参照のため）
+     のふたつがある。見た目を整えるために複製はするが、計算式は
+     複製元の<b>ずれる前の式</b>から作り直して入れる。
+     ここを直さないと、その人の出勤日数も支給額も別の場所のものになる。 */
+  if (from) {
+    for (var c = 0; c < lastCol; c++) {
+      if (!srcFs[c] || srcFs[c].indexOf('!') < 0) continue;
+      list.getRange(g.last + 1, c + 1).setFormula(payrollRefix_(srcFs[c], from, name));
+    }
+  }
   payrollRenumber_(list);
   return { status: 'ok', group: found.label, how: found.how, mate: found.mate };
 }
@@ -2225,10 +2279,36 @@ function payrollRateAll_(p) {
         }
         var rw = bk.rows[key];
         if (rw > 0 && bk.fs && bk.fs[rw - 1]) {
-          if (payrollFixRowRefs_(bk.list, rw, name, bk.tabNames, bk.fs[rw - 1])) {
-            made.push(name + '：' + periods[k].label + '（計算式が他の人を指していたので直しました）');
+          // 同じ列に並ぶ人の行（セルのズレを見比べるため）
+          var blk = payrollFindGroup_(bk.list, groupOf_(name, r), matesOf_(name, r), bk.lv);
+          var mrs = [];
+          if (blk.block) {
+            for (var mr = blk.block.head + 1; mr <= blk.block.last; mr++) {
+              if (mr === rw) continue;
+              if (!/^\d+$/.test(String((bk.lv[mr - 1] || [])[0] || '').trim())) continue;
+              mrs.push(mr);
+            }
+          }
+          var fx = payrollFixRowRefs_(bk.list, rw, name, bk.tabNames, bk.fs[rw - 1], mrs, bk.fs);
+          if (fx.fixed) {
+            made.push(name + '：' + periods[k].label + '（計算式の向き先を直しました）');
             payrollReread_(bk);
           }
+          if ((fx.warn || []).length) {
+            changed.push(name + '：' + periods[k].label
+              + ' の ' + fx.warn.join('・') + ' は、同じ列の人どうしで見ている場所が揃っていません。'
+              + '人が確かめてください');
+          }
+        }
+
+        // まとめの表の行が隠れていたら出す（在籍している人なので）
+        if (rw > 0) {
+          try {
+            if (bk.list.isRowHiddenByUser(rw)) {
+              bk.list.showRows(rw);
+              made.push(name + '：' + periods[k].label + '（給与一覧表の行が隠れていたので出しました）');
+            }
+          } catch (e) { /* 読めなくても止めない */ }
         }
       }
 
