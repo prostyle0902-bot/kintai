@@ -2229,6 +2229,9 @@ function payrollDailyCheck() {
     }
   } catch (e) { Logger.log('点検でエラー：' + e); }
 
+  // 名簿そのものの傷（勤務時間が壊れているなど）も一緒に知らせる
+  left = left.concat(rosterIssues_());
+
   var made = carry.made || [], changed = carry.changed || [], straddle = carry.straddle || [];
   Logger.log('毎日の見回り：作った/出した ' + made.length + '件／単価 ' + changed.length
     + '件／人の判断 ' + straddle.length + '件／残り ' + left.length + '件');
@@ -2286,6 +2289,44 @@ function payrollLastCheck_() {
   if (!raw) return { status: 'ok', never: true };
   try { return { status: 'ok', check: JSON.parse(raw) }; }
   catch (e) { return { status: 'ok', never: true }; }
+}
+
+/* 名簿そのものの傷を探す（読むだけ）。
+
+   給与一覧の抜けとは別に、名簿の値が壊れていることがある。
+   いちばん多いのが始業・終業の時刻で、スプレッドシートが
+   「09:00」を時刻の値として持つため、読み方を1つ間違えるだけで
+   「1899-12-30」になり、そのまま契約書に出てしまっていた。
+
+   直す側は直してあるが、すでに壊れて入っている値は
+   人が入れ直すしかないので、名指しで知らせる。 */
+function rosterIssues_() {
+  var out = [];
+  try {
+    var sh = getStaffSheet_();
+    var head = staffHeader_(sh);
+    var list = readStaff_(sh, head);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r.name || String(r.status) !== 'active') continue;
+      var bad = [];
+      for (var t = 0; t < STAFF_TIME_COLS.length; t++) {
+        var k = STAFF_TIME_COLS[t];
+        var v = r[k];
+        if (v !== '' && v !== null && v !== undefined && !timeText_(v)) bad.push(k);
+      }
+      if (bad.length) {
+        out.push(String(r.name) + '：勤務時間が壊れています（' + bad.join('・')
+          + '）。入社登録の「編集」→「勤務時間」から入れ直してください');
+      }
+      // 片方だけ入っている（契約書で「〜」の片側が空になる）
+      var a = timeText_(r.startTime), b = timeText_(r.endTime);
+      if ((a && !b) || (!a && b)) {
+        out.push(String(r.name) + '：勤務時間が片方だけです（' + (a || '空') + '〜' + (b || '空') + '）');
+      }
+    }
+  } catch (e) { /* 読めなければ何も言わない */ }
+  return out;
 }
 
 // 続きを動かす（持ち越し用の一時的な仕掛け）
