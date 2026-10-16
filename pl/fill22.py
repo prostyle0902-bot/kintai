@@ -280,6 +280,10 @@ def post_sbpay(bk):
     import kessai
     for tab, plrow, m, ex, src, note in kessai.rows22():
         bk.add(tab, plrow, m, ex, "Airペイ", src, f"Airペイ（リクルート）。{note}")
+    # 出前館（焼きたて屋・タコハイ）。支払通知書から（demaekan.rows22。利用者 2026-10-16）
+    import demaekan
+    for tab, plrow, m, val, src, note in demaekan.rows22():
+        bk.add(tab, plrow, m, val, "出前館", src, f"出前館。{note}")
 
 
 # ---------------------------------------------------------------- ⑦ board売上（業務課・鳥害対策課）

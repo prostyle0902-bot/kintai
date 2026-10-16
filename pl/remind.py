@@ -88,6 +88,12 @@ def items(ym):
         miss = [t for t in tabs if (t, ym) not in kessai.AIRPAY22]
         yield ("ほかの4店 Airペイ 振込明細" + (f"（まだ: {'・'.join(miss)}）" if miss else ""),
                "店長さんがGoogleドライブの店舗フォルダに置く（私が取りに行く）", not miss, d1)
+        # 出前館の支払通知書（焼きたて屋・タコハイ）。翌月6〜8日ごろドライブに入る（利用者 2026-10-16）
+        import demaekan
+        mk = f"{m}月"
+        miss = [n for n, d in (("焼きたて屋", demaekan.DATA22), ("タコハイ", demaekan.TACO22)) if mk not in d]
+        yield ("出前館 支払通知書" + (f"（まだ: {'・'.join(miss)}）" if miss else ""),
+               "Googleドライブの取引集計（出前館）フォルダ（私が取りに行く）", not miss, f"{nx}-08")
 
 
 def main():

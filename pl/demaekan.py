@@ -90,6 +90,22 @@ TACO_SRC = "Drive 3.タコとハイボール/取引集計（出前館）/"
 TACO_CHECK = {"7月": (19420, 1765, 17655), "6月": (26878, 2443, 24430)}
 
 
+# ===== 22期（2026.9〜）================================================
+# 利用者 2026-10-16「焼きたて屋の出前館入ってない？9月」で追加。22期は fill22.py が rows22() を入れる。
+#   焼きたて屋 : 出前館売上（税込）＝①／出前館消費税＝①×8/108（切り捨て。冒頭の★どおり22期から内税抽出）
+#               支払手数料（出前館）＝⑥−内税／支払手数料（出前館返金）＝−⑦
+#   タコとハイボール : 売上はエアレジに入っているので手数料と返金だけ（21期と同じ）
+# 支払通知書はサービスアカウントに共有されていないので、Driveコネクタで読んで数字を起こす。
+#   焼きたて屋 13608422_YYYYMM_payment.pdf（フォルダ 14TTFrm69mDNHiAFo68PTVrdNic3DXgvV）
+#   タコハイ   13575701_YYYYMM_payment.pdf（フォルダ 1xKGTn1SwZbDHIfhK9atsk2MRt3GsrDZT）
+# 月 -> (①加盟店売上税込, ⑥利用料税込, ⑥の内税, ⑦お戻し, 元ファイル)
+DATA22 = {
+    "9月": (18850, 5451, 495, 1353, "13608422_202609_payment.pdf"),
+}
+TACO22 = {
+    "9月": (64600, 18587, 1689, 1007, "13575701_202609_payment.pdf"),
+}
+
 def sales_tax(inc):
     """加盟店売上（税込・軽減8%）から内税を抽出。22期から使う。"""
     return int((Decimal(inc) * 8 / 108).to_integral_value(ROUND_FLOOR))
@@ -147,6 +163,27 @@ def refund_rows():
     for month, (inc, fee, fee_tax, back, src) in TACO.items():
         if back:
             yield TACO_TAB, "支払手数料（出前館返金）", month, -back, TACO_SRC + src, back
+
+
+def rows22():
+    """22期: (タブ, PL行, 月, 金額, 元ファイル, メモ)"""
+    for month, (inc, fee, fee_tax, back, src) in DATA22.items():
+        tax = sales_tax(inc)
+        yield (TAB, "出前館売上（税込）", month, inc, SRC + src,
+               f"支払通知書 加盟店売上合計① {inc:,}（現金決済＋ネット決済＋ポイント/クーポン）")
+        yield (TAB, "出前館消費税", month, tax, SRC + src,
+               f"①{inc:,}×8/108 を切り捨てて {tax:,}（22期から内税抽出）")
+        yield (TAB, "支払手数料（出前館）", month, fee - fee_tax, SRC + src,
+               f"出前館利用料⑥ 税込{fee:,}−内税{fee_tax:,}")
+        if back:
+            yield (TAB, "支払手数料（出前館返金）", month, -back, SRC + src,
+                   f"お戻し金額⑦ {back:,}（商品代金補填・不課税）を費用のマイナスで")
+    for month, (inc, fee, fee_tax, back, src) in TACO22.items():
+        yield (TACO_TAB, "支払手数料（出前館）", month, fee - fee_tax, TACO_SRC + src,
+               f"出前館利用料⑥ 税込{fee:,}−内税{fee_tax:,}。売上①{inc:,}はエアレジの売上に入っているので入れない")
+        if back:
+            yield (TACO_TAB, "支払手数料（出前館返金）", month, -back, TACO_SRC + src,
+                   f"お戻し金額⑦ {back:,}（商品代金補填・不課税）を費用のマイナスで")
 
 
 def check(sales_module):
