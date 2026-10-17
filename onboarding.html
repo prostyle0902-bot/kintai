@@ -218,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-17b</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-17c</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -2197,16 +2197,23 @@ async function doImportOnly() {
 // 取り込み済みの人に、空いている欄だけを入れる
 /* 読み込み（JSONP）と書き込み（POST）を、それぞれ試して結果を出す。
    どちらが通ってどちらが通らないかで、原因が絞れる。 */
+/* このアプリが当てにしている、シフト作成GASの版。
+   GAS側の GAS_VER と同じにしてある。ずれていたら、貼り替えか
+   「新バージョンでデプロイ」が済んでいない。 */
+const GAS_WANT = '2026-10-17c';
+
 async function checkLink() {
   const el = document.getElementById('link-result');
   el.innerHTML = '<div class="alert info">確かめています…</div>';
 
   const rows = [];
+  let gasVer = '';
   const ping = apiUrl() + '?action=ping&token=' + encodeURIComponent(apiToken()) + '&t=' + Date.now();
 
   // 読み込み その1：GET（ふだん名簿を読むのに使っているやり方）
   try {
     const r = await readJson(await fetch(ping, { method: 'GET', mode: 'cors' }));
+    if (r && r.ver) gasVer = String(r.ver);
     rows.push(r && r.status === 'ok'
       ? ['ok', '読み込み（GET）', '通りました' + (r.at ? '　' + esc(r.at) : '')]
       : ['err', '読み込み（GET）', esc((r && r.message) || '返事が変です')]);
@@ -2217,6 +2224,7 @@ async function checkLink() {
   // 読み込み その2：JSONP（GETが通らないときの控え。ログイン中のアカウントとして送られる）
   try {
     const r = await jsonpCall(apiUrl(), { token: apiToken(), action: 'ping' }, 8000);
+    if (!gasVer && r && r.ver) gasVer = String(r.ver);
     rows.push(r && r.status === 'ok'
       ? ['ok', '読み込み（JSONP）', '通りました' + (r.at ? '　' + esc(r.at) : '')]
       : ['err', '読み込み（JSONP）', esc((r && r.message) || '返事が変です')]);
@@ -2244,6 +2252,16 @@ async function checkLink() {
   const okRead = rows[0][0] === 'ok' || rows[1][0] === 'ok';
   const okWrite = rows[2][0] === 'ok';
 
+  /* 貼ってあるGASが最新かどうか。
+     「直したのに直らない」の原因の多くがここなので、通信の結果と並べて出す。 */
+  if (okRead) {
+    rows.push(gasVer === GAS_WANT
+      ? ['ok', 'GASの版', '最新です　' + esc(gasVer)]
+      : ['err', 'GASの版',
+         (gasVer ? 'いま ' + esc(gasVer) + '／このアプリは ' + esc(GAS_WANT) + ' を当てにしています'
+                 : '版が返りません（' + esc(GAS_WANT) + ' より前のコードです）')]);
+  }
+
   let h = '<div class="table-wrap"><table><tbody>'
     + rows.map(function (x) {
         return '<tr><td style="white-space:nowrap">' + (x[0] === 'ok' ? '✅' : '⚠️') + ' <b>' + x[1] + '</b></td>'
@@ -2251,6 +2269,18 @@ async function checkLink() {
       }).join('')
     + '</tbody></table></div>';
 
+  if (okRead && gasVer !== GAS_WANT) {
+    h += '<div class="alert warn" style="margin-top:.75rem">'
+      + '<b>GASが古いままです。</b>'
+      + (gasVer ? 'いま動いているのは ' + esc(gasVer) + '、このアプリは ' + esc(GAS_WANT)
+                  + ' を当てにしています。'
+                : 'いま動いているコードは、版を返さないくらい前のものです。')
+      + '<br /><a href="gas.html" target="_blank" rel="noopener"><b>貼り付け用のページ</b></a>'
+      + 'で <b>shift-sync.gs</b> を「全部コピー」→ Apps Script に貼り付け → 保存 →'
+      + '<b>デプロイ → デプロイを管理 → ✏️ → バージョン「新バージョン」→ デプロイ</b>。<br />'
+      + '<b>最後の「新バージョン」を忘れると、貼り替えても古いコードが動き続けます。</b>'
+      + 'この欄が「最新です」になれば終わりです。</div>';
+  }
   if (okRead && okWrite) {
     h += '<div class="alert ok" style="margin-top:.75rem"><b>どちらも通っています。</b>'
       + 'つなぎ先に問題はありません。</div>';

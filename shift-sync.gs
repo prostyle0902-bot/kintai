@@ -78,6 +78,14 @@ function authorizeOnce() {
 }
 
 var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてください
+
+/* このコードの版。貼り替えたら、ここも新しくする。
+
+   「直したはずなのに直らない」の多くは、貼り替えただけで
+   「デプロイ → 新バージョン」を忘れていて、古いコードが動き続けている、
+   というものだった。見分けがつかないのが困るので、番号を持たせて
+   入社登録アプリの「つながるか確かめる」で見えるようにしてある。 */
+var GAS_VER = '2026-10-17c';
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
 
@@ -120,6 +128,7 @@ function handle_(p, cb) {
        JSONが出れば動いている。Googleの画面が出るなら、デプロイか許可の問題。 */
     if (p.action === 'ping') {
       return json_({ status: 'ok', message: '動いています', at: nowStamp_(),
+                     ver: GAS_VER,
                      staffRev: staffRev_(), payrollFiles: PAYROLL_FILES.length }, cb);
     }
 
