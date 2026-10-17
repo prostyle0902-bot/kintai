@@ -218,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-17a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-17b</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1232,10 +1232,37 @@ async function submitNew() {
 function payrollDoneHtml(rec) {
   const sids = storeIdsOf(rec);
   if (isMonthly(rec)) {
-    return '<div class="alert info" style="margin-top:1.25rem">'
+    let h = '<div class="alert info" style="margin-top:1.25rem">'
       + '<b>月給の方なので、パートの給与一覧には入れていません。</b><br />'
-      + '社員の勤怠・給与は <b>kintai_年月</b> のスプレッドシートで見ます。'
-      + 'こちらの名簿は、雇用契約書と打刻アプリのために使います。</div>';
+      + '社員の勤怠・給与は <b>kintai_年月</b> のスプレッドシートで見ます。</div>';
+    const ps = rec._payroll;
+    if (!ps) {
+      if (!rec.payRate) {
+        h += '<div class="alert warn"><b>基本給が入っていません。</b>'
+          + '「編集」から月給を入れて登録すると、kintai_年月 の基本給もそのときに合わせます。</div>';
+      }
+      return h;
+    }
+    if (ps.status === 'error') {
+      return h + '<div class="alert err"><b>出勤簿に手が届きませんでした。</b>' + esc(ps.message || '')
+        + '<br />名簿には登録できています。「はじめの取り込み・設定」タブの'
+        + '「社員の基本給を、名簿に合わせる」からやり直してください。</div>';
+    }
+    const upd = ps.updated || [], bad = ps.failed || [];
+    if (upd.length) {
+      h += '<div class="alert ok"><b>社員の出勤簿（kintai_年月）の基本給も合わせました（'
+        + upd.length + '件）。</b><br />' + upd.map(esc).join('<br />')
+        + '<br /><span class="muted">支払いの済んだ過去の期間と、出勤・退勤の記録には触っていません。</span></div>';
+    } else if (!bad.length) {
+      h += '<div class="alert ok"><b>出勤簿の基本給は、すでに名簿のとおりでした。</b>'
+        + (ps.same ? '確かめた期間：' + ps.same + '件。' : '') + '</div>';
+    }
+    if (bad.length) {
+      h += '<div class="alert warn"><b>人が手を入れないと直らないところ：' + bad.length + '件</b><br />'
+        + bad.map(esc).join('<br />') + '</div>';
+    }
+    h += straddleHtml(ps.straddle);
+    return h;
   }
   if (!rec.kyuyo) return '';
   if (!sids.length) {
@@ -1977,6 +2004,36 @@ function renderSetup() {
       + '<button class="btn primary" id="btn-rate-fix" onclick="fixAllRates()">名簿に合わせる</button></div>'
       + '<div id="rate-result" style="margin-top:.75rem"></div>'
       + '</div>';
+
+    /* 社員（月給）の基本給。パートとは別のスプレッドシート（kintai_年月）なので、
+       押すところも分けてある。 */
+    h += '<div class="card"><div class="card-title">社員の基本給を、名簿に合わせる</div>'
+      + '<div class="card-desc">'
+      + '名簿で<b>単価の種類が「月給」</b>になっている在籍の社員について、'
+      + '<b>kintai_年月</b>（社員の出勤簿）の「基本給」を名簿の額に入れ直します。<br />'
+      + '基本給は<b>時間単価のもと</b>（算定基礎額 → 時間単価 → 残業手当）なので、'
+      + 'ずれると残業手当まで狂います。<b>給与を確定する前に一度押して</b>ください。<br />'
+      + '<b>支払いの済んだ過去の期間には触りません。</b>出勤・退勤の記録にも触りません。<br />'
+      + '次のところは、迷いが出ないように<b>書き換えずに知らせます</b>。'
+      + '「基本給」の行が2つある／金額のセルに計算式が入っている／'
+      + '算定基礎額がその基本給を見ていない（古い作りの出勤簿）。<br />'
+      + '<span class="muted">通勤手当・現場手当・技能手当は、ここでは見ていません。</span></div>'
+      + '<div class="row-actions">'
+      + '<button class="btn" id="btn-kihon-check" onclick="checkAllKihon()">ずれを調べる</button>'
+      + '<button class="btn primary" id="btn-kihon-fix" onclick="fixAllKihon()">名簿に合わせる</button></div>'
+      + '<div id="kihon-result" style="margin-top:.75rem"></div>'
+      + '<div class="card-desc" style="margin-top:1rem;padding-top:.9rem;border-top:0.5px solid var(--border)">'
+      + '<b>はじめの1回だけ：出勤簿の基本給を名簿に取り込む</b><br />'
+      + '社員の月額は、これまで出勤簿に直接書かれていて名簿にはありませんでした。'
+      + 'いまの期間の出勤簿から読んで、名簿に入れます。'
+      + '<b>すでに名簿に月給が入っている人は飛ばします</b>（上書きしません）。<br />'
+      + '備考が「試用期間中の…」になっている人は、その額を<b>試用期間中の賃金</b>として入れます。'
+      + '本採用後の月給は出勤簿から分からないので、あとで「編集」から入れてください。</div>'
+      + '<div class="row-actions">'
+      + '<button class="btn" id="btn-kihon-imp-check" onclick="checkImportKihon()">何が入るか調べる</button>'
+      + '<button class="btn" id="btn-kihon-imp" onclick="runImportKihon()">名簿に取り込む</button></div>'
+      + '<div id="kihon-imp-result" style="margin-top:.75rem"></div>'
+      + '</div>';
   }
 
   if (!apiOn()) { el.innerHTML = h; return; }
@@ -2706,11 +2763,12 @@ async function sendImport(recs) {
    登録しただけでできるようにしてある。
    支払いの済んだ過去の期間と、出勤・退勤の記録には触らない。 */
 async function autoPayroll(rec) {
-  if (!rec || !rec.kyuyo || !rec.payRate) return null;   // 給与の対象外、または単価が未設定
-  /* 月給の人（社員）は、パートの出勤簿には入れない。
-     あちらは時給・日給で計算する作りなので、月額をそのまま入れると
-     「時給250,000円」になってしまう。社員は kintai_YYYYMM のほうで見る。 */
-  if (isMonthly(rec)) return { status: 'monthly' };
+  if (!rec || !rec.payRate) return null;                 // 単価・月給が未設定
+  /* 月給の人（社員）は、パートの出勤簿には入れない。あちらは時給・日給で
+     計算する作りなので、月額をそのまま入れると「時給250,000円」になる。
+     そのかわり、GAS側で社員の出勤簿（kintai_年月）の基本給を合わせる。
+     社員は「出勤簿へ転記する」が入っていないので、ここは kyuyo を見ない。 */
+  if (!rec.kyuyo && !isMonthly(rec)) return null;        // パートで給与の対象外
   const sids = storeIdsOf(rec);
   try {
     const res = await apiPost({
@@ -2868,6 +2926,174 @@ async function runAllRates(dryRun) {
   }
   if (b1) b1.disabled = false;
   if (b2) b2.disabled = false;
+}
+
+
+/* =========================================================
+   社員（月給）の基本給
+
+   パートの出勤簿（給与一覧_…）とは別に、社員の出勤簿は
+   kintai_年月 というスプレッドシートにある。そちらの「基本給」を
+   名簿の月給に合わせる。中身の判断はすべてGAS側で行う。
+   ========================================================= */
+async function checkAllKihon() { await runAllKihon(true); }
+async function fixAllKihon() {
+  if (!confirm('名簿で「月給」になっている在籍の社員について、\n'
+    + 'kintai_年月 の「基本給」を名簿の額に入れ直します。\n\n'
+    + 'まだ支払いの済んでいない期間だけが対象です。\n'
+    + '支払いの済んだ過去の期間と、出勤・退勤の記録には触りません。\n\n'
+    + 'よろしいですか？')) return;
+  await runAllKihon(false);
+}
+
+async function runAllKihon(dryRun) {
+  const el = document.getElementById('kihon-result');
+  const b1 = document.getElementById('btn-kihon-check');
+  const b2 = document.getElementById('btn-kihon-fix');
+  if (b1) b1.disabled = true;
+  if (b2) b2.disabled = true;
+
+  // 人数×期間ぶん開くので、6分で終わらないときは続きから呼び直す
+  const all = { changed: [], left: [], straddle: [], errors: [], same: 0,
+                files: 0, past: 0, total: 0, noSheet: 0, newest: '' };
+  let at = 0, round = 0;
+  try {
+    for (;;) {
+      round++;
+      if (el) {
+        el.innerHTML = '<div class="alert info">' + (dryRun ? '調べています' : '合わせています')
+          + (all.total ? '…' + at + ' / ' + all.total + ' 人目' : '…')
+          + (round > 1 ? '（' + round + '回目）' : '')
+          + '<br /><span class="muted">kintai_年月 を1冊ずつ開くので、少し時間がかかります。'
+          + 'この画面を閉じないでください。</span></div>';
+      }
+      const res = await apiPost({ action: 'kihonRateAll',
+        dryRun: dryRun ? 'true' : 'false', startAt: String(at) });
+      if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
+
+      ['changed', 'left', 'straddle', 'errors'].forEach(function (k) {
+        (res[k] || []).forEach(function (x) { if (all[k].indexOf(x) < 0) all[k].push(x); });
+      });
+      all.same += (res.same || 0);
+      all.noSheet += (res.noSheet || 0);
+      all.files = res.files || all.files;
+      all.past = res.past || all.past;
+      all.total = res.total || all.total;
+      all.newest = res.newest || all.newest;
+
+      if (!res.nextAt) break;
+      if (res.nextAt <= at) break;
+      at = res.nextAt;
+      if (round > 30) throw new Error('途中で終わりませんでした。もう一度お試しください');
+    }
+    if (el) el.innerHTML = kihonHtml(all, dryRun, round);
+  } catch (e) {
+    if (el) el.innerHTML = '<div class="alert err"><b>できませんでした：</b>' + esc(e.message)
+      + (at ? '<br />' + at + ' 人目まではできています。もう一度押すと、そこから先も通ります。' : '')
+      + '<br />シフト作成のGASが新しい版になっているか確かめてください'
+      + '（デプロイを管理 → ✏️ → 新バージョン → デプロイ）。</div>';
+  }
+  if (b1) b1.disabled = false;
+  if (b2) b2.disabled = false;
+}
+
+function kihonHtml(all, dryRun, round) {
+  let h = '';
+  if (round > 1) {
+    h += '<div class="alert info"><b>' + round + '回に分けて通しました。</b>'
+      + '人数が多いので、1回では時間が足りません（Apps Script は1回6分まで）。</div>';
+  }
+  if (!all.total) {
+    return h + '<div class="alert info"><b>名簿で「月給」になっている社員がいません。</b><br />'
+      + '「編集」の<b>単価</b>のところで「月給」を選び、金額を入れてください。'
+      + 'いま出勤簿に入っている額をそのまま名簿に移したいときは、'
+      + '下の<b>「名簿に取り込む」</b>が早いです。</div>';
+  }
+  if (!all.files) {
+    return h + '<div class="alert warn"><b>まだ支払いの済んでいない kintai_年月 がありません。</b><br />'
+      + (all.newest ? 'いちばん新しい出勤簿は ' + esc(all.newest) + ' です。' : '')
+      + '支払いの済んだ期間には触らない作りなので、次の期間の出勤簿ができてから押してください。</div>';
+  }
+  if (all.changed.length) {
+    h += '<div class="alert ' + (dryRun ? 'warn' : 'ok') + '">'
+      + '<b>' + (dryRun ? '名簿とずれています' : '名簿に合わせました') + '（' + all.changed.length + '件）。</b><br />'
+      + all.changed.map(esc).join('<br />')
+      + (dryRun ? '<br /><br />「名簿に合わせる」を押すと直します。'
+                : '<br /><span class="muted">支払いの済んだ過去の期間と、出勤・退勤の記録には触っていません。</span>')
+      + '</div>';
+  } else {
+    h += '<div class="alert ok"><b>ずれはありません。</b>'
+      + '対象：' + all.total + '名／確かめた期間：' + all.files + '件／一致：' + all.same + '件'
+      + (all.past ? '（支払いの済んだ ' + all.past + '件には触っていません）' : '') + '</div>';
+  }
+  if (all.noSheet) {
+    h += '<div class="alert info">出勤簿のシートがまだ無い期間：' + all.noSheet + '件。'
+      + 'ここは社員の出勤簿を作っているGASがこれから作るので、こちらでは作りません。</div>';
+  }
+  h += straddleHtml(all.straddle);
+  if (all.left.length) {
+    h += '<div class="alert warn"><b>人が手を入れないと直らない：' + all.left.length + '件</b><br />'
+      + all.left.map(esc).join('<br />') + '</div>';
+  }
+  if (all.errors.length) {
+    h += '<div class="alert info">' + all.errors.map(esc).join('<br />') + '</div>';
+  }
+  return h;
+}
+
+async function checkImportKihon() { await importKihon(true); }
+async function runImportKihon() {
+  if (!confirm('いまの期間の出勤簿に入っている基本給を、名簿に取り込みます。\n\n'
+    + 'すでに名簿に月給が入っている人は飛ばします（上書きしません）。\n\n'
+    + 'よろしいですか？')) return;
+  await importKihon(false);
+}
+
+async function importKihon(dryRun) {
+  const el = document.getElementById('kihon-imp-result');
+  const b1 = document.getElementById('btn-kihon-imp-check');
+  const b2 = document.getElementById('btn-kihon-imp');
+  if (b1) b1.disabled = true;
+  if (b2) b2.disabled = true;
+  if (el) el.innerHTML = '<div class="alert info">出勤簿を開いています。少し時間がかかります…</div>';
+  try {
+    const res = await apiPost({ action: 'kihonImport', dryRun: dryRun ? 'true' : 'false' });
+    if (res.status !== 'ok') throw new Error(res.message || 'できませんでした');
+    let h = '';
+    if (res.found.length) {
+      h += '<div class="alert ' + (dryRun ? 'warn' : 'ok') + '">'
+        + '<b>' + (dryRun ? '名簿に入る内容' : '名簿に入れました') + '（' + res.found.length + '件）</b><br />'
+        + res.found.map(esc).join('<br />')
+        + (dryRun ? '<br /><br />「名簿に取り込む」を押すと入れます。' : '') + '</div>';
+    } else {
+      h += '<div class="alert ok"><b>取り込むものはありません。</b>'
+        + '社員の月給は、もう名簿に入っています。</div>';
+    }
+    if ((res.skipped || []).length) {
+      h += '<div class="alert info"><b>飛ばした人：' + res.skipped.length + '名</b><br />'
+        + res.skipped.map(esc).join('<br />') + '</div>';
+    }
+    if ((res.left || []).length) {
+      h += '<div class="alert warn"><b>人が入れないと分からない：' + res.left.length + '件</b><br />'
+        + res.left.map(esc).join('<br />') + '</div>';
+    }
+    if ((res.errors || []).length) {
+      h += '<div class="alert info">' + res.errors.map(esc).join('<br />') + '</div>';
+    }
+    /* 名簿に入れたら読み直す。読み直すと画面が組み直されて、いまの
+       結果の箱も作り替わるので、入れ直すのは読み直したあとにする。 */
+    if (!dryRun && res.found.length) await reload();
+    const el2 = document.getElementById('kihon-imp-result');
+    if (el2) el2.innerHTML = h;
+  } catch (e) {
+    const el3 = document.getElementById('kihon-imp-result');
+    if (el3) el3.innerHTML = '<div class="alert err"><b>できませんでした：</b>' + esc(e.message)
+      + '<br />シフト作成のGASが新しい版になっているか確かめてください。</div>';
+  }
+  ['btn-kihon-imp-check', 'btn-kihon-imp'].forEach(function (id) {
+    const x = document.getElementById(id);
+    if (x) x.disabled = false;
+  });
 }
 
 
