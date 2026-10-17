@@ -2744,12 +2744,34 @@ function kihonSheet_(ss, names) {
   return null;
 }
 
-/* 1枚の出勤簿から「基本給」の在りかを見つける（読むだけ）。
+/* セルの金額。
+
+   ただの数値のほか、「=13545」のように数字を書いただけの式も金額として
+   扱う（実物の通勤手当にこの書き方がある）。
+   ほかのセルを見て計算している式のときは null を返す。残業手当・深夜手当・
+   光熱費控除のような「計算で出るもの」は、こちらから触ってはいけない。 */
+function kihonNum_(v, f) {
+  if (f) {
+    var m = /^=[\s]*([0-9]+(?:\.[0-9]+)?)[\s]*$/.exec(String(f).split(',').join(''));
+    return m ? Number(m[1]) : null;
+  }
+  if (typeof v === 'number') return v;
+  return null;
+}
+
+// 手当の名前を突き合わせる形（空白のちがいを無視する）
+function kihonAllowKey_(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[\s　]+/g, '');
+}
+
+/* 1枚の出勤簿から、給与明細の在りかを見つける（読むだけ）。
 
    見つかったら
      { row, labelCol, moneyCol, label, value, formula, memoCol, memo,
        dup（基本給の行が2つ以上あれば、その行番号）, note（上の覚え書き）,
-       base（算定基礎額のセル）, baseSees（算定基礎額が基本給を見ているか） }
+       base（算定基礎額のセル）, baseSees（算定基礎額が基本給を見ているか）,
+       allow（固定手当の行）, commute（通勤手当の行）, calc（計算で出る行の名前）,
+       end（差引支給額の行） }
    見つからなければ null。 */
 function kihonFind_(sheet) {
   var lastRow = Math.min(sheet.getLastRow(), 120);
@@ -2812,6 +2834,38 @@ function kihonFind_(sheet) {
   }
   if (moneyCol < 0) return null;
 
+  var memoOf = function (rr) {
+    return (moneyCol + 1 < lastCol) ? String(vals[rr][moneyCol + 1] || '') : '';
+  };
+
+  /* 明細の行を仕分ける。
+
+     手当には3種類ある。
+       ・固定手当（現場手当・技能手当・店長手当・職務手当…）
+         人が決める額。割増の算定基礎に入る。名簿から合わせられる
+       ・通勤手当　実費。算定基礎からは外す（労基則21条）。名簿から合わせられる
+       ・計算で出る手当（残業手当・所定外手当・休日出勤手当・深夜手当）
+         出勤時間から式で出るもの。こちらからは絶対に触らない
+     家賃控除・光熱費控除のような引くものにも触らない。 */
+  var allow = [], commute = null, calc = [], deduct = [], end = -1;
+  if (head >= 0) {
+    var last2 = Math.min(head + 25, lastRow);
+    for (var rr = head + 1; rr < last2; rr++) {
+      var lab = String(vals[rr][labelCol] || '').trim();
+      if (!lab) continue;
+      if (lab.indexOf('差引支給額') >= 0 || lab.indexOf('支給計') >= 0) { end = rr + 1; break; }
+      if (rows.indexOf(rr) >= 0) continue;                       // 基本給の行
+      var f2 = fs[rr][moneyCol] || '';
+      var num = kihonNum_(vals[rr][moneyCol], f2);
+      var item = { row: rr + 1, name: lab, amount: num === null ? 0 : num,
+                   memo: memoOf(rr), formula: f2 };
+      if (lab.indexOf('通勤') >= 0) { if (!commute && num !== null) commute = item; continue; }
+      if (lab.indexOf('控除') >= 0 || (num !== null && num < 0)) { deduct.push(item); continue; }
+      if (num === null) { calc.push(lab); continue; }            // 計算で出る手当
+      allow.push(item);
+    }
+  }
+
   // 上にある覚え書き（基本給：270,000円）
   var note = null;
   for (var r6 = 0; r6 < Math.min(lastRow, 8) && !note; r6++) {
@@ -2843,30 +2897,121 @@ function kihonFind_(sheet) {
     value: vals[row][moneyCol],
     formula: fs[row][moneyCol] || '',
     memoCol: moneyCol + 2,
-    memo: (moneyCol + 1 < lastCol) ? String(vals[row][moneyCol + 1] || '') : '',
+    memo: memoOf(row),
     dup: rows.length > 1 ? rows.map(function (x) { return x + 1; }) : null,
     note: note,
     base: base,
-    baseSees: !!(base && base.formula && cellRe.test(base.formula))
+    baseSees: !!(base && base.formula && cellRe.test(base.formula)),
+    allow: allow, commute: commute, calc: calc, deduct: deduct, end: end
   };
 }
 
-/* 1枚の出勤簿の基本給を、名簿の月給に合わせる。
-   書き換えたかどうかと、その理由を返す。dryRun のときは読むだけ。 */
-function kihonApply_(sheet, pos, want, phase, dryRun) {
+/* 算定基礎額が、その固定手当の行を見ているか。
+
+   見ていない手当を直すと、金額は合っても時間単価が付いてこない。
+   そこだけは人に知らせる（金額は入れる。払う額が合うほうが先）。 */
+function kihonBaseSeesRow_(pos, row) {
+  if (!pos.base || !pos.base.formula) return false;
+  var re = new RegExp('\\$?' + colLetter_(pos.moneyCol) + '\\$?' + row + '(?![0-9])');
+  return re.test(pos.base.formula);
+}
+
+/* 固定手当と通勤手当を、名簿に合わせる。
+
+   行は足しも減らしもしない。算定基礎額が「=$H$43+$H$44+$H$45」のように
+   セルを名指ししているので、行を入れ替えると、入れた手当が算定基礎から
+   外れたまま気づかれない、ということが起きるため。
+   合う行が無いときは、作らずに知らせる。 */
+function kihonAllowSync_(sheet, pos, want, ck, commute, phase, dryRun) {
+  var did = [], notes = [];
+  if (want === null) {
+    notes.push('名簿の諸手当が読めない形になっているので、手当は触っていません');
+    return { did: did, notes: notes };
+  }
+
+  var used = {};
+  for (var i = 0; i < want.length; i++) {
+    var w = want[i];
+    var key = kihonAllowKey_(w.name);
+    var hit = null;
+    for (var j = 0; j < pos.allow.length; j++) {
+      if (kihonAllowKey_(pos.allow[j].name) === key) { hit = pos.allow[j]; break; }
+    }
+    if (!hit) {
+      notes.push('名簿の「' + w.name + ' ' + yen_(w.amount) + '」にあたる行が出勤簿にありません。'
+        + '行を足すと算定基礎額の式が合わなくなるので、こちらでは作っていません');
+      continue;
+    }
+    used[key] = true;
+    if (hit.amount === w.amount) continue;
+    /* 「試用期間中は対象外」と書いてある行は、人が決めて止めているところ。
+       試用期間が終わって付け始めるのも人の判断なので、知らせるだけにする。 */
+    if (/対象外|試用期間/.test(String(hit.memo))) {
+      notes.push('「' + hit.name + '」は出勤簿に「' + String(hit.memo).trim()
+        + '」と書いてあるので触っていません（名簿では ' + yen_(w.amount) + '）');
+      continue;
+    }
+    if (phase === 'trial') {
+      notes.push('試用期間中なので「' + hit.name + '」は触っていません（名簿では '
+        + yen_(w.amount) + '、出勤簿は ' + yen_(hit.amount) + '）');
+      continue;
+    }
+    if (!dryRun) sheet.getRange(hit.row, pos.moneyCol).setValue(w.amount);
+    did.push(hit.name + ' ' + yen_(hit.amount) + ' → ' + yen_(w.amount));
+    if (!kihonBaseSeesRow_(pos, hit.row)) {
+      notes.push('「' + hit.name + '」の金額は入れましたが、算定基礎額がこの行を見ていません。'
+        + '割増（残業・休日・深夜）の単価には入りません');
+    }
+  }
+
+  /* 出勤簿にあって名簿に無い手当。0円にはしない。
+     名簿がまだ埋まっていないだけのことがあり、消すと払い漏れになるため。 */
+  var extra = [];
+  for (var k = 0; k < pos.allow.length; k++) {
+    var a = pos.allow[k];
+    if (used[kihonAllowKey_(a.name)] || !a.amount) continue;
+    extra.push(a.name + ' ' + yen_(a.amount));
+  }
+  if (extra.length) {
+    notes.push('出勤簿にあって名簿に無い手当：' + extra.join('・')
+      + '。名簿の諸手当に入れると、ここから合わせられます（0円にはしていません）');
+  }
+
+  // 通勤手当。実費なので、名簿が「月ぎめ」で金額が入っているときだけ入れる
+  if (pos.commute) {
+    var now = pos.commute.amount;
+    if (ck === 'monthly' && commute > 0) {
+      if (now !== commute) {
+        if (!dryRun) sheet.getRange(pos.commute.row, pos.moneyCol).setValue(commute);
+        did.push('通勤手当 ' + yen_(now) + ' → ' + yen_(commute));
+      }
+    } else if (ck === 'daily' && commute > 0) {
+      notes.push('名簿の通勤手当は「出勤1日ごと ' + yen_(commute) + '」です。'
+        + '社員の出勤簿は月額で持つ作りなので、こちらでは入れていません'
+        + (now ? '（いま出勤簿は ' + yen_(now) + '）' : ''));
+    } else if (now) {
+      notes.push('名簿では通勤手当なしですが、出勤簿には ' + yen_(now)
+        + ' が入っています。消すと払い漏れになるので触っていません');
+    }
+  }
+  return { did: did, notes: notes };
+}
+
+/* 1枚の出勤簿を名簿に合わせる。
+   何をしたか／何を人に任せたかを返す。dryRun のときは読むだけ。 */
+function kihonApply_(sheet, pos, want, phase, dryRun, allow, ck, commute) {
   var where = colLetter_(pos.moneyCol) + pos.row;
   if (pos.dup) {
     return { status: 'skip', message: '「基本給」の行が ' + pos.dup.length + 'つあります（'
       + pos.dup.join('行目・') + '行目）。どちらが本物か分からないので触っていません。'
       + '出勤簿GASでこの期間を作り直してください' };
   }
-  if (pos.formula) {
-    return { status: 'skip', message: '基本給のセル（' + where + '）に計算式が入っているので触っていません：'
-      + pos.formula };
-  }
-  if (pos.value !== '' && pos.value !== null && typeof pos.value !== 'number') {
-    return { status: 'skip', message: '基本給のセル（' + where + '）が数値ではありません（'
-      + String(pos.value) + '）' };
+  var cur = kihonNum_(pos.value, pos.formula);
+  if (cur === null) {
+    return { status: 'skip', message: '基本給のセル（' + where + '）が'
+      + (pos.formula ? 'ほかのセルを見て計算する式になっています：' + pos.formula
+                     : '数値ではありません（' + String(pos.value) + '）')
+      + '。中身が分からないので触っていません' };
   }
   if (!pos.baseSees) {
     return { status: 'skip', message: pos.base
@@ -2876,7 +3021,6 @@ function kihonApply_(sheet, pos, want, phase, dryRun) {
         + '書かれています）。基本給だけ直すと残業手当が合わなくなるので触っていません' };
   }
 
-  var cur = Number(pos.value) || 0;
   var memoWant = (phase === 'trial') ? '試用期間中の月額固定' : '月額固定';
   var memoNow = String(pos.memo || '').trim();
   // 備考は、こちらで入れた書き方のときだけ直す。人が書いた言葉は消さない
@@ -2886,17 +3030,21 @@ function kihonApply_(sheet, pos, want, phase, dryRun) {
     : '';
   var noteFix = !!(pos.note && noteWant !== pos.note.text);
 
-  if (cur === want && !memoFix && !noteFix) return { status: 'same' };
+  var did = [];
+  if (cur !== want) did.push('基本給 ' + yen_(cur) + ' → ' + yen_(want));
+  else if (memoFix || noteFix) did.push('基本給 ' + yen_(want) + '（書き方だけそろえました）');
 
   if (!dryRun) {
     if (cur !== want) sheet.getRange(pos.row, pos.moneyCol).setValue(want);
     if (memoFix) sheet.getRange(pos.row, pos.memoCol).setValue(memoWant);
     if (noteFix) sheet.getRange(pos.note.row, pos.note.col).setValue(noteWant);
   }
-  return { status: 'changed',
-    message: (cur === want)
-      ? '基本給 ' + yen_(want) + '（書き方だけそろえました）'
-      : '基本給 ' + yen_(cur) + ' → ' + yen_(want) };
+
+  var ex = kihonAllowSync_(sheet, pos, allow === undefined ? null : allow,
+    String(ck || 'none'), Number(commute) || 0, phase, dryRun);
+  did = did.concat(ex.did);
+  if (!did.length) return { status: 'same', notes: ex.notes };
+  return { status: 'changed', message: did.join('／'), notes: ex.notes };
 }
 
 /* 名簿で「月給」になっている在籍の人。
@@ -2944,6 +3092,17 @@ function kihonRateAll_(p) {
   var books = [];
   for (var b = 0; b < periods.length; b++) books.push(null);
 
+  /* 同じ知らせを期間の数だけ並べない。
+     期間は10件以上あるので、そのまま出すと一人の「名簿に無い手当」だけで
+     10行になり、毎朝のメールが読めなくなる。1行にまとめて数を添える。 */
+  var seen = {};
+  function note_(nm, label, msg) {
+    var key = nm + '｜' + msg;
+    if (seen[key]) { seen[key].n++; return; }
+    seen[key] = { n: 1, at: out.left.length };
+    out.left.push(nm + '：' + label + '：' + msg);
+  }
+
   for (var k = startAt; k < people.length; k++) {
     // 時間が尽きそうなら、ここまでにして続きを頼む
     if (k > startAt && (new Date().getTime() - t0) > KIHON_BUDGET_MS) { out.nextAt = k; break; }
@@ -2970,17 +3129,24 @@ function kihonRateAll_(p) {
         }
         var pos = kihonFind_(sheet);
         if (!pos) {
-          out.left.push(nm + '：' + per.label + ' の出勤簿に「基本給」の行が見つかりません');
+          note_(nm, per.label, '出勤簿に「基本給」の行が見つかりません');
           continue;
         }
-        var ap = kihonApply_(sheet, pos, pr.rate, pr.phase, dryRun);
+        var ap = kihonApply_(sheet, pos, pr.rate, pr.phase, dryRun,
+          payrollAllowList_(rec.allowances), rec.commuteKind, rec.commute);
+        for (var n2 = 0; n2 < (ap.notes || []).length; n2++) note_(nm, per.label, ap.notes[n2]);
+        if (ap.status === 'skip') { note_(nm, per.label, ap.message); continue; }
         if (ap.status === 'same') { out.same++; continue; }
-        if (ap.status === 'skip') { out.left.push(nm + '：' + per.label + '：' + ap.message); continue; }
         out.changed.push(nm + '：' + per.label + '　' + ap.message);
       } catch (e) {
-        out.left.push(nm + '：' + per.label + '：' + String(e));
+        note_(nm, per.label, String(e));
       }
     }
+  }
+
+  for (var key2 in seen) {
+    if (!seen.hasOwnProperty(key2) || seen[key2].n < 2) continue;
+    out.left[seen[key2].at] += '（ほかの ' + (seen[key2].n - 1) + ' 期間も同じ）';
   }
   return out;
 }
@@ -3035,9 +3201,10 @@ function kihonImport_(p) {
         if (!sheet) continue;
         var pos = kihonFind_(sheet);
         if (!pos || pos.dup) continue;
-        var v = Number(pos.value) || 0;
+        var v = kihonNum_(pos.value, pos.formula);
         if (!v) continue;
-        got = { amount: v, label: order[j].label, trial: /試用期間/.test(String(pos.memo || '')) };
+        got = { amount: v, label: order[j].label, pos: pos,
+                trial: /試用期間/.test(String(pos.memo || '')) };
       } catch (e) { /* 開けないファイルは飛ばす */ }
     }
     if (!got) { out.left.push(nm + '：出勤簿に基本給の金額が見つかりませんでした'); continue; }
@@ -3051,13 +3218,45 @@ function kihonImport_(p) {
       }
       out.found.push(nm + '：試用期間中の月給 ' + yen_(got.amount) + '（' + got.label + ' の出勤簿より）');
       out.left.push(nm + '：本採用後の月給は出勤簿から分かりません。「編集」から入れてください');
-      continue;
+    } else {
+      if (!dryRun) {
+        setStaffCell_(sh, head, r._row, 'payKind', 'monthly');
+        setStaffCell_(sh, head, r._row, 'payRate', got.amount);
+      }
+      out.found.push(nm + '：月給 ' + yen_(got.amount) + '（' + got.label + ' の出勤簿より）');
     }
-    if (!dryRun) {
-      setStaffCell_(sh, head, r._row, 'payKind', 'monthly');
-      setStaffCell_(sh, head, r._row, 'payRate', got.amount);
+
+    /* 固定手当と通勤手当も、名簿が空のときだけ取り込む。
+       0円の行（「試用期間中は対象外」など）は入れない。
+       手当が名簿に無いままだと、雇用契約書にも出ず、こちらから
+       合わせることもできない。 */
+    var already = payrollAllowList_(r.allowances);
+    if (already !== null && !already.length) {
+      var add = [];
+      for (var a2 = 0; a2 < got.pos.allow.length; a2++) {
+        var it = got.pos.allow[a2];
+        if (!it.amount) continue;
+        add.push({ name: it.name, amount: it.amount });
+      }
+      if (add.length) {
+        if (!dryRun) setStaffCell_(sh, head, r._row, 'allowances', JSON.stringify(add));
+        out.found.push(nm + '：諸手当 '
+          + add.map(function (x) { return x.name + ' ' + yen_(x.amount); }).join('・'));
+      }
     }
-    out.found.push(nm + '：月給 ' + yen_(got.amount) + '（' + got.label + ' の出勤簿より）');
+    if (got.pos.commute && got.pos.commute.amount > 0
+        && !(Number(r.commute) > 0) && String(r.commuteKind || '') !== 'daily') {
+      if (!dryRun) {
+        setStaffCell_(sh, head, r._row, 'commuteKind', 'monthly');
+        setStaffCell_(sh, head, r._row, 'commute', got.pos.commute.amount);
+      }
+      out.found.push(nm + '：通勤手当（月ぎめ）' + yen_(got.pos.commute.amount));
+    }
+    // 計算で出る手当は、名簿には持たない（出勤簿の式がそのまま正）
+    if (got.pos.calc.length) {
+      out.skipped.push(nm + '：' + got.pos.calc.join('・')
+        + ' は出勤簿の計算式で出るので、名簿には入れていません');
+    }
   }
   if (!dryRun && out.found.length) bumpStaffRev_();
   return out;
