@@ -88,21 +88,18 @@ function zangyoRun_(dryRun) {
 
     lines.push('\n【' + ss.getName() + '】');
 
-    // --- 1) そのファイルの全員ぶんを調べる ---
+    // --- 1) 全員ぶん、「残業」と書いてある行を全部ひろう ---
     var people = [];
     var sheets = ss.getSheets();
-    for (var s = 0; s < sheets.length; s++) {
-      var sh = sheets[s];
+    for (var s2 = 0; s2 < sheets.length; s2++) {
+      var sh = sheets[s2];
       if (zangyoSkip_(sh.getName())) continue;
-      var info = zangyoFind_(sh);
-      if (!info) continue;                       // 残業手当の行が無いシート
-      people.push(info);
+      var hits = zangyoFindAll_(sh);
+      if (!hits.length) continue;
+      people.push({ sheet: sh, name: sh.getName(), hits: hits });
     }
     if (!people.length) {
-      lines.push('　残業手当の行があるシートがありません。');
-      /* どう書いてあるのか分からないと直しようがないので、
-         1枚目の人のシートの中身をそのまま出す。
-         ここに出た言葉を ZANGYO_LABELS に足せば、次から見つかる。 */
+      lines.push('　「残業」と書いてある行があるシートがありません。');
       if (!dumped) {
         var one = null;
         for (var d = 0; d < sheets.length; d++) {
@@ -113,59 +110,103 @@ function zangyoRun_(dryRun) {
       continue;
     }
 
-    // --- 2) 見本になる人（計算式が入っている人）を集める ---
-    var haveFormula = people.filter(function (p) { return p.formula; });
-    var missing     = people.filter(function (p) { return !p.formula; });
+    /* --- 2) どの行が「残業手当」の行なのかを、データから決める ---
+       上のほうには「残業は日12h超…」のような注記があり、言葉だけで
+       見分けようとすると、そこを拾ってしまう（5行目を拾っていた）。
+       <b>計算式が実際に入っている行</b>をみんなで数えて、いちばん多い行を
+       給与明細の残業手当の行とみなす。 */
+    var countByRow = {}, formulaByRow = {}, labelByRow = {}, colByRow = {};
+    for (var a = 0; a < people.length; a++) {
+      for (var h = 0; h < people[a].hits.length; h++) {
+        var hit = people[a].hits[h];
+        if (!hit.formula) continue;
+        countByRow[hit.row] = (countByRow[hit.row] || 0) + 1;
+        if (!formulaByRow[hit.row]) {
+          formulaByRow[hit.row] = {}; labelByRow[hit.row] = hit.label; colByRow[hit.row] = {};
+        }
+        formulaByRow[hit.row][hit.formula] = (formulaByRow[hit.row][hit.formula] || 0) + 1;
+        colByRow[hit.row][hit.col] = (colByRow[hit.row][hit.col] || 0) + 1;
+      }
+    }
+    var payRow = 0, best = 0;
+    for (var rk in countByRow) {
+      if (countByRow[rk] > best) { best = countByRow[rk]; payRow = Number(rk); }
+    }
+    if (!payRow) {
+      lines.push('　計算式が入っている人が1人もいないので、どの行が残業手当か決められません。');
+      if (!dumped) { lines.push(zangyoDump_(people[0].sheet)); dumped = true; }
+      totalLeft += people.length;
+      continue;
+    }
 
-    lines.push('　人数 ' + people.length + '／式あり ' + haveFormula.length
+    // その行で、いちばん多く使われている式と列を「正解」とする
+    var forms = formulaByRow[payRow], cols = colByRow[payRow];
+    var theFormula = '', fN = 0;
+    for (var fk in forms) if (forms[fk] > fN) { fN = forms[fk]; theFormula = fk; }
+    var theCol = 0, cN = 0;
+    for (var ck in cols) if (cols[ck] > cN) { cN = cols[ck]; theCol = Number(ck); }
+
+    lines.push('　残業手当の行＝' + payRow + '行目（見出し「' + labelByRow[payRow] + '」'
+      + '／金額は' + zangyoCol_(theCol) + '列）と判断しました');
+    lines.push('　入っている式（' + fN + '人）：' + theFormula);
+
+    /* 式が人によって違うときは、多数決で書き込まない。
+       給与の金額そのものなので、どれが正しいかを機械が決めてはいけない。
+       違うものを並べて出して、人に決めてもらう。 */
+    var others = [];
+    for (var ok2 in forms) if (ok2 !== theFormula) others.push(ok2 + '（' + forms[ok2] + '人）');
+    if (others.length) {
+      lines.push('　★ この行には別の式を使っている人がいます：' + others.slice(0, 5).join(' / '));
+      lines.push('　★ どれが正しいか決められないので、写しません。人が確かめてください。');
+      totalOk += fN;
+      totalLeft += people.length - fN;
+      continue;
+    }
+    if (Object.keys(cols).length > 1) {
+      lines.push('　★ 金額の列が人によって違います。写しません。人が確かめてください。');
+      totalOk += fN;
+      totalLeft += people.length - fN;
+      continue;
+    }
+
+    // --- 3) その行に式が無い人をさがす ---
+    var missing = [];
+    for (var b = 0; b < people.length; b++) {
+      var pr = null;
+      for (var h2 = 0; h2 < people[b].hits.length; h2++) {
+        if (people[b].hits[h2].row === payRow) { pr = people[b].hits[h2]; break; }
+      }
+      if (!pr) { missing.push({ p: people[b], why: payRow + '行目に見出しがありません' }); continue; }
+      if (pr.formula) { totalOk++; continue; }
+      if (pr.col && pr.col !== theCol) {
+        missing.push({ p: people[b], why: 'すでに ' + zangyoCol_(pr.col) + '列 に何か入っています' });
+        continue;
+      }
+      missing.push({ p: people[b], hit: pr });
+    }
+    lines.push('　人数 ' + people.length + '／式あり ' + (people.length - missing.length)
       + '／式なし ' + missing.length);
-    totalOk += haveFormula.length;
 
-    if (!missing.length) continue;
+    if (theFormula.indexOf('!') >= 0) {
+      lines.push('　★ この式は他のシートを指しているので、写しません（取り違えるため）');
+      totalLeft += missing.length;
+      continue;
+    }
 
     for (var m = 0; m < missing.length; m++) {
       var me = missing[m];
-      var why = '';
-
-      /* 見本は「残業手当の行が同じ行番号の人」だけ。
-         シートの作りが同じでないと、写した式が別の場所を見てしまう。
-         式が空の人は金額の列も分からないので、見本の列をそのまま使う。 */
-      var sames = haveFormula.filter(function (p) { return p.row === me.row; });
-      var col = sames.length ? sames[0].col : me.col;
-
-      if (!sames.length) {
-        why = '同じ行（' + me.row + '行目）に式が入っている人がいません';
-      } else if (!col) {
-        why = '金額をどの列に入れればよいか分かりません';
-      } else if (!sames.every(function (p) { return p.col === col; })) {
-        why = '見本どうしで金額の列が違います（'
-          + sames.slice(0, 3).map(function (p) { return p.name + '：' + zangyoCol_(p.col) + '列'; }).join(' / ') + '）';
-      } else if (me.col && me.col !== col) {
-        why = 'すでに ' + zangyoCol_(me.col) + '列 に何か入っています（見本は ' + zangyoCol_(col) + '列）';
-      } else if (sames.some(function (p) { return p.formula.indexOf('!') >= 0; })) {
-        why = '見本の式が他のシートを指しています（写すと取り違えます）';
-      } else {
-        var first = sames[0].formula;
-        var allSame = sames.every(function (p) { return p.formula === first; });
-        if (!allSame) {
-          why = '見本どうしで式が違います（'
-            + sames.slice(0, 3).map(function (p) { return p.name + '：' + p.formula; }).join(' / ') + '）';
-        } else {
-          if (dryRun) {
-            lines.push('　・' + me.name + '（' + me.row + '行目 '
-              + zangyoCol_(col) + '列）← ' + sames[0].name + ' から写します：' + first);
-          } else {
-            me.sheet.getRange(me.row, col).setFormula(first);
-            lines.push('　・' + me.name + '（' + me.row + '行目 '
-              + zangyoCol_(col) + '列）に入れました：' + first
-              + '（' + sames[0].name + ' から）');
-            totalFixed++;
-          }
-          continue;
-        }
+      if (me.why) {
+        lines.push('　★ ' + me.p.name + ' は写せません：' + me.why);
+        totalLeft++;
+        continue;
       }
-      lines.push('　★ ' + me.name + '（' + me.row + '行目）は写せません：' + why);
-      totalLeft++;
+      if (dryRun) {
+        lines.push('　・' + me.p.name + '（' + payRow + '行目 ' + zangyoCol_(theCol) + '列）に入れます');
+      } else {
+        me.p.sheet.getRange(payRow, theCol).setFormula(theFormula);
+        lines.push('　・' + me.p.name + '（' + payRow + '行目 ' + zangyoCol_(theCol) + '列）に入れました');
+        totalFixed++;
+      }
     }
   }
 
@@ -173,7 +214,7 @@ function zangyoRun_(dryRun) {
   lines.push('式が入っていた：' + totalOk + '件');
   if (!dryRun) lines.push('入れた：' + totalFixed + '件');
   lines.push('人が手を入れないと直らない：' + totalLeft + '件');
-  if (dryRun) lines.push('\n問題なければ fixZangyo を実行してください。');
+  if (dryRun) lines.push('\n式の中身を確かめて、問題なければ fixZangyo を実行してください。');
   return lines.join('\n');
 }
 
@@ -206,16 +247,17 @@ function zangyoSkip_(name) {
    金額がどの列かはシートによって違うので、決め打ちにしない。
    その行の中で「計算式が入っているセル」、無ければ「数値のセル」を金額とみなす。
    どちらも無いときは、同じ行の人たちから列を決めるので、ここでは 0 を返す。 */
-function zangyoFind_(sheet) {
+function zangyoFindAll_(sheet) {
   var lastRow = Math.min(sheet.getLastRow(), 120);
   var lastCol = Math.min(sheet.getLastColumn(), 14);
-  if (lastRow < 2 || lastCol < 2) return null;
+  if (lastRow < 2 || lastCol < 2) return [];
 
   var vals = sheet.getRange(1, 1, lastRow, lastCol).getValues();
   var fs   = sheet.getRange(1, 1, lastRow, lastCol).getFormulas();
+  var out = [];
 
   for (var r = 0; r < lastRow; r++) {
-    var hit = -1;
+    var hit = -1, label = '';
     for (var c = 0; c < lastCol; c++) {
       var v = String(vals[r][c] || '').trim();
       if (!v || v.length > 20) continue;              // 長い説明文は見出しではない
@@ -225,7 +267,7 @@ function zangyoFind_(sheet) {
       }
       if (bad) continue;
       for (var L = 0; L < ZANGYO_LABELS.length; L++) {
-        if (v.indexOf(ZANGYO_LABELS[L]) >= 0) { hit = c; break; }
+        if (v.indexOf(ZANGYO_LABELS[L]) >= 0) { hit = c; label = v; break; }
       }
       if (hit >= 0) break;
     }
@@ -241,12 +283,18 @@ function zangyoFind_(sheet) {
         if (typeof vals[r][c3] === 'number') { col = c3 + 1; break; }
       }
     }
-    return {
-      sheet: sheet, name: sheet.getName(), row: r + 1,
-      labelCol: hit + 1, col: col, formula: formula,
-    };
+    out.push({ row: r + 1, labelCol: hit + 1, label: label, col: col, formula: formula });
   }
-  return null;
+  return out;
+}
+
+// 1枚のシートで、最初に見つかった「残業」の行（ひとつだけ欲しいとき用）
+function zangyoFind_(sheet) {
+  var all = zangyoFindAll_(sheet);
+  if (!all.length) return null;
+  var o = all[0];
+  return { sheet: sheet, name: sheet.getName(), row: o.row,
+           labelCol: o.labelCol, col: o.col, formula: o.formula };
 }
 
 // 1 → A, 2 → B …（ログを読みやすくするためだけのもの）
