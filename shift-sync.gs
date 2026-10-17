@@ -1845,6 +1845,13 @@ function payrollEnsure_(p) {
     out.skipped.push('単価が入っていないため、何もしていません');
     return out;
   }
+  /* 月給の人（社員）は、パートの出勤簿には入れない。
+     あちらは時給・日給の作りなので、月額をそのまま入れると
+     「時給250,000円」になってしまう。 */
+  if (String(rec.payKind) === 'monthly') {
+    out.skipped.push('月給の方なので、パートの給与一覧には入れていません');
+    return out;
+  }
 
   var files = payrollFiles_();
   if (files.status !== 'ok' || !files.files.length) {
@@ -1991,6 +1998,7 @@ function payrollStatus_(p) {
     if (!r.name) continue;
     if (String(r.status) !== 'active') continue;
     if (!r.kyuyo) continue;
+    if (String(r.payKind) === 'monthly') continue;   // 社員（月給）はここでは見ない
 
     var name = String(r.kyuyoName || r.name).trim();
     var group = groupOf_(name, r).trim();
@@ -2185,6 +2193,7 @@ function payrollRateAll_(p) {
     if (String(r.status) !== 'active') continue;
     if (!r.kyuyo) continue;
     if (!Number(r.payRate)) continue;
+    if (String(r.payKind) === 'monthly') continue;   // 社員（月給）はここでは見ない
 
     var name = String(r.kyuyoName || r.name).trim();
     var ck = String(r.commuteKind || 'none');
@@ -3253,10 +3262,10 @@ function rosterCols_() {
         .join('').trim(); }],
     ['賃金',        function (r) {
       if (!(+r.payRate)) return '';
-      return (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.payRate); }],
+      return payUnit_(r.payKind) + ' ' + yen_(r.payRate); }],
     ['試用期間中の賃金', function (r) {
       if (!(+r.trialRate) || (+r.trialRate) === (+r.payRate)) return '本採用と同じ';
-      return (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen_(r.trialRate); }],
+      return payUnit_(r.payKind) + ' ' + yen_(r.trialRate); }],
     ['通勤手当',    function (r) {
       if (!(+r.commute)) return 'なし';
       return yen_(r.commute) + (r.commuteKind === 'daily' ? '／日' : '／月'); }],
@@ -3289,6 +3298,13 @@ function rosterCols_() {
     ['最終更新',    function (r) { return r.updatedAt; }],
     ['更新した人',  function (r) { return r.updatedBy; }]
   ];
+}
+
+// 時給／日給／月給。社員は月給で、パートの出勤簿とは別の扱いになる
+function payUnit_(v) {
+  if (v === 'daily') return '日給';
+  if (v === 'monthly') return '月給';
+  return '時給';
 }
 
 // 1140 → 「1,140円」。環境によって toLocaleString が効かないので自分で区切る
