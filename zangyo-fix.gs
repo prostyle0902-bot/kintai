@@ -38,7 +38,7 @@ var ZANGYO_SKIP = ['給与一覧', '_時刻リスト', 'SS_ID管理', 'シート
 /* さがす行の名前。書き方のゆれを拾えるよう、部分一致で見る。
    見つからないときは、checkZangyo がそのシートの中身を出すので、
    そこに出た言葉をここに足してください。 */
-var ZANGYO_LABELS = ['残業手当', '時間外手当', '時間外労働手当', '割増手当', '割増賃金', '残業', '時間外'];
+var ZANGYO_LABELS = ['残業代', '残業手当', '時間外手当', '時間外労働手当', '割増手当', '割増賃金', '残業', '時間外'];
 
 /* 上の言葉が入っていても、残業手当の行ではないもの。
    ・日ごとの表の見出し（「残業(h)」など）
@@ -110,102 +110,93 @@ function zangyoRun_(dryRun) {
       continue;
     }
 
-    /* --- 2) どの行が「残業手当」の行なのかを、データから決める ---
-       上のほうには「残業は日12h超…」のような注記があり、言葉だけで
+    /* --- 2) 「残業代の行」をデータから決める ---
+       上のほうには「残業：日12h超…」のような注記があり、言葉だけで
        見分けようとすると、そこを拾ってしまう（5行目を拾っていた）。
-       <b>計算式が実際に入っている行</b>をみんなで数えて、いちばん多い行を
-       給与明細の残業手当の行とみなす。 */
-    var countByRow = {}, formulaByRow = {}, labelByRow = {}, colByRow = {};
+       計算式が実際に入っている行だけを、給与明細の行とみなす。
+
+       また「残業代（×1.25）」「残業代（×1.5）」のように段階が分かれて
+       いることがあるので、1行だけ選ばず、式のある行を全部見る。 */
+    var byRow = {};
     for (var a = 0; a < people.length; a++) {
       for (var h = 0; h < people[a].hits.length; h++) {
         var hit = people[a].hits[h];
         if (!hit.formula) continue;
-        countByRow[hit.row] = (countByRow[hit.row] || 0) + 1;
-        if (!formulaByRow[hit.row]) {
-          formulaByRow[hit.row] = {}; labelByRow[hit.row] = hit.label; colByRow[hit.row] = {};
-        }
-        formulaByRow[hit.row][hit.formula] = (formulaByRow[hit.row][hit.formula] || 0) + 1;
-        colByRow[hit.row][hit.col] = (colByRow[hit.row][hit.col] || 0) + 1;
+        if (!byRow[hit.row]) byRow[hit.row] = { label: hit.label, forms: {}, cols: {}, n: 0 };
+        byRow[hit.row].forms[hit.formula] = (byRow[hit.row].forms[hit.formula] || 0) + 1;
+        byRow[hit.row].cols[hit.col] = (byRow[hit.row].cols[hit.col] || 0) + 1;
+        byRow[hit.row].n++;
       }
     }
-    var payRow = 0, best = 0;
-    for (var rk in countByRow) {
-      if (countByRow[rk] > best) { best = countByRow[rk]; payRow = Number(rk); }
-    }
-    if (!payRow) {
-      lines.push('　計算式が入っている人が1人もいないので、どの行が残業手当か決められません。');
+    var payRows = Object.keys(byRow).map(Number).sort(function (x, y) { return x - y; });
+    if (!payRows.length) {
+      lines.push('　計算式が入っている人が1人もいないので、どの行が残業代か決められません。');
       if (!dumped) { lines.push(zangyoDump_(people[0].sheet)); dumped = true; }
       totalLeft += people.length;
       continue;
     }
+    lines.push('　人数 ' + people.length + '／残業代の行：' + payRows.join('、') + '行目');
 
-    // その行で、いちばん多く使われている式と列を「正解」とする
-    var forms = formulaByRow[payRow], cols = colByRow[payRow];
-    var theFormula = '', fN = 0;
-    for (var fk in forms) if (forms[fk] > fN) { fN = forms[fk]; theFormula = fk; }
-    var theCol = 0, cN = 0;
-    for (var ck in cols) if (cols[ck] > cN) { cN = cols[ck]; theCol = Number(ck); }
+    for (var pr0 = 0; pr0 < payRows.length; pr0++) {
+      var payRow = payRows[pr0];
+      var info = byRow[payRow];
 
-    lines.push('　残業手当の行＝' + payRow + '行目（見出し「' + labelByRow[payRow] + '」'
-      + '／金額は' + zangyoCol_(theCol) + '列）と判断しました');
-    lines.push('　入っている式（' + fN + '人）：' + theFormula);
+      var theFormula = '', fN = 0;
+      for (var fk in info.forms) if (info.forms[fk] > fN) { fN = info.forms[fk]; theFormula = fk; }
+      var theCol = 0, cN = 0;
+      for (var ck in info.cols) if (info.cols[ck] > cN) { cN = info.cols[ck]; theCol = Number(ck); }
 
-    /* 式が人によって違うときは、多数決で書き込まない。
-       給与の金額そのものなので、どれが正しいかを機械が決めてはいけない。
-       違うものを並べて出して、人に決めてもらう。 */
-    var others = [];
-    for (var ok2 in forms) if (ok2 !== theFormula) others.push(ok2 + '（' + forms[ok2] + '人）');
-    if (others.length) {
-      lines.push('　★ この行には別の式を使っている人がいます：' + others.slice(0, 5).join(' / '));
-      lines.push('　★ どれが正しいか決められないので、写しません。人が確かめてください。');
-      totalOk += fN;
-      totalLeft += people.length - fN;
-      continue;
-    }
-    if (Object.keys(cols).length > 1) {
-      lines.push('　★ 金額の列が人によって違います。写しません。人が確かめてください。');
-      totalOk += fN;
-      totalLeft += people.length - fN;
-      continue;
-    }
+      lines.push('　── ' + payRow + '行目「' + info.label + '」'
+        + '（金額は' + zangyoCol_(theCol) + '列）');
+      lines.push('　　入っている式（' + fN + '人）：' + theFormula);
 
-    // --- 3) その行に式が無い人をさがす ---
-    var missing = [];
-    for (var b = 0; b < people.length; b++) {
-      var pr = null;
-      for (var h2 = 0; h2 < people[b].hits.length; h2++) {
-        if (people[b].hits[h2].row === payRow) { pr = people[b].hits[h2]; break; }
-      }
-      if (!pr) { missing.push({ p: people[b], why: payRow + '行目に見出しがありません' }); continue; }
-      if (pr.formula) { totalOk++; continue; }
-      if (pr.col && pr.col !== theCol) {
-        missing.push({ p: people[b], why: 'すでに ' + zangyoCol_(pr.col) + '列 に何か入っています' });
+      /* 式が人によって違うときは、多数決で書き込まない。
+         給与の金額そのものなので、どれが正しいかを機械が決めてはいけない。 */
+      var others = [];
+      for (var ok2 in info.forms) if (ok2 !== theFormula) others.push(ok2 + '（' + info.forms[ok2] + '人）');
+      if (others.length || Object.keys(info.cols).length > 1) {
+        if (others.length) {
+          lines.push('　　★ 別の式を使っている人がいます：' + others.slice(0, 5).join(' / '));
+        } else {
+          lines.push('　　★ 金額の列が人によって違います。');
+        }
+        lines.push('　　★ どれが正しいか決められないので、写しません。人が確かめてください。');
+        totalOk += fN;
+        totalLeft += people.length - fN;
         continue;
       }
-      missing.push({ p: people[b], hit: pr });
-    }
-    lines.push('　人数 ' + people.length + '／式あり ' + (people.length - missing.length)
-      + '／式なし ' + missing.length);
-
-    if (theFormula.indexOf('!') >= 0) {
-      lines.push('　★ この式は他のシートを指しているので、写しません（取り違えるため）');
-      totalLeft += missing.length;
-      continue;
-    }
-
-    for (var m = 0; m < missing.length; m++) {
-      var me = missing[m];
-      if (me.why) {
-        lines.push('　★ ' + me.p.name + ' は写せません：' + me.why);
-        totalLeft++;
+      if (theFormula.indexOf('!') >= 0) {
+        lines.push('　　★ この式は他のシートを指しているので、写しません（取り違えるため）');
+        totalOk += fN;
+        totalLeft += people.length - fN;
         continue;
       }
-      if (dryRun) {
-        lines.push('　・' + me.p.name + '（' + payRow + '行目 ' + zangyoCol_(theCol) + '列）に入れます');
-      } else {
-        me.p.sheet.getRange(payRow, theCol).setFormula(theFormula);
-        lines.push('　・' + me.p.name + '（' + payRow + '行目 ' + zangyoCol_(theCol) + '列）に入れました');
-        totalFixed++;
+      totalOk += fN;
+
+      // この行に式が無い人をさがす
+      for (var b = 0; b < people.length; b++) {
+        var mine = null;
+        for (var h2 = 0; h2 < people[b].hits.length; h2++) {
+          if (people[b].hits[h2].row === payRow) { mine = people[b].hits[h2]; break; }
+        }
+        if (mine && mine.formula) continue;                       // 入っている
+        if (!mine) {
+          lines.push('　　★ ' + people[b].name + ' は ' + payRow + '行目に見出しがありません');
+          totalLeft++;
+          continue;
+        }
+        if (mine.col && mine.col !== theCol) {
+          lines.push('　　★ ' + people[b].name + ' は すでに ' + zangyoCol_(mine.col) + '列 に何か入っています');
+          totalLeft++;
+          continue;
+        }
+        if (dryRun) {
+          lines.push('　　・' + people[b].name + ' に入れます');
+        } else {
+          people[b].sheet.getRange(payRow, theCol).setFormula(theFormula);
+          lines.push('　　・' + people[b].name + ' に入れました');
+          totalFixed++;
+        }
       }
     }
   }
