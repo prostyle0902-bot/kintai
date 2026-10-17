@@ -218,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-15a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-17a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -712,7 +712,36 @@ function setTrialUnit(u) {
 }
 
 function setF(k, v) { F[k] = v; }
-function setKind(k) { F.kind = k; applyContractDefaults(); renderNew(); }
+/* 単価の種類。社員は月給、パートは時給か日給。
+   社員の雇用契約書には月給を書く必要があるのに、ここが時給・日給しか
+   無かったので、社員の契約書だけ入社登録アプリから作れなかった。 */
+const PAY_KINDS = [
+  { v: 'hourly',  label: '時給', unit: '時給', hint: '千葉県の最低賃金を下回っていないか確認してください。' },
+  { v: 'daily',   label: '日給', unit: '日給', hint: '1日いくらで払う方に使います。' },
+  { v: 'monthly', label: '月給', unit: '月給', hint: 'ひと月いくらで払う方（社員）に使います。' },
+];
+function payKindOf(v) {
+  return PAY_KINDS.some(function (x) { return x.v === v; }) ? v : 'hourly';
+}
+function payUnit(v) {
+  const k = PAY_KINDS.find(function (x) { return x.v === payKindOf(v); });
+  return k ? k.unit : '時給';
+}
+// 月給の人は、パートの出勤簿（給与一覧）には入れない。作りが時給前提のため
+function isMonthly(r) { return payKindOf(r && r.payKind) === 'monthly'; }
+
+/* 区分を変えると、単価の種類も、ふつうのほうへ寄せる。
+   社員にしたのに時給のまま、という取り違えを防ぐ。 */
+function setKind(k) {
+  const was = F.kind;
+  F.kind = k;
+  if (was !== k) {
+    if (k === 'staff' && F.payKind !== 'monthly') { F.payKind = 'monthly'; F.kyuyo = false; }
+    if (k !== 'staff' && F.payKind === 'monthly') { F.payKind = 'hourly'; }
+  }
+  applyContractDefaults();
+  renderNew();
+}
 function setJoinedAt(v) {
   const wasAuto = (F.contractEnd === oneYearLater(F.joinedAt)) || !F.contractEnd;
   F.joinedAt = v;
@@ -849,7 +878,7 @@ function renderNew() {
   /* 試用期間中の単価。本採用と違うときだけ入れる。
      空（0）なら、試用期間中もずっと上の単価で払う。 */
   function trialRateField() {
-    const kindTxt = (F.payKind === 'daily' ? '日給' : '時給');
+    const kindTxt = payUnit(F.payKind);
     const tEnd = trialEnd({ joinedAt: F.joinedAt, trialMonths: F.trialMonths, trialDays: F.trialDays });
     if (!tEnd) {
       return '<div class="field"><label>試用期間中の' + kindTxt + '</label>'
@@ -877,11 +906,14 @@ function renderNew() {
     + 'まだ決まっていなければ空欄のままでも登録できます（あとから名簿で入れられます）。</div>'
     + '<div class="grid2">'
     + '<div class="field"><label>単価</label><div class="inline">'
-    + '<span class="chip' + (F.payKind === 'hourly' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'hourly\')">時給</span>'
-    + '<span class="chip' + (F.payKind === 'daily' ? ' on' : '') + '" onclick="setFRender(\'payKind\',\'daily\')">日給</span>'
+    + PAY_KINDS.map(function (k) {
+        return '<span class="chip' + (payKindOf(F.payKind) === k.v ? ' on' : '')
+          + '" onclick="setFRender(\'payKind\',\'' + k.v + '\')">' + k.label + '</span>';
+      }).join('')
     + '<input type="number" min="0" step="1" style="width:120px" value="' + (F.payRate || '')
-    + '" placeholder="例：1200" onchange="setF(\'payRate\',+this.value||0)" /> 円</div>'
-    + '<div class="hint">' + (F.payKind === 'daily' ? '1日いくらで払う方に使います。' : '千葉県の最低賃金を下回っていないか確認してください。')
+    + '" placeholder="' + (payKindOf(F.payKind) === 'monthly' ? '例：250000' : '例：1200')
+    + '" onchange="setF(\'payRate\',+this.value||0)" /> 円</div>'
+    + '<div class="hint">' + PAY_KINDS.find(function (k) { return k.v === payKindOf(F.payKind); }).hint
     + '　<b>試用期間が終わったあと</b>の単価です。</div></div>'
     + trialRateField()
     + '<div class="field"><label>通勤手当</label><div class="chip-row" style="margin-bottom:8px">'
@@ -1104,7 +1136,7 @@ async function submitNew() {
     kind: F.kind, name: F.name.trim(), kana: F.kana.trim(), dept: dept,
     storeIds: F.storeIds.join(','), shiftName: F.shiftName.trim(),
     kyuyoName: F.kyuyoName.trim(),
-    payKind: F.payKind === 'daily' ? 'daily' : 'hourly',
+    payKind: payKindOf(F.payKind),
     payRate: F.payRate, commute: F.commuteKind === 'none' ? 0 : F.commute,
     commuteKind: F.commuteKind,
     locs: JSON.stringify(locsFromSites()),
@@ -1199,6 +1231,12 @@ async function submitNew() {
    「作った」「合わせた」「できなかった」をはっきり出す。 */
 function payrollDoneHtml(rec) {
   const sids = storeIdsOf(rec);
+  if (isMonthly(rec)) {
+    return '<div class="alert info" style="margin-top:1.25rem">'
+      + '<b>月給の方なので、パートの給与一覧には入れていません。</b><br />'
+      + '社員の勤怠・給与は <b>kintai_年月</b> のスプレッドシートで見ます。'
+      + 'こちらの名簿は、雇用契約書と打刻アプリのために使います。</div>';
+  }
   if (!rec.kyuyo) return '';
   if (!sids.length) {
     return '<div class="alert info" style="margin-top:1.25rem">'
@@ -1285,7 +1323,9 @@ function doneHtml(rec) {
   } else {
     h += '<li>シフト作成 … 現場を選んでいないため追加していません</li>';
   }
-  h += '<li>出勤簿（給与）への転記 … ' + (rec.kyuyo ? '対象にしました' : '対象外です') + '</li>';
+  h += '<li>出勤簿（給与）への転記 … '
+    + (isMonthly(rec) ? '月給の方なので対象外です（社員は kintai_年月 で見ます）'
+       : rec.kyuyo ? '対象にしました' : '対象外です') + '</li>';
   h += '</ul>';
 
   // 給与一覧（出勤簿）に何をしたか
@@ -1588,7 +1628,7 @@ async function openEdit(id) {
   F.days = String(r.days || '0,1,2,3,4,5,6').split(',').filter(function (x) { return x !== ''; }).map(Number);
   if (!F.days.length) F.days = [0,1,2,3,4,5,6];
   F.shiftName = r.shiftName || ''; F.kyuyoName = r.kyuyoName || ''; F.note = r.note || '';
-  F.payKind = r.payKind === 'daily' ? 'daily' : 'hourly';
+  F.payKind = payKindOf(r.payKind);
   F.payRate = +r.payRate || 0;
   F.commute = +r.commute || 0;
   F.commuteKind = (r.commuteKind === 'daily' || r.commuteKind === 'monthly') ? r.commuteKind : 'none';
@@ -2431,7 +2471,7 @@ function contractVars(r) {
       ? ('採用日から ' + trialLabel(r)
          + (trialEnd(r) ? '（' + jpDate(trialEnd(r)) + ' まで）' : '')
          + (trialRateOf(r)
-             ? '　この期間中の' + (r.payKind === 'daily' ? '日給' : '時給')
+             ? '　この期間中の' + payUnit(r.payKind)
                + 'は ' + yen(trialRateOf(r)) + '。ほかの労働条件は本契約と同じ'
              : '　この期間中の労働条件は本契約と同じ'))
       : 'なし',
@@ -2446,7 +2486,7 @@ function contractVars(r) {
     '所定時間外労働': r.overtime ? '有' : '無',
     '休日': holiday,
 
-    '賃金': (r.payKind === 'daily' ? '日給 ' : '時給 ') + yen(r.payRate)
+    '賃金': payUnit(r.payKind) + ' ' + yen(r.payRate)
       + (trialRateOf(r)
           ? '（試用期間中は ' + yen(trialRateOf(r)) + '。'
             + jpDate(trialSwitchDay(r)) + ' から ' + yen(r.payRate) + '）'
@@ -2667,6 +2707,10 @@ async function sendImport(recs) {
    支払いの済んだ過去の期間と、出勤・退勤の記録には触らない。 */
 async function autoPayroll(rec) {
   if (!rec || !rec.kyuyo || !rec.payRate) return null;   // 給与の対象外、または単価が未設定
+  /* 月給の人（社員）は、パートの出勤簿には入れない。
+     あちらは時給・日給で計算する作りなので、月額をそのまま入れると
+     「時給250,000円」になってしまう。社員は kintai_YYYYMM のほうで見る。 */
+  if (isMonthly(rec)) return { status: 'monthly' };
   const sids = storeIdsOf(rec);
   try {
     const res = await apiPost({
@@ -2710,7 +2754,7 @@ function kyuyoMates(rec) {
   const me = rec.kyuyoName || rec.name;
   const out = [];
   STAFF.forEach(function (r) {
-    if (!isActive(r) || !r.kyuyo) return;
+    if (!isActive(r) || !r.kyuyo || isMonthly(r)) return;
     const nm = r.kyuyoName || r.name;
     if (nm === me || r.id === rec.id) return;
     if (!storeIdsOf(r).some(function (x) { return sids.indexOf(x) >= 0; })) return;
@@ -2734,7 +2778,7 @@ function kyuyoMates(rec) {
 function kyuyoGroupMap() {
   const m = {};
   STAFF.forEach(function (r) {
-    if (!isActive(r) || !r.kyuyo) return;
+    if (!isActive(r) || !r.kyuyo || isMonthly(r)) return;
     const sids = storeIdsOf(r);
     if (!sids.length) return;
     const g = kyuyoGroup(sids[0]);
@@ -3062,7 +3106,7 @@ function paidShort(r) {
 
 // 単価の出し方（画面に出す用）
 function rateText(r) {
-  const kindTxt = (r.payKind === 'daily' ? '日給 ' : '時給 ');
+  const kindTxt = payUnit(r.payKind) + ' ';
   let pay = kindTxt + Number(r.payRate || 0).toLocaleString() + '円';
   const tr = trialRateOf(r);
   if (tr) {
