@@ -35,8 +35,16 @@ var ZANGYO_FILE_PREFIX = 'kintai_';
    この文字が名前に含まれるシートは見ません。 */
 var ZANGYO_SKIP = ['給与一覧', '_時刻リスト', 'SS_ID管理', 'シート'];
 
-/* さがす行の名前。「残業手当」のほか、書き方のゆれも拾う。 */
-var ZANGYO_LABELS = ['残業手当', '時間外手当', '割増手当'];
+/* さがす行の名前。書き方のゆれを拾えるよう、部分一致で見る。
+   見つからないときは、checkZangyo がそのシートの中身を出すので、
+   そこに出た言葉をここに足してください。 */
+var ZANGYO_LABELS = ['残業手当', '時間外手当', '時間外労働手当', '割増手当', '割増賃金', '残業', '時間外'];
+
+/* 上の言葉が入っていても、残業手当の行ではないもの。
+   ・日ごとの表の見出し（「残業(h)」など）
+   ・深夜手当・休日手当（別の手当なので、取り違えると金額が狂う）
+   「深夜割増」を残業手当と間違えないために、ここが要ります。 */
+var ZANGYO_NOT = ['(h)', '（h）', '時間数', '合計時間', '深夜', '休日', '法定休'];
 
 
 /* =========================================================
@@ -70,6 +78,7 @@ function zangyoRun_(dryRun) {
   lines.push('見つかったファイル：' + files.length + '件');
 
   var totalOk = 0, totalFixed = 0, totalLeft = 0;
+  var dumped = false;
 
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
@@ -89,7 +98,20 @@ function zangyoRun_(dryRun) {
       if (!info) continue;                       // 残業手当の行が無いシート
       people.push(info);
     }
-    if (!people.length) { lines.push('　残業手当の行があるシートがありません。'); continue; }
+    if (!people.length) {
+      lines.push('　残業手当の行があるシートがありません。');
+      /* どう書いてあるのか分からないと直しようがないので、
+         1枚目の人のシートの中身をそのまま出す。
+         ここに出た言葉を ZANGYO_LABELS に足せば、次から見つかる。 */
+      if (!dumped) {
+        var one = null;
+        for (var d = 0; d < sheets.length; d++) {
+          if (!zangyoSkip_(sheets[d].getName())) { one = sheets[d]; break; }
+        }
+        if (one) { lines.push(zangyoDump_(one)); dumped = true; }
+      }
+      continue;
+    }
 
     // --- 2) 見本になる人（計算式が入っている人）を集める ---
     var haveFormula = people.filter(function (p) { return p.formula; });
@@ -196,7 +218,12 @@ function zangyoFind_(sheet) {
     var hit = -1;
     for (var c = 0; c < lastCol; c++) {
       var v = String(vals[r][c] || '').trim();
-      if (!v) continue;
+      if (!v || v.length > 20) continue;              // 長い説明文は見出しではない
+      var bad = false;
+      for (var N = 0; N < ZANGYO_NOT.length; N++) {
+        if (v.indexOf(ZANGYO_NOT[N]) >= 0) { bad = true; break; }
+      }
+      if (bad) continue;
       for (var L = 0; L < ZANGYO_LABELS.length; L++) {
         if (v.indexOf(ZANGYO_LABELS[L]) >= 0) { hit = c; break; }
       }
@@ -227,4 +254,52 @@ function zangyoCol_(n) {
   var s = '';
   while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; }
   return s;
+}
+
+
+/* 1枚のシートに何が書いてあるかを、そのまま出す（読むだけ）。
+   「残業手当」がどう書かれているのか分からないときに使う。
+   文字が入っているセルだけを、場所つきで並べる。 */
+function zangyoDump_(sheet) {
+  var lastRow = Math.min(sheet.getLastRow(), 80);
+  var lastCol = Math.min(sheet.getLastColumn(), 14);
+  if (lastRow < 1 || lastCol < 1) return '　（中身がありません）';
+
+  var vals = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  var fs   = sheet.getRange(1, 1, lastRow, lastCol).getFormulas();
+  var out = ['　── ' + sheet.getName() + ' の中身（' + lastRow + '行 × ' + lastCol + '列）──'];
+
+  for (var r = 0; r < lastRow; r++) {
+    var cells = [];
+    for (var c = 0; c < lastCol; c++) {
+      var f = fs[r][c];
+      var v = vals[r][c];
+      if (f) { cells.push(zangyoCol_(c + 1) + (r + 1) + '=' + f); continue; }
+      if (v === '' || v === null) continue;
+      var t = String(v);
+      if (t.length > 28) t = t.slice(0, 28) + '…';
+      cells.push(zangyoCol_(c + 1) + (r + 1) + ':' + t);
+    }
+    if (cells.length) out.push('　' + cells.join('  '));
+  }
+  out.push('　── ここまで ──');
+  out.push('　※この中の「残業」にあたる言葉を、上の ZANGYO_LABELS に足してください。');
+  return out.join('\n');
+}
+
+/* 1枚だけ中身を見たいとき用。シート名を書いて実行する。 */
+function dumpOne() {
+  var NAME = '石毛貴英';                       // ← 見たい人の名前に変える
+  var files = zangyoFiles_();
+  for (var i = 0; i < files.length; i++) {
+    var ss = SpreadsheetApp.openById(files[i].getId());
+    var sh = ss.getSheetByName(NAME);
+    if (!sh) continue;
+    var msg = '【' + ss.getName() + '】\n' + zangyoDump_(sh);
+    Logger.log(msg);
+    return msg;
+  }
+  var msg2 = NAME + ' のシートが見つかりませんでした。';
+  Logger.log(msg2);
+  return msg2;
 }
