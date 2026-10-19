@@ -140,6 +140,7 @@
             退勤
           </button>
         </div>
+        <div id="status-msg" style="display:none;font-size:12.5px;line-height:1.7;text-align:center;margin:-0.25rem 0 0.75rem;color:var(--text-secondary);"></div>
         <div class="status-box">
           <div class="status-row"><span>本日の出勤</span><span id="st-in">未打刻</span></div>
           <div class="status-row"><span>本日の退勤</span><span id="st-out">未打刻</span></div>
@@ -378,39 +379,66 @@
         badge.textContent = emp.dept;
         badge.className = 'dept-badge dept-' + emp.dept;
         todayIn = null; todayOut = null; prevDayNoOut = false; crossDayDate = null;
-        document.getElementById('btn-in').disabled = false;
-        document.getElementById('btn-out').disabled = false;
         updateStatus();
         showScreen('screen-punch');
-
-        // ★ 業務日付を取得（0〜4時なら前日）
-        businessDateStr = getDateStr(getBusinessDate());
-
-        fetch(GAS_URL, {
-          method: 'POST', mode: 'cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'getStatus', name: emp.name, date: businessDateStr }),
-        })
-        .then(r => r.json())
-        .then(res => {
-          if (res.status === 'ok') {
-            if (res.inTime)  { todayIn  = res.inTime;  document.getElementById('btn-in').disabled  = true; }
-            if (res.outTime) { todayOut = res.outTime; document.getElementById('btn-out').disabled = true; }
-            prevDayNoOut = res.prevDayNoOut || false;
-            if (res.crossDay && !res.inTime) {
-              crossDayDate = res.crossDayDate;
-              document.getElementById('btn-in').disabled  = true;
-              document.getElementById('btn-out').disabled = false;
-            }
-            updateStatus();
-          }
-        })
-        .catch(() => {});
+        loadStatus();
       } else {
         document.getElementById('pin-error').textContent = 'PINコードが違います';
         pinBuffer = '';
         updateDots();
       }
+    }
+
+    /* 今日の打刻と「前日の退勤が抜けていないか」を確かめる。
+       確かめ終わるまでは出勤・退勤を押せないようにする
+       （返事の前に出勤を押すと、退勤忘れのチェックをすり抜けてしまうため）。 */
+    function loadStatus() {
+      const emp = currentEmp;
+      document.getElementById('btn-in').disabled  = true;
+      document.getElementById('btn-out').disabled = true;
+      setStatusMsg('打刻の状況を確認しています…');
+
+      // ★ 業務日付を取得（0〜4時なら前日）
+      businessDateStr = getDateStr(getBusinessDate());
+
+      fetch(GAS_URL, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'getStatus', name: emp.name, date: businessDateStr }),
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (currentEmp !== emp) return;          // 確認中にログアウトした
+        if (res.status !== 'ok') throw new Error(res.message || '');
+        if (res.inTime)  todayIn  = res.inTime;
+        if (res.outTime) todayOut = res.outTime;
+        prevDayNoOut = res.prevDayNoOut || false;
+        document.getElementById('btn-in').disabled  = !!todayIn;
+        document.getElementById('btn-out').disabled = !!todayOut;
+        if (res.crossDay && !res.inTime) {
+          crossDayDate = res.crossDayDate;
+          document.getElementById('btn-in').disabled  = true;
+          document.getElementById('btn-out').disabled = false;
+        }
+        updateStatus();
+        if (prevDayNoOut && !todayIn) {
+          setStatusMsg('⚠️ 前日の退勤が記録されていません。<br>出勤の前に「打刻忘れ申請」で退勤時刻を申請してください。', true);
+        } else {
+          setStatusMsg('');
+        }
+      })
+      .catch(() => {
+        if (currentEmp !== emp) return;
+        setStatusMsg('打刻の状況を確認できませんでした。電波を確認して<br>'
+          + '<button onclick="loadStatus()" style="margin-top:6px;padding:6px 14px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#fff;font-size:13px;cursor:pointer;">もう一度確認する</button>', true);
+      });
+    }
+
+    function setStatusMsg(html, warn) {
+      const el = document.getElementById('status-msg');
+      el.innerHTML = html;
+      el.style.display = html ? 'block' : 'none';
+      el.style.color = warn ? 'var(--text-danger, #a32d2d)' : 'var(--text-secondary)';
     }
 
     function showScreen(id) {
@@ -439,8 +467,8 @@
         }
       }
       if (type === '出勤' && prevDayNoOut) {
-        alert('⚠️ 前日の退勤が記録されていません。\n打刻忘れ申請をしてください。');
-        showApply(); return;
+        alert('⚠️ 前日の退勤が記録されていません。\n先に退勤時刻の打刻忘れ申請をしてください。');
+        showApply('退勤'); return;
       }
 
       const allowedLocs = currentEmp.locs;
@@ -547,8 +575,10 @@
       showScreen('screen-punch');
     }
 
-    function showApply() {
+    // forgotOut: 前日の退勤忘れで来たときは「退勤・前日」を最初から選んでおく
+    function showApply(forgotOut) {
       const d = getBusinessDate();
+      if (forgotOut === '退勤') d.setDate(d.getDate() - 1);
       const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
       document.getElementById('apply-date').value = y + '-' + m + '-' + day;
       document.getElementById('apply-note').value = '';
@@ -562,7 +592,7 @@
           sel.appendChild(opt);
         }
       }
-      selectApplyType('出勤');
+      selectApplyType(forgotOut === '退勤' ? '退勤' : '出勤');
       showScreen('screen-apply');
     }
 
@@ -628,6 +658,11 @@
         if (res.status !== 'ok') { alert('エラー: ' + res.message); return; }
         rememberApply(sig);
         document.getElementById('apply-note').value = '';
+        // 退勤忘れを申請したら、今日の出勤を押せるように戻す
+        if (applyType === '退勤' && prevDayNoOut) {
+          prevDayNoOut = false;
+          setStatusMsg('');
+        }
         alert('✅ 申請を送信しました');
         showPunch();
       })
@@ -641,6 +676,7 @@
     function logout() {
       currentEmp = null; pinBuffer = ''; todayIn = null; todayOut = null;
       prevDayNoOut = false; crossDayDate = null; businessDateStr = '';
+      setStatusMsg('');
       updateDots();
       document.getElementById('pin-error').textContent = '';
       showScreen('screen-pin');
