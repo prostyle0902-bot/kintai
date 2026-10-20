@@ -41,13 +41,31 @@ SCHEDULE = [
 ]
 
 
+# ★2026-10-20 ライズ（株式会社ライズ）。作業日が2025年4月〜2026年9月に散らばった請求書を、
+#   2026/11/10 から毎月10日に分けて払う（付箋「N/10払」）。フォルダ 2609月〜2705月 に1つずつ。
+#   利用者指示 2026-10-20「ライズは、その月の月末になったら、業務課に入れて」
+#   → フォルダの月の【月末が過ぎたら】、そのフォルダ月のタブの「10日」セクション・業務課列に入れる。
+#   （SCHEDULE は「月が来たら」、こちらは「月末が過ぎたら」＝翌月1日以降）
+_RISE = "22期/{f}/鳥害対策/ライズ.pdf"
+SCHEDULE_END = [
+    ("22期", m, "業務", "ライズ", a, "10日", "/※請求書※/買掛/" + _RISE.format(f=f))
+    for m, f, a in [
+        (9, "2609月", 663300), (10, "2610月", 356400), (11, "2611月", 413160),
+        (12, "2612月", 328900), (1, "2701月", 215600), (2, "2702月", 215600),
+        (3, "2703月", 215600), (4, "2704月", 215600), (5, "2705月", 107800),
+    ]
+]
+
+
 def _year(period, m):
     start = {"21期": 2025, "22期": 2026}[period]
     return start if m >= 9 else start + 1
 
 
 def due(today):
-    return [e for e in SCHEDULE if (today.year, today.month) >= (_year(e[0], e[1]), e[1])]
+    got = [e for e in SCHEDULE if (today.year, today.month) >= (_year(e[0], e[1]), e[1])]
+    got += [e for e in SCHEDULE_END if (today.year, today.month) > (_year(e[0], e[1]), e[1])]
+    return got
 
 
 def main():
@@ -57,7 +75,7 @@ def main():
     if "--today" in args:
         today = datetime.date.fromisoformat(args[args.index("--today") + 1])
     got = due(today)
-    later = [e for e in SCHEDULE if e not in got]
+    later = [e for e in SCHEDULE + SCHEDULE_END if e not in got]
     print(f"{today}: 月が来ているもの {len(got)} 件 ／ これから {len(later)} 件"
           + (f"（次は {later[0][1]}月 {later[0][3]}）" if later else ""), file=sys.stderr)
     if not got:
