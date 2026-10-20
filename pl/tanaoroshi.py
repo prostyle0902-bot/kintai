@@ -85,6 +85,8 @@ Python の round() は銀行丸めで 200,180 になるので使っていない�
      鳥害対策課  345,644 ＋ 371,940 ＝   717,584
 """
 
+import os
+
 MONTHS = ["9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月"]
 
 # ① 21期_棚卸し表（2025年8月31日の実地棚卸）＝ 21期の期首
@@ -272,6 +274,63 @@ GETSUJI22 = {
 }
 UPTO22 = "9月"   # ここまでの月を入れる（次の月末の棚卸表がそろったら進める）
 
+# 各店の月次棚卸表（Googleドライブの .xlsx）。read22() がサービスアカウントで読む。
+# ★十三里屋の「棚卸表_さわら十三里屋_20260831」（1XZ5gGE2Us0DlziyXl6Nq1yHgFmiy6qIpgk8X4pO8oHU）は
+#   サービスアカウントに共有されていない（403）。Sheetsコネクタでシート名と R3 を見る。
+FILES22 = {
+    "焼きたて屋":       "1fJPUbw3WNxtBtEiB8jOlYwqCsdO3-N75",
+    "タコとハイボール": "1y2Gc-c3PoLSkqngJT2bZVqWKKWF8UBdI",
+    "もも焼きJAPAN":   "1GHGnIXPrzt_KXVS9B4uDn5C0tFkulFII",
+    "りゅうちゃん":     "1B4QaxjQ2YUPmfBc9bOn9Jwx3NhrrqQ-J",
+    "韓国酒場ハナ":     "16M2TxUwFBvyH-Pye9En34esBs4bUmLko",
+}
+
+
+def _half_up(x):
+    import decimal
+    return int(decimal.Decimal(str(x)).quantize(decimal.Decimal("1"), rounding=decimal.ROUND_HALF_UP))
+
+
+def read22(ymd):
+    """各店の棚卸表から YYYYMMDD シートの合計を読む → {タブ: (四捨五入した値, R3の生の値) または None}
+
+    ★R3 は =J57+T57。別紙（ドリンク）は本紙の行として入っているので足さない。
+      念のため、別紙シート（YYYYMMDDd／YYYYMMDDドリンク…）がある店は、本紙に「別紙」の行があり
+      その金額が別紙の J57+T57 と一致することを確かめる。
+    """
+    import io
+    import openpyxl
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseDownload
+    from google.oauth2.service_account import Credentials
+    creds = Credentials.from_service_account_file(
+        os.environ["GOOGLE_SA_KEY_FILE"], scopes=["https://www.googleapis.com/auth/drive.readonly"])
+    dr = build("drive", "v3", credentials=creds, cache_discovery=False)
+    out = {}
+    for tab, fid in FILES22.items():
+        buf = io.BytesIO()
+        dl = MediaIoBaseDownload(buf, dr.files().get_media(fileId=fid, supportsAllDrives=True))
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+        wb = openpyxl.load_workbook(io.BytesIO(buf.getvalue()), data_only=True)
+        if ymd not in wb.sheetnames:
+            out[tab] = None
+            continue
+        ws = wb[ymd]
+        r3 = ws["R3"].value
+        assert isinstance(r3, (int, float)), (tab, ymd, "R3 が数値でない", r3)
+        for name in wb.sheetnames:
+            if name != ymd and name.startswith(ymd):
+                sub = wb[name]
+                v = (sub["J57"].value or 0) + (sub["T57"].value or 0)
+                hit = [row for row in ws.iter_rows(min_row=1, max_row=60)
+                       if any(isinstance(c.value, str) and "別紙" in c.value for c in row)]
+                assert any(abs((c.value or 0) - v) < 0.01 for row in hit for c in row
+                           if isinstance(c.value, (int, float))), (tab, name, "別紙の小計が本紙に無い")
+        out[tab] = (_half_up(r3), r3)
+    return out
+
 
 def rows22():
     """22期ぶん (タブ, PL行, 月, 金額, 元ファイル, メモ)"""
@@ -296,6 +355,14 @@ def rows22():
 
 
 if __name__ == "__main__":
+    import sys
+    if "--read" in sys.argv:
+        # GOOGLE_SA_KEY_FILE=/tmp/sa.json python3 tanaoroshi.py --read 20261031
+        ymd = sys.argv[sys.argv.index("--read") + 1]
+        for tab, v in read22(ymd).items():
+            print(f"{tab:<10} " + ("（まだシートが無い）" if v is None else f"{v[0]:>10,}   R3={v[1]}"))
+        print("★十三里屋は Sheetsコネクタで 1XZ5gGE2Us0DlziyXl6Nq1yHgFmiy6qIpgk8X4pO8oHU のシート名を見る")
+        sys.exit()
     import collections
     got = list(rows())
     by = collections.defaultdict(dict)
