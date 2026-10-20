@@ -332,6 +332,13 @@ def post_yokocho(bk):
         bk.add(tab, plrow, m, val, "横丁請求", src, note)
 
 
+def post_car(bk):
+    """業務課の車両費。ENEOS（給油）は利用月の列に税抜で（eneos.DATA22）"""
+    import eneos
+    for tab, plrow, m, val, src, note in eneos.rows22():
+        bk.add(tab, plrow, m, val, "ENEOS", src, note)
+
+
 # ---------------------------------------------------------------- ⑧ かめや（焼きたて屋本部）
 # 3点セット（合計精算書・合計請求書・インフォマート請求書）を kameya.DATA22 に起こしてある。
 # 売上（税込）・消費税は post_airregi（FC月間売上集計一覧表）が入れるので、ここでは一致だけ確かめる。
@@ -439,6 +446,7 @@ def build():
     post_payroll(bk)
     post_board(bk)
     post_yokocho(bk)
+    post_car(bk)
     post_sbpay(bk)
     post_kameya(bk)
     _comment(bk)
