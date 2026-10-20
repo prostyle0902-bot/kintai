@@ -894,19 +894,22 @@ def due(m, d=None):
     return (d.year, d.month) >= (y, mm)
 
 
-# 月末が過ぎてから入れるもの（2026-10-20 ライズ「その月の月末になったら」）
+# 月末の日に入れるもの（2026-10-20 ライズ「その月の月末になったら」）
 GETSUMATSU = {("業務課", "外注費（ライズ）")}
 
 
 def due_end(m, d=None):
-    """22期の『m』月の月末が過ぎたか（翌月1日以降か）"""
+    """22期の『m』月の月末の日（その月の最後の日）になったか。10月なら10/31から"""
+    import calendar
+    import datetime
     y, mm = _M22[m]
     d = d or today()
-    return (d.year, d.month) > (y, mm)
+    return d >= datetime.date(y, mm, calendar.monthrange(y, mm)[1])
 
 
 # 利用者 2026-10-20「減価償却費やその月の請求などは、毎月、月末に反映するようにした方がいいな」
-# → MAITSUKI も【月末が過ぎてから】（翌月1日から）入れる。
+#   →「その月の月末。10月なら10月30日」（＝翌月1日ではなく、その月の最後の日）
+# → MAITSUKI も GETSUMATSU と同じく【その月の月末の日から】入れる。
 #   ただし 9月・10月分はこの時点でもう Drive に入っていた（利用者の手入力も含む）ので、消さずにそのまま。
 MAITSUKI_ZUMI = {"9月", "10月"}
 
