@@ -905,8 +905,14 @@ def due_end(m, d=None):
     return (d.year, d.month) > (y, mm)
 
 
+# 利用者 2026-10-20「減価償却費やその月の請求などは、毎月、月末に反映するようにした方がいいな」
+# → MAITSUKI も【月末が過ぎてから】（翌月1日から）入れる。
+#   ただし 9月・10月分はこの時点でもう Drive に入っていた（利用者の手入力も含む）ので、消さずにそのまま。
+MAITSUKI_ZUMI = {"9月", "10月"}
+
+
 def _held(tab, plrow, m):
-    if (tab, plrow) in MAITSUKI and not due(m):
+    if (tab, plrow) in MAITSUKI and m not in MAITSUKI_ZUMI and not due_end(m):
         return True
     if (tab, plrow) in GETSUMATSU and not due_end(m):
         return True
