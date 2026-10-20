@@ -45,9 +45,9 @@ SCHEDULE = [
 # ★2026-10-20 ライズ（株式会社ライズ）。作業日が2025年4月〜2026年9月に散らばった請求書を、
 #   2026/11/10 から毎月10日に分けて払う（付箋「N/10払」）。フォルダ 2609月〜2705月 に1つずつ。
 #   利用者指示 2026-10-20「ライズは、その月の月末になったら、業務課に入れて」
-#   →「その月の月末。10月なら10月30日」
-#   → フォルダの月の【月末の日（その月の最後の日）から】、そのフォルダ月のタブの「10日」セクション・業務課列に入れる。
-#   （SCHEDULE は「月が来たら」、こちらは「その月の月末の日から」）
+#   →「その月の月末。10月なら10月30日」→「30日丁度に直して」
+#   → フォルダの月の【30日から】（2月だけは最後の日）、そのフォルダ月のタブの「10日」セクション・業務課列に入れる。
+#   （SCHEDULE は「月が来たら」、こちらは「その月の30日から」）
 _RISE = "22期/{f}/鳥害対策/ライズ.pdf"
 SCHEDULE_END = [
     ("22期", m, "業務", "ライズ", a, "10日", "/※請求書※/買掛/" + _RISE.format(f=f))
@@ -64,13 +64,13 @@ def _year(period, m):
     return start if m >= 9 else start + 1
 
 
-def _last_day(y, m):
-    return datetime.date(y, m, calendar.monthrange(y, m)[1])
+def _day30(y, m):
+    return datetime.date(y, m, min(30, calendar.monthrange(y, m)[1]))
 
 
 def due(today):
     got = [e for e in SCHEDULE if (today.year, today.month) >= (_year(e[0], e[1]), e[1])]
-    got += [e for e in SCHEDULE_END if today >= _last_day(_year(e[0], e[1]), e[1])]
+    got += [e for e in SCHEDULE_END if today >= _day30(_year(e[0], e[1]), e[1])]
     return got
 
 
