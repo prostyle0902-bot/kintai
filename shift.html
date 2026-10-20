@@ -705,7 +705,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-09-30b';
+const APP_VER = '2026-10-20a';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -2666,7 +2666,8 @@ function addStore() {
     holidayAsWeekend: true, openOnClosedHoliday: false, maxConsecutive: 5,
     periodStartDay: store().periodStartDay, configured: true, staff: [],
   };
-  DB.stores.push(s); DB.activeStoreId = s.id; saveDB(); renderAll();
+  DB.stores.push(s); DB.activeStoreId = s.id;
+  addMySite(s.id); saveDB(); renderAll();
 }
 function duplicateStore() {
   const name = prompt('複製先の店舗・現場名を入力してください', store().name + ' のコピー');
@@ -2675,7 +2676,8 @@ function duplicateStore() {
   c.id = 's_' + Math.random().toString(36).slice(2, 9);
   c.name = name.trim();
   c.staff.forEach(u => { u.id = 'u_' + Math.random().toString(36).slice(2, 9); });
-  DB.stores.push(c); DB.activeStoreId = c.id; saveDB(); renderAll();
+  DB.stores.push(c); DB.activeStoreId = c.id;
+  addMySite(c.id); saveDB(); renderAll();
 }
 function deleteStore() {
   if (DB.stores.length <= 1) { alert('店舗が1つしかないため削除できません。'); return; }
@@ -2685,7 +2687,8 @@ function deleteStore() {
   [DB.requests, DB.shifts, DB.dayOverrides].forEach(map => {
     Object.keys(map).forEach(k => { if (k.indexOf(id + '|') === 0) delete map[k]; });
   });
-  DB.activeStoreId = DB.stores[0].id;
+  const rest = myStores();
+  DB.activeStoreId = (rest.length ? rest[0] : DB.stores[0]).id;
   saveDB(); renderAll();
 }
 
@@ -2716,7 +2719,7 @@ function renderAllSites() {
   let h = '<table><thead><tr>'
     + '<th class="col-name">店舗・現場</th><th>設定</th><th>スタッフ</th><th>期間</th>'
     + '<th>営業日</th><th>のべ必要</th><th>シフト</th><th>不足</th><th></th></tr></thead><tbody>';
-  DB.stores.forEach(function (st) {
+  myStores().forEach(function (st) {
     const s = siteSummary(st);
     const isCur = st.id === DB.activeStoreId;
     h += '<tr' + (isCur ? ' style="background:#f7fafc"' : '') + '>';
@@ -2750,9 +2753,9 @@ function gotoStore(id) {
 }
 
 function generateAll() {
-  const targets = DB.stores.filter(function (st) { return st.configured && st.staff.some(function (u) { return u.active; }); });
+  const targets = myStores().filter(function (st) { return st.configured && st.staff.some(function (u) { return u.active; }); });
   if (!targets.length) { alert('確認済みでスタッフのいる現場がありません。'); return; }
-  const skipped = DB.stores.length - targets.length;
+  const skipped = myStores().length - targets.length;
   if (!confirm(targets.length + ' 現場のシフトを自動作成します。\n'
     + '（未設定・スタッフ未登録の ' + skipped + ' 現場はとばします）\n'
     + '作成済みのシフトは上書きされます。よろしいですか？')) return;
@@ -2810,7 +2813,7 @@ function exportCsv() {
 
 // 転記用：1行 = 1人の1日の出勤（シフト管理アプリなどへの取り込み向け）
 function exportTransferCsv(currentOnly) {
-  const targets = currentOnly ? [store()] : DB.stores;
+  const targets = currentOnly ? [store()] : myStores();
   const rows = [['日付', '曜日', '祝日', '店舗・現場', '氏名', 'パターン', '開始', '終了', '休憩(分)']];
   let count = 0;
 
@@ -3544,7 +3547,7 @@ function resendKyuyo() {
   runTransfer([store()], currentYM).finally(function () { forceKyuyo = false; });
 }
 function transferAll() {
-  runTransfer(DB.stores.filter(function (st) { return st.configured; }), currentYM);
+  runTransfer(myStores().filter(function (st) { return st.configured; }), currentYM);
 }
 
 // 1件だけ送って連携を確かめる
@@ -4180,7 +4183,7 @@ function showTab(btn) {
 }
 
 function renderStoreSelect() {
-  document.getElementById('store-select').innerHTML = DB.stores.map(function (s) {
+  document.getElementById('store-select').innerHTML = myStores().map(function (s) {
     return '<option value="' + s.id + '"' + (s.id === DB.activeStoreId ? ' selected' : '') + '>'
       + esc(s.name) + (s.configured ? '' : '（未設定）') + '</option>';
   }).join('');
@@ -4691,6 +4694,9 @@ function onStoreChange() { DB.activeStoreId = document.getElementById('store-sel
 function onMonthChange() { currentYM = document.getElementById('month-input').value || todayYM(); renderAll(); }
 
 function renderAll() {
+  /* 共有から読み直したあとは、前に開いた人の現場になっていることがある。
+     受け持ちのある人には、その外の現場を出さない。 */
+  fixActiveStore();
   renderStoreSelect();
   document.getElementById('month-input').value = currentYM;
   document.getElementById('period-badge').textContent = periodLabel();
@@ -4716,14 +4722,51 @@ const GATE_LS   = 'prostyle_shift_login';
 const GATE_DAYS = 14;
 
 /* このアプリを開ける人。入社登録アプリとは別に持つ
-   （あちらには単価や住所が入っているので、同じ権限にはしない）。 */
+   （あちらには単価や住所が入っているので、同じ権限にはしない）。
+
+   sites を書くと、その現場だけが見えるようになる（自分の受け持ちだけ）。
+   書かなければ、これまでどおり全部の現場が見える。
+   ここは「見やすさ」のための仕切りで、鍵ではない。画面の中身を書き換えれば
+   回り込めるので、見せたくない情報を置く場所にはしないこと。 */
 const ACCOUNTS = [
   { id: 'sakae', name: '飯田栄（社長）', hash: '84b12b7d46b64b0ea460d67321c37c45ff08bae5fa0a457190a475274372b35b' },
   { id: 'akiko', name: '花見朗子', hash: 'ff96ae88e522c3af7d769298c3ed4a2d557e87857c651c4e05f75f9a8fea2cd7' },
   { id: 'junko', name: '飯田純子', hash: '41c259d14a28ba3358d5c06d59e68cd9ee778bd3540064bce2a420d173a74635' },
   { id: 'fuseda', name: '伏田幸枝', hash: '973c1bb3c8f548c8ca0070d35565895cd1d09c219ce11559cafaad4327189421' },
   { id: 'takumi', name: '石毛拓海', hash: 'b94a231a94d3407e9413442bf84c537e1bf5f3c64d854011943363bfcc081f50' },
+  // 受け持ちの現場だけを見る人
+  { id: 'rena', name: '宮川玲奈', hash: '1f0b569ffbc61ace3285d2a237436ae1b8f7f1c5d3ac5f058f000208ef264bfb',
+    sites: ['s_takohai', 's_hana'] },
+  { id: 'ishii', name: '石井義則', hash: '30c3178bbe4315956b846f3220a901a262ba2690834fa54b0555f12adbd18af0',
+    sites: ['s_bussing'] },
 ];
+
+/* いま開いている人の受け持ち。空なら全部。
+   ログインのたびに覚え直すのではなく、ACCOUNTS を引き直す。
+   受け持ちを変えたとき、入り直さなくても次に開けば効くようにするため。 */
+let MY_SITES = null;
+function setMySites(id) {
+  const a = ACCOUNTS.find(function (x) { return x.id === id; });
+  MY_SITES = (a && a.sites && a.sites.length) ? a.sites.slice() : null;
+}
+function canSeeStore(id) { return !MY_SITES || MY_SITES.indexOf(id) >= 0; }
+/* この画面で新しく作った現場は、受け持ちに足す。
+   そうしないと、作ったとたんに自分の一覧から消えてしまう。
+   次に入り直すと ACCOUNTS のとおりに戻るので、ずっと見せたいときは
+   ACCOUNTS の sites に足してください。 */
+function addMySite(id) { if (MY_SITES && MY_SITES.indexOf(id) < 0) MY_SITES.push(id); }
+// 画面に出す現場。受け持ちのある人には、その現場だけ
+function myStores() {
+  return DB.stores.filter(function (s) { return canSeeStore(s.id); });
+}
+/* 受け持ちの外の現場を開いていたら、受け持ちの先頭に移す。
+   前に開いた人の続きから始まるので、そのままだと他所の現場が出てしまう。 */
+function fixActiveStore() {
+  if (!MY_SITES) return;
+  if (canSeeStore(DB.activeStoreId)) return;
+  const mine = myStores();
+  if (mine.length) DB.activeStoreId = mine[0].id;
+}
 
 /* 日本語入力のまま打つと英数字が全角になることがある。
    貼り付けたときの前後の空白も含めて、半角に直してから確かめる。 */
@@ -4764,6 +4807,13 @@ function renderWho() {
   const el = document.getElementById('who');
   if (!el) return;
   let h = esc(ME) + ' <button class="btn sm ghost" onclick="gateLogout()">ログアウト</button>';
+  /* 受け持ちのある人には、何を受け持っているかを出す。
+     ほかの現場が見えないのを「出てこない」と思わせないため。 */
+  if (MY_SITES) {
+    const names = myStores().map(function (s2) { return s2.name; });
+    h += '<span style="margin-left:.6rem">受け持ち：<b>'
+      + esc(names.length ? names.join('・') : '（ありません）') + '</b></span>';
+  }
   if (DB.lastBy) {
     h += '<span style="margin-left:.6rem">最後に直した人：<b>' + esc(DB.lastBy) + '</b>'
       + (DB.lastAt ? '　' + esc(DB.lastAt) : '') + '</span>';
@@ -4773,6 +4823,7 @@ function renderWho() {
 
 function startApp(who) {
   ME = who.name;
+  setMySites(who.id);
   const g = document.getElementById('gate');
   if (g) g.remove();
 
