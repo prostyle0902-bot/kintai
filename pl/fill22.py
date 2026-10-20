@@ -333,10 +333,13 @@ def post_yokocho(bk):
 
 
 def post_car(bk):
-    """業務課の車両費。ENEOS（給油）は利用月の列に税抜で（eneos.DATA22）"""
+    """業務課の車両費。ENEOS（給油）・陸事総合（ETC高速代）とも利用月の列に税抜で（eneos／rikuji の DATA22）"""
     import eneos
+    import rikuji
     for tab, plrow, m, val, src, note in eneos.rows22():
         bk.add(tab, plrow, m, val, "ENEOS", src, note)
+    for tab, plrow, m, val, src, note in rikuji.rows22():
+        bk.add(tab, plrow, m, val, "陸事総合", src, note)
 
 
 # ---------------------------------------------------------------- ⑧ かめや（焼きたて屋本部）

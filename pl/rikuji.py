@@ -181,6 +181,34 @@ def check():
     return True
 
 
+# ---------------------------------------------------------------- 22期
+# 2026-10-20 ★毎月ここに入れる/99_ に CP請求鑑_202609.csv（9月利用）だけ来た。請求書PDFはまだ無い。
+# 利用者「業務課の陸自総合に入れて」→ CSVの合計（ETC分）で入れる。
+# 課税対象額は「課税＋課税の10%切り捨て＝総額」になる額（請求書と同じ割り方。7月・8月で確認済み）。
+# ★請求書PDFが届いて総額が違ったら、ここを直して利用者に知らせる（21期は11か月中2か月ずれた）。
+# PL月: (ご請求金額（税込）, 振替日, 元ファイル)
+DATA22 = {
+    "9月": (87421, "2026/11 上旬（請求書未着）", "0000042400_高速_CP請求鑑_202609.csv"),
+}
+
+
+def _split(total):
+    ex = -(-total * 10 // 11)
+    while ex + ex // 10 > total:
+        ex -= 1
+    assert ex + ex // 10 == total, total
+    return ex, ex // 10
+
+
+def rows22():
+    """22期ぶん (タブ, PL行, 月, 税抜, 元ファイル, メモ)"""
+    for m, (total, payday, name) in DATA22.items():
+        ex, tax = _split(total)
+        yield (TAB, ROW, m, ex, name,
+               f"CP請求鑑CSVの合計（ETC分）{total:,}＝課税{ex:,}＋消費税{tax:,}。振替日 {payday}。"
+               "請求書PDFが届いたら照合する")
+
+
 if __name__ == "__main__":
     check()
     have = sum(1 for m in MONTHS if _parse_pdf(m))
