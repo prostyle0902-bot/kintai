@@ -294,7 +294,10 @@ def post_sbpay(bk):
 #   TAKEOUTPARK神栖横丁（グリスト清掃）も21期と同じく業務課の売上。
 # 主キーは 合計請求書No（この形式には請求書IDが無い）。請求日がその月でない行があれば止める。
 BOARD22 = [("board_2609.csv", "9月", "2026-09")]
-BOARD22_GROUPS = {"業務課", "鳥害対策課"}
+BOARD22_GROUPS = {"業務課", "鳥害対策課", "飲食事業部"}
+# ★2026-10-20 飲食事業部も入れる。利用者が9月分を取り直したCSVを置き（「請求書のCSV入れた」）、
+#   飲食事業部が16件→27件（テナント家賃の合計請求書11件が加わった）でそろった。
+#   21期と同じく board.GROUP2PL で 飲食事業部 → 神栖横丁「売上」。
 
 
 def post_board(bk):
@@ -315,8 +318,18 @@ def post_board(bk):
         for g, items in sorted(by.items()):
             items.sort(key=lambda x: -x[0])
             note = f"board {m}分 {len(items)}件: " + "／".join(f"{c} {e:,}" for e, c in items[:15])
-            bk.add(g, "売上", m, sum(e for e, _c in items), "board",
+            tab, plrow = board.GROUP2PL[g]
+            bk.add(tab, plrow, m, sum(e for e, _c in items), "board",
                    f"★毎月ここに入れる/04_board売上（cards/{name}）", note)
+
+
+# ---------------------------------------------------------------- ⑦b 神栖横丁→自社4店舗の合計請求書
+# 店舗側の費用（家賃・駐車場・電気・水道・共益費・共通販促費）。21期の yokocho と同じ読み方。
+# 神栖横丁側の売上は board（飲食事業部）が入れるので、ここでは入れない。
+def post_yokocho(bk):
+    import yokocho22
+    for tab, plrow, m, val, src, note in yokocho22.rows22():
+        bk.add(tab, plrow, m, val, "横丁請求", src, note)
 
 
 # ---------------------------------------------------------------- ⑧ かめや（焼きたて屋本部）
@@ -425,6 +438,7 @@ def build():
     post_bank(bk)
     post_payroll(bk)
     post_board(bk)
+    post_yokocho(bk)
     post_sbpay(bk)
     post_kameya(bk)
     _comment(bk)
