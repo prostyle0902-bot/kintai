@@ -240,6 +240,61 @@ def hold_rows():
     return out
 
 
+# ---------------------------------------------------------------- 22期
+# 2026-10-20 利用者「棚卸しも反映して」。
+#   期首[9月] = 21期の期末（2026年8月31日）。月次の実地が無い部署は21期の値をそのまま持ち越す。
+#   期末[m]   = 各店の棚卸表の m月末シート（R3＝J57+T57 を四捨五入）。無い月は前月を持ち越す。
+#   期首[m]   = 期末[m-1]
+# 入れるのは「いちばん新しい実地のある月」まで（先の月は空けておく）。
+def _kimatsu21():
+    out = {}
+    for tab, kishu in KISHU.items():
+        last = kishu
+        for m in MONTHS:
+            last = GETSUJI.get(tab, {}).get(m, last)
+        out[tab] = last
+    return out
+
+
+KISHU22 = _kimatsu21()   # タコハイ161,096／焼きたて屋267,392／りゅうちゃん387,537／もも焼き227,901／
+                         # ハナ182,460／十三里屋347,962／神栖横丁50,357／業務課1,096,099／鳥害対策課717,584
+
+# 9月（2026-09-30 シート。2026-10-20 に読んだ）
+#   もも焼き 204359.7／りゅうちゃん 436042.47（ドリンクは別紙 20260930d の小計が本紙7行目 J7 に入っている）
+#   タコハイ 248440.23／焼きたて屋 233488.33／ハナ 168223.2
+#   十三里屋は「棚卸表_さわら十三里屋_20260831」に 20260930 シートが無い → 持ち越し
+GETSUJI22 = {
+    "タコとハイボール": {"9月": 248440},
+    "焼きたて屋":       {"9月": 233488},
+    "りゅうちゃん":     {"9月": 436042},
+    "もも焼きJAPAN":   {"9月": 204360},
+    "韓国酒場ハナ":     {"9月": 168223},
+}
+UPTO22 = "9月"   # ここまでの月を入れる（次の月末の棚卸表がそろったら進める）
+
+
+def rows22():
+    """22期ぶん (タブ, PL行, 月, 金額, 元ファイル, メモ)"""
+    months = MONTHS[:MONTHS.index(UPTO22) + 1]
+    for tab, kishu in KISHU22.items():
+        getsuji = GETSUJI22.get(tab, {})
+        src = SRC2.get(tab, SRC1) if tab in GETSUJI22 else SRC1
+        last = kishu
+        for i, m in enumerate(months):
+            if i == 0:
+                yield (tab, "期首棚卸し", m, kishu, src,
+                       f"21期の期末（2026年8月31日）{kishu:,} を22期の期首に置いている")
+            else:
+                yield (tab, "期首棚卸し", m, last, src, f"前月（{months[i-1]}）末の棚卸 {last:,}")
+            if m in getsuji:
+                last = getsuji[m]
+                yield (tab, "期末棚卸し", m, last, src,
+                       f"{m}末の実地棚卸 {last:,}。シートR3（=J57+T57）を四捨五入した値。" + _BESSHI.get(tab, ""))
+            else:
+                yield (tab, "期末棚卸し", m, last, src,
+                       f"{m}末の実地棚卸が無いので直前の {last:,} を持ち越している（期首＝期末なので売上原価には効かない）")
+
+
 if __name__ == "__main__":
     import collections
     got = list(rows())

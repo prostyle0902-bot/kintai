@@ -332,6 +332,13 @@ def post_yokocho(bk):
         bk.add(tab, plrow, m, val, "横丁請求", src, note)
 
 
+def post_tana(bk):
+    """棚卸し（期首・期末）。tanaoroshi.rows22()"""
+    import tanaoroshi
+    for tab, plrow, m, val, src, note in tanaoroshi.rows22():
+        bk.add(tab, plrow, m, val, "棚卸し", src, note)
+
+
 def post_car(bk):
     """業務課の車両費。ENEOS（給油）・陸事総合（ETC高速代）とも利用月の列に税抜で（eneos／rikuji の DATA22）"""
     import eneos
@@ -450,6 +457,7 @@ def build():
     post_board(bk)
     post_yokocho(bk)
     post_car(bk)
+    post_tana(bk)
     post_sbpay(bk)
     post_kameya(bk)
     _comment(bk)
