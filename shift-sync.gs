@@ -85,7 +85,7 @@ var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてくだ
    「デプロイ → 新バージョン」を忘れていて、古いコードが動き続けている、
    というものだった。見分けがつかないのが困るので、番号を持たせて
    入社登録アプリの「つながるか確かめる」で見えるようにしてある。 */
-var GAS_VER = '2026-10-17c';
+var GAS_VER = '2026-10-22a';
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
 
@@ -687,12 +687,27 @@ function staffSave_(p) {
   out.updatedAt = nowStamp_();
   out.updatedBy = String(p.by || '');
 
+  // 氏名が変わったか（出勤簿のタブ名を直すのに使う）
+  var renamedFrom = (target && target.name && String(target.name) !== out.name)
+    ? String(target.name) : '';
+
   if (target) {
     sh.getRange(target._row, 1, 1, head.length).setValues([staffObjToRow_(out, head)]);
   } else {
     sh.getRange(sh.getLastRow() + 1, 1, 1, head.length).setValues([staffObjToRow_(out, head)]);
   }
-  return { status: 'ok', staffRev: bumpStaffRev_(), rec: out, created: !target };
+
+  /* 社員の氏名を変えたときは、kintai_年月 のタブ名も一緒に変える。
+     ここでやるのは、月給を入れているかどうかに関係なく効かせるため。
+     （名簿を直しただけでは打刻が届かなくなる） */
+  var kihonRename = null;
+  if (renamedFrom && out.kind === 'staff') {
+    try { kihonRename = kihonRename_(renamedFrom, out.name); }
+    catch (e) { kihonRename = { from: renamedFrom, to: out.name, renamed: [], left: [String(e)], past: 0 }; }
+  }
+
+  return { status: 'ok', staffRev: bumpStaffRev_(), rec: out, created: !target,
+           kihonRename: kihonRename };
 }
 
 // まとめて登録する（いまの名簿の取り込みに使う）。すでにいる人は上書きしない
@@ -2482,6 +2497,10 @@ function payrollDailyCheck() {
     }
   } catch (e) { Logger.log('社員の基本給でエラー：' + e); }
 
+  // 社員の出勤簿のタブ抜け（打刻が届かなくなる）
+  try { left = left.concat(kihonTabIssues_()); }
+  catch (e) { Logger.log('社員のタブ点検でエラー：' + e); }
+
   // 名簿そのものの傷（勤務時間が壊れているなど）も一緒に知らせる
   left = left.concat(rosterIssues_());
 
@@ -3268,6 +3287,99 @@ function kihonImport_(p) {
     }
   }
   if (!dryRun && out.found.length) bumpStaffRev_();
+  return out;
+}
+
+/* 社員の氏名が変わったとき、kintai_年月 のタブ名も変える。
+
+   ＜なぜ要るか＞
+   社員の出勤簿は「氏名」のタブに書き込む作りで、打刻アプリも転記も
+   名簿の氏名でそのタブを探す。名簿だけ変えるとタブが見つからなくなり、
+   打刻のたびに「名前がありません」と出て、記録がどこにも残らない。
+   （伏田幸枝さん → 加瀬幸枝さん でこれが起きた）
+
+   ＜どうするか＞
+   ・まだ支払いの済んでいない期間だけ。済んだ期間は、そのときの氏名で
+     払った記録なので、そのままにする
+   ・タブの名前を変えると、給与一覧表の計算式は Google が付いてきてくれる。
+     文字として書いてある古い名前（給与一覧の氏名、出勤簿の見出し）は
+     こちらで置き換える
+   ・新しい名前のタブがすでにあるときは、どちらが本物か分からないので触らない
+   ・タブの名前は、ほかの人と同じく空白を抜いた形にそろえる */
+function kihonRename_(oldName, newName) {
+  var out = { from: '', to: '', renamed: [], left: [], past: 0 };
+  var oldKey = payrollNameKey_(oldName), newKey = payrollNameKey_(newName);
+  if (!oldKey || !newKey || oldKey === newKey) return out;
+  out.from = oldKey; out.to = newKey;
+
+  var fl = kihonFiles_();
+  (fl.errors || []).forEach(function (x) { out.left.push(x); });
+  if (!fl.files.length) return out;
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  for (var i = 0; i < fl.files.length; i++) {
+    var f = fl.files[i];
+    if (f.end < today) { out.past++; continue; }   // 支払いの済んだ期間はそのまま
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var all = ss.getSheets();
+      var hit = null, clash = false;
+      for (var j = 0; j < all.length; j++) {
+        if (kihonSkipSheet_(all[j].getName())) continue;
+        var key = payrollNameKey_(all[j].getName());
+        if (key === newKey) clash = true;
+        else if (key === oldKey) hit = all[j];
+      }
+      /* 古い名前のタブが無ければ、もう直っているか、もともと無い。
+         新しい名前のタブがあっても、それだけなら「直っている」なので黙って飛ばす。 */
+      if (!hit) continue;
+      if (clash) {
+        out.left.push(f.label + '：「' + oldKey + '」と「' + newKey + '」のタブが両方あります。'
+          + 'どちらが本物か分からないので触っていません');
+        continue;
+      }
+      hit.setName(newKey);
+      /* 文字として書いてある古い名前も直す。
+         計算式は触らない（タブ名を変えた時点で Google が直しているため、
+         ここで触ると かえって壊れる）。 */
+      ss.createTextFinder(oldKey).matchCase(true).matchFormulaText(false).replaceAllWith(newKey);
+      out.renamed.push(f.label);
+    } catch (e) {
+      out.left.push(f.label + '：' + String(e));
+    }
+  }
+  return out;
+}
+
+/* いまの期間の出勤簿に、タブが無い社員を挙げる（読むだけ）。
+
+   タブが無いと打刻が届かない。気づくのが給与を締めるときでは遅いので、
+   毎日の見回りで見る。月給を入れているかどうかは関係なく、
+   在籍している社員ぜんぶを見る。 */
+function kihonTabIssues_() {
+  var out = [];
+  var fl = kihonFiles_();
+  if (!fl.files.length) return out;
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var now = null;
+  for (var i = 0; i < fl.files.length; i++) {
+    if (fl.files[i].start <= today && today <= fl.files[i].end) { now = fl.files[i]; break; }
+  }
+  if (!now) return out;
+
+  var ss;
+  try { ss = SpreadsheetApp.openById(now.id); }
+  catch (e) { return ['社員の出勤簿（' + now.name + '）を開けません：' + String(e)]; }
+
+  var sh = getStaffSheet_();
+  var list = readStaff_(sh, staffHeader_(sh));
+  for (var k = 0; k < list.length; k++) {
+    var r = list[k];
+    if (!r.name || String(r.status) !== 'active' || String(r.kind) !== 'staff') continue;
+    if (kihonSheet_(ss, [r.name, r.kyuyoName])) continue;
+    out.push(String(r.name) + '：' + now.name + ' に出勤簿のタブがありません。'
+      + 'このままだと打刻が届きません（打刻アプリに「名前がありません」と出ます）');
+  }
   return out;
 }
 
