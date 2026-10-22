@@ -218,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-17c</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-22a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1177,8 +1177,11 @@ async function submitNew() {
      シートが見つからなくなり、打刻も転記も届かなくなる。
      （小金澤登美→小金澤登美江 でこれが起きた）
      前の名前を引き継ぐかどうか、ここで聞く。 */
+  /* 社員（kind=staff）はここで聞かない。社員の出勤簿 kintai_年月 は
+     氏名そのものがタブ名なので、前の名前を使い続けるのではなく、
+     タブ名のほうを新しい氏名に直す（GAS側が保存のときに直す）。 */
   if (before && before.name && rec.name !== before.name
-      && !String(rec.kyuyoName || '').trim() && rec.kyuyo) {
+      && !String(rec.kyuyoName || '').trim() && rec.kyuyo && rec.kind !== 'staff') {
     const keep = confirm(
       '氏名を「' + before.name + '」から「' + rec.name + '」に変えます。\n\n'
       + '出勤簿（給与一覧）のシートは「' + before.name + '」のままです。\n'
@@ -1197,6 +1200,7 @@ async function submitNew() {
     if (res.status !== 'ok') throw new Error(res.message || '登録できませんでした');
     lastDone = res.rec;
     lastDone._created = res.created !== false;
+    lastDone._rename = res.kihonRename || null;   // 社員の出勤簿のタブ名を直した結果
     /* 出勤簿がまだ無ければ作り、あれば単価を合わせる。
        before は使わなくなったが、氏名を変えたときの確認で使っている */
     btn.textContent = '給与一覧を確かめています…';
@@ -1224,6 +1228,34 @@ async function submitNew() {
       + '名簿を確かめたところ、保存もされていません。もう一度お試しください。');
     btn.disabled = false; btn.textContent = 'この内容で登録する';
   }
+}
+
+/* 氏名を変えたときに、社員の出勤簿（kintai_年月）のタブ名を
+   直した結果を出す。黙って直すと、直ったのかどうか分からないため。 */
+function renameDoneHtml(rec) {
+  const r = rec && rec._rename;
+  if (!r || !r.from || r.from === r.to) return '';
+  const done = r.renamed || [], left = r.left || [];
+  let h = '';
+  if (done.length) {
+    h += '<div class="alert ok" style="margin-top:1.25rem">'
+      + '<b>社員の出勤簿（kintai_年月）のタブ名も直しました（' + done.length + '件）。</b><br />'
+      + esc(r.from) + ' → <b>' + esc(r.to) + '</b>　' + done.map(esc).join('、')
+      + '<br /><span class="muted">給与一覧表の計算式も付いてきています。'
+      + '支払いの済んだ過去の期間は、そのときの氏名のままにしてあります'
+      + (r.past ? '（' + r.past + '件）' : '') + '。</span></div>';
+  } else if (!left.length) {
+    h += '<div class="alert info" style="margin-top:1.25rem">'
+      + '<b>社員の出勤簿のタブ名は、直すところがありませんでした。</b>'
+      + '<span class="muted">（すでに ' + esc(r.to) + ' になっているか、まだタブがありません）</span></div>';
+  }
+  if (left.length) {
+    h += '<div class="alert warn"><b>出勤簿のタブ名を直せなかったところ：' + left.length + '件</b><br />'
+      + left.map(esc).join('<br />')
+      + '<br />このままだと打刻が届かないので、スプレッドシートでタブ名を'
+      + '<b>' + esc(r.to) + '</b> に直してください。</div>';
+  }
+  return h;
 }
 
 /* 登録・編集のあと、給与一覧に何をしたかを出す。
@@ -1356,6 +1388,7 @@ function doneHtml(rec) {
   h += '</ul>';
 
   // 給与一覧（出勤簿）に何をしたか
+  h += renameDoneHtml(rec);
   h += payrollDoneHtml(rec);
 
   h += ''
@@ -1838,7 +1871,7 @@ const SEED_MAIN = [
   { kind:"part", name:"三浦達弥", pin:"4150", dept:"本社", kyuyo:true, storeIds:"s_honsha", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 300}], payKind:"daily", payRate:10000, commute:480, commuteKind:"daily" },
   { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
   { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
-  { kind:"staff", name:"伏田 幸枝", pin:"2571", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
+  { kind:"staff", name:"加瀬 幸枝", pin:"2571", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
   { kind:"staff", name:"小林 俊樹", pin:"9034", dept:"業務課", kyuyo:false, storeIds:"", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}] },
   { kind:"staff", name:"石毛 貴英", pin:"4718", dept:"業務課", kyuyo:false, storeIds:"s_beer", shiftName:"石毛貴英", locs:[{"name": "本社", "lat": 35.858, "lng": 140.5625, "radius": 500}, {"name": "ビアガーデン", "lat": 35.990552, "lng": 140.638966, "radius": 300}] },
   { kind:"staff", name:"石毛 拓海", pin:"7263", dept:"飲食事業部", kyuyo:false, storeIds:"" },
@@ -1863,7 +1896,7 @@ const SEED_MAIN = [
 const SEED_STAFF = [
   { kind:"staff", name:"平野 健雄", pin:"3847", dept:"業務課",        shiftName:"平野健雄",  kyuyoName:"平野健雄",  storeIds:"" },
   { kind:"staff", name:"安藤 正樹", pin:"6192", dept:"業務課",        shiftName:"安藤正樹",  kyuyoName:"安藤正樹",  storeIds:"" },
-  { kind:"staff", name:"伏田 幸枝", pin:"2571", dept:"業務課",        shiftName:"伏田幸枝",  kyuyoName:"伏田幸枝",  storeIds:"" },
+  { kind:"staff", name:"加瀬 幸枝", pin:"2571", dept:"業務課",        shiftName:"加瀬幸枝",  kyuyoName:"加瀬幸枝",  storeIds:"" },
   { kind:"staff", name:"小林 俊樹", pin:"9034", dept:"業務課",        shiftName:"小林俊樹",  kyuyoName:"小林俊樹",  storeIds:"" },
   { kind:"staff", name:"石毛 貴英", pin:"4718", dept:"業務課",        shiftName:"石毛貴英",  kyuyoName:"石毛貴英",  storeIds:"s_beer" },
   { kind:"staff", name:"石毛 拓海", pin:"7263", dept:"飲食事業部",     shiftName:"石毛拓海",  kyuyoName:"石毛拓海",  storeIds:"" },
@@ -2200,7 +2233,7 @@ async function doImportOnly() {
 /* このアプリが当てにしている、シフト作成GASの版。
    GAS側の GAS_VER と同じにしてある。ずれていたら、貼り替えか
    「新バージョンでデプロイ」が済んでいない。 */
-const GAS_WANT = '2026-10-17c';
+const GAS_WANT = '2026-10-22a';
 
 async function checkLink() {
   const el = document.getElementById('link-result');
