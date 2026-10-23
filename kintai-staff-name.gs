@@ -22,24 +22,35 @@
  * 毎回読むと打刻が遅くなるので、5分だけ覚えておきます。
  *
  * ＜貼り方＞
- * 1. 打刻GAS（勤怠）に新しいファイルを作って、この中身を貼る
- * 2. 「コード.gs」の3か所を、下の【差し替え】のとおりに直す
+ * 1. 打刻GAS（社員の打刻アプリがつながっているプロジェクト）に
+ *    新しいファイルを作って、この中身を貼る
+ * 2. 「コード.gs」で SHEET_NAMES を検索して、見つかったところを
+ *    下の【差し替え】のとおりに直す（表の定義そのものは、そのまま残す）
  * 3. デプロイ → デプロイを管理 → ✏️ → 新バージョン → デプロイ
  *
- * ＜【差し替え】コード.gs の3か所＞
+ * ＜【差し替え】SHEET_NAMES を使っているところ＞
+ * 書き方はプロジェクトによって少し違います。どちらの形でも、
+ * 「SHEET_NAMES から引いている」ところを置き換えてください。
  *
- *   ① getStatus の中（139行目あたり）
- *      前： const sheet = getSheet(ss, SHEET_NAMES, data.name);
- *      後： const sheet = staffSheet_(ss, data.name);
- *
- *   ② そのすぐ下（152行目あたり）
- *      前： const prevSheet = getSheet(prevSs, SHEET_NAMES, data.name);
- *      後： const prevSheet = staffSheet_(prevSs, data.name);
- *
- *   ③ 打刻を書き込むところ（199行目あたり）
+ *   ① 打刻を書き込むところ
  *      前： const sheetName = SHEET_NAMES[name];
  *      後： const sheetName = staffSheetName_(name);
  *
+ *   ② 打刻の状態を見るところ（getStatus の中）
+ *      前： const sheet = getSheet(ss, SHEET_NAMES, data.name);
+ *      後： const sheet = staffSheet_(ss, data.name);
+ *      （または）
+ *      前： const sheet = ss.getSheetByName(SHEET_NAMES[data.name]);
+ *      後： const sheet = staffSheet_(ss, data.name);
+ *
+ *   ③ そのすぐ下（前の日を見るところ）
+ *      前： const prevSheet = getSheet(prevSs, SHEET_NAMES, data.name);
+ *      後： const prevSheet = staffSheet_(prevSs, data.name);
+ *      （または）
+ *      前： const prevSheet = prevSs.getSheetByName(SHEET_NAMES[data.name]);
+ *      後： const prevSheet = staffSheet_(prevSs, data.name);
+ *
+ * testRun などの確認用の関数に出てくる SHEET_NAMES は、直さなくて構いません。
  * SHEET_NAMES の表はそのままにしてください（消す必要はありません）。
  *
  * ＜貼ったあとの確認＞
@@ -47,9 +58,31 @@
  * 「誰が打刻できて、どのタブに入るか」が実行ログに出ます。読むだけです。
  */
 
-/* 覚えておく名前。MASTER_SS_ID と MASTER_SHEET は
-   打刻GASの「コード.gs」にすでにあるものを、そのまま使います。 */
 var STAFF_CACHE = 'staffSheetNames_v1';
+
+/* 共通名簿（シフト自動作成アプリ用のスプレッドシート）の場所。
+   打刻GASに MASTER_SS_ID がすでにあればそれを使い、無ければこちらを使う。
+   プロジェクトによって、ある場合と無い場合があるため。 */
+var STAFF_MASTER_SS_ID = '1ysD43TtjdX9Cs0NfjsTS1uqeTfAfZJ6sdstgbBJhoXY';
+var STAFF_MASTER_SHEET = 'staff';
+
+function staffMasterSs_() {
+  try { if (typeof MASTER_SS_ID !== 'undefined' && MASTER_SS_ID) return MASTER_SS_ID; }
+  catch (e) { /* まだ読み込まれていないときは、下の既定を使う */ }
+  return STAFF_MASTER_SS_ID;
+}
+function staffMasterSheet_() {
+  try { if (typeof MASTER_SHEET !== 'undefined' && MASTER_SHEET) return MASTER_SHEET; }
+  catch (e) { /* 同上 */ }
+  return STAFF_MASTER_SHEET;
+}
+
+/* 打刻GASにすでにある氏名の表。無いプロジェクトでも動くようにしておく */
+function staffFixedName_(name) {
+  try { if (typeof SHEET_NAMES !== 'undefined' && SHEET_NAMES[name]) return SHEET_NAMES[name]; }
+  catch (e) { /* 無ければ名簿だけで引く */ }
+  return '';
+}
 
 /* 氏名を突き合わせる形。「加瀬 幸枝」「加瀬　幸枝」「加瀬幸枝」を同じに扱う。
    出勤簿のタブ名は空白なし（加瀬幸枝）でそろえてあるため。 */
@@ -59,7 +92,8 @@ function staffKey_(s) {
 
 /* 社員の出勤簿のタブ名。見つからなければ null */
 function staffSheetName_(name) {
-  if (SHEET_NAMES[name]) return SHEET_NAMES[name];     // これまでどおり
+  var fixed = staffFixedName_(name);
+  if (fixed) return fixed;                             // これまでどおり
   var key = staffKey_(name);
   if (!key) return null;
   var m = masterStaffNames_();
@@ -82,7 +116,7 @@ function masterStaffNames_() {
 
   var map = {};
   try {
-    var sh = SpreadsheetApp.openById(MASTER_SS_ID).getSheetByName(MASTER_SHEET);
+    var sh = SpreadsheetApp.openById(staffMasterSs_()).getSheetByName(staffMasterSheet_());
     if (sh) {
       var vals = sh.getDataRange().getValues();
       var head = vals[0].map(function (v) { return String(v).trim(); });
@@ -118,7 +152,11 @@ function clearStaffCache() {
 function checkStaffNames() {
   var m = masterStaffNames_();
   var all = {};
-  Object.keys(SHEET_NAMES).forEach(function (k) { all[k] = '表'; });
+  try {
+    if (typeof SHEET_NAMES !== 'undefined') {
+      Object.keys(SHEET_NAMES).forEach(function (k) { all[k] = '表'; });
+    }
+  } catch (e) { /* 表が無いプロジェクトでも動かす */ }
   Object.keys(m).forEach(function (k) { all[k] = all[k] ? '表＋名簿' : '名簿'; });
 
   var names = Object.keys(all).sort();
