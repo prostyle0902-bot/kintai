@@ -705,7 +705,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-10-20a';
+const APP_VER = '2026-10-23a';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -4829,7 +4829,17 @@ function startApp(who) {
   if (g) g.remove();
 
   const vEl = document.getElementById('app-ver');
-  if (vEl) vEl.textContent = '版 ' + APP_VER;
+  if (vEl) {
+    vEl.textContent = '版 ' + APP_VER;
+    // 押したら、ブラウザの覚えを捨てて読み直す（入社登録アプリと同じ）
+    vEl.style.cursor = 'pointer';
+    vEl.style.textDecoration = 'underline dotted';
+    vEl.title = 'この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します';
+    vEl.onclick = function () {
+      const u = location.href.split('#')[0].replace(/[?&]_=\d+/, '');
+      location.replace(u + (u.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now());
+    };
+  }
 
   renderAll();
   renderWho();
