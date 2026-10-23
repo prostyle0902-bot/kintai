@@ -85,7 +85,7 @@ var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてくだ
    「デプロイ → 新バージョン」を忘れていて、古いコードが動き続けている、
    というものだった。見分けがつかないのが困るので、番号を持たせて
    入社登録アプリの「つながるか確かめる」で見えるようにしてある。 */
-var GAS_VER = '2026-10-23a';
+var GAS_VER = '2026-10-23b';
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
 
@@ -2926,6 +2926,7 @@ function kihonFind_(sheet) {
     formula: fs[row][moneyCol] || '',
     memoCol: moneyCol + 2,
     memo: memoOf(row),
+    head: head >= 0 ? head + 1 : -1,
     dup: rows.length > 1 ? rows.map(function (x) { return x + 1; }) : null,
     note: note,
     base: base,
@@ -3309,6 +3310,95 @@ function kihonImport_(p) {
   }
   if (!dryRun && out.found.length) bumpStaffRev_();
   return out;
+}
+
+/* 給与明細の「集計欄の色」を、差引支給額の行に合わせる。
+
+   ＜なぜ要るか＞
+   明細の行が1行下にずれたとき、色だけ前の行に残ってしまい、
+   「深夜手当の行が集計欄の色」「本当の集計（差引支給額）は色なし」
+   という見え方になっていた。中身は合っているが、毎月見るものなので直す。
+
+   色の付け方は決め打ちにしない。いま集計欄の色が付いている行から
+   そのまま写して、差引支給額の行へ移す。余った色は消す。
+   ずれ方は人によって違う（色の付いた行が2つある人もいる）ので、
+   シートごとに見て決める。 */
+function kihonDark_(hex) {
+  var h = String(hex || '').replace('#', '');
+  if (h.length !== 6) return false;
+  var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.6;   // 濃い色かどうか
+}
+
+function kihonStyleCheck() { var r = kihonStyle_(true); Logger.log(r); return r; }
+function kihonStyleFix() { var r = kihonStyle_(false); Logger.log(r); return r; }
+
+function kihonStyle_(dryRun) {
+  var lines = [dryRun ? '■ 調べるだけ（何も変えません）' : '■ 集計欄の色を直します'];
+  var fl = kihonFiles_();
+  (fl.errors || []).forEach(function (x) { lines.push('※' + x); });
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var fixed = 0, ok = 0, left = [];
+
+  for (var i = 0; i < fl.files.length; i++) {
+    var f = fl.files[i];
+    if (f.end < today) continue;                 // 支払いの済んだ期間は見た目も触らない
+    var ss;
+    try { ss = SpreadsheetApp.openById(f.id); }
+    catch (e) { left.push(f.label + '：開けません：' + String(e)); continue; }
+
+    var all = ss.getSheets();
+    for (var j = 0; j < all.length; j++) {
+      var sheet = all[j];
+      if (kihonSkipSheet_(sheet.getName())) continue;
+      var who = f.label + '／' + sheet.getName();
+      try {
+        var pos = kihonFind_(sheet);
+        if (!pos || pos.head < 0 || pos.end < 0 || pos.end <= pos.head) {
+          left.push(who + '：給与明細の形が読み取れません');
+          continue;
+        }
+        var c0 = pos.labelCol, c1 = pos.moneyCol + 1;       // 見出し〜備考
+        var nRow = pos.end - pos.head;                      // 見出しの次から差引支給額まで
+        var bg = sheet.getRange(pos.head + 1, c0, nRow, 1).getBackgrounds();
+
+        var dark = [], plain = -1;
+        for (var r = 0; r < nRow; r++) {
+          var row = pos.head + 1 + r;
+          if (kihonDark_(bg[r][0])) dark.push(row);
+          else if (plain < 0 && row !== pos.end) plain = row;
+        }
+        if (dark.length === 1 && dark[0] === pos.end) { ok++; continue; }   // すでに正しい
+        if (!dark.length) { left.push(who + '：集計欄の色が付いている行がありません'); continue; }
+        if (plain < 0) { left.push(who + '：ふつうの明細行が見つかりません'); continue; }
+
+        if (!dryRun) {
+          // 1) いま付いている色を、差引支給額の行へ移す
+          if (dark.indexOf(pos.end) < 0) {
+            sheet.getRange(dark[0], c0, 1, c1 - c0 + 1).copyTo(
+              sheet.getRange(pos.end, c0, 1, c1 - c0 + 1),
+              SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+          }
+          // 2) 余った色は、ふつうの明細行と同じにしたうえで色なしにする
+          for (var d = 0; d < dark.length; d++) {
+            if (dark[d] === pos.end) continue;
+            var dst = sheet.getRange(dark[d], c0, 1, c1 - c0 + 1);
+            sheet.getRange(plain, c0, 1, c1 - c0 + 1).copyTo(
+              dst, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+            dst.setBackground('#ffffff');
+          }
+        }
+        fixed++;
+      } catch (e2) {
+        left.push(who + '：' + String(e2));
+      }
+    }
+  }
+
+  lines.push((dryRun ? '直すところ：' : '直した：') + fixed + '件／すでに正しい：' + ok + '件');
+  if (left.length) lines.push('★人が手を入れないと直らない：' + left.length + '件\n' + left.join('\n'));
+  if (dryRun && fixed) lines.push('よければ kihonStyleFix を実行してください。');
+  return lines.join('\n');
 }
 
 /* 社員の氏名が変わったとき、kintai_年月 のタブ名も変える。
