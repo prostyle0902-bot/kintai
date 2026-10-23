@@ -35,6 +35,8 @@
     .app { width: 100%; max-width: 420px; padding: 2rem 1.25rem 3rem; }
     .logo { text-align: center; margin-bottom: 2rem; }
     .logo-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: 0.06em; }
+    .ver { opacity: .55; margin-left: .5em; cursor: pointer; text-decoration: underline dotted; }
+    .ver:hover { opacity: 1; }
     .logo-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 
     /* Prostyle ロゴ（ブランド色 #1778BC） */
@@ -93,7 +95,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">勤怠</span>
       </div>
-      <div class="logo-sub">Prostyle株式会社<span style="opacity:.55;margin-left:.5em">版 2026-10-06a</span></div>
+      <div class="logo-sub">Prostyle株式会社<span class="ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-23a</span></div>
     </div>
 
     <!-- PIN入力画面 -->
@@ -185,6 +187,15 @@
   </div>
 
   <script>
+    /* 版の番号を押したら、ブラウザの覚えを捨てて読み直す。
+       直したのに古い画面のままだった、を自分で確かめられるようにするため。
+       ★コードを直したときは、上の「版 …」も必ず新しくすること。
+         番号が止まっていると、新しいかどうか誰にも分からなくなる。 */
+    function reloadFresh() {
+      const u = location.href.split('#')[0].replace(/[?&]_=\d+/, '');
+      location.replace(u + (u.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now());
+    }
+
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwFtFMQftG-5Zi3cYomVqwiPIsPtjBO9Ls7LjYBLa8T23AO72qY3vEWNb-rUkhqcQcK/exec';
 
     const employees = [
