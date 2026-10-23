@@ -218,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-22a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-23a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -1947,12 +1947,32 @@ function seedToRecFull(x) {
 
 let seedPick = {};   // シフトにだけいる人のうち、取り込む人
 
+/* 取り込み用の控え（SEED_…）の人が、もう名簿に入っているかを返す。
+   入っていればその人の記録、入っていなければ null。
+
+   氏名だけで見ていると、結婚などで姓が変わった人が
+   「まだ取り込んでいない人」に出てきてしまい、押すと同じ人がもう一人できる。
+   （伏田幸枝さん → 加瀬幸枝さん でこれが起きた。PINまで別に振られた）
+   PINは姓が変わっても変わらないので、氏名かPINのどちらかが合えば
+   取り込み済みとみなす。氏名は空白のあるなしを無視して見る。 */
+function seedFinder() {
+  const byName = {}, byPin = {};
+  STAFF.forEach(function (r) {
+    const nm = String(r.name || '').replace(/[\s　]+/g, '');
+    if (nm) byName[nm] = r;
+    if (r.pin) byPin[String(r.pin)] = r;
+  });
+  return function (x) {
+    const nm = String((x && x.name) || '').replace(/[\s　]+/g, '');
+    return byName[nm] || byPin[String((x && x.pin) || '')] || null;
+  };
+}
+
 function renderSetup() {
   const el = document.getElementById('setup-body');
-  const known = {};
-  STAFF.forEach(function (r) { known[r.name] = true; });
-  const restMain = SEED_MAIN.filter(function (x) { return !known[x.name]; });
-  const restOnly = SEED_SHIFT_ONLY.filter(function (x) { return !known[x.name]; });
+  const known = seedFinder();
+  const restMain = SEED_MAIN.filter(function (x) { return !known(x); });
+  const restOnly = SEED_SHIFT_ONLY.filter(function (x) { return !known(x); });
 
   let h = '';
 
@@ -2097,7 +2117,7 @@ function renderSetup() {
   h += '</div>';
 
   // --- 2.2 社員を取り込む ---
-  const restStaff = SEED_STAFF.filter(function (x) { return !known[x.name]; });
+  const restStaff = SEED_STAFF.filter(function (x) { return !known(x); });
   h += '<div class="card"><div class="card-title">2-2. 社員を取り込む</div>'
     + '<div class="card-desc">勤怠アプリ（index.html）に直接書かれている社員 '
     + SEED_STAFF.length + ' 名を、共通名簿へ移します。'
@@ -2128,14 +2148,13 @@ function renderSetup() {
   h += '</div>';
 
   // --- 2.5 取り込み済みの人に、あとから増えた項目を入れる ---
-  const known2 = {};
-  STAFF.forEach(function (r) { known2[r.name] = r; });
+  const known2 = seedFinder();
   const needFill = SEED_MAIN.filter(function (x) {
-    const r = known2[x.name];
+    const r = known2(x);
     return r && x.payRate && !(+r.payRate);
   });
   const needRetire = SEED_MAIN.filter(function (x) {
-    const r = known2[x.name];
+    const r = known2(x);
     return r && x.status === 'retired' && r.status !== 'retired';
   });
 
@@ -2200,28 +2219,25 @@ function renderSetup() {
 }
 
 async function doImport() {
-  const known = {};
-  STAFF.forEach(function (r) { known[r.name] = true; });
-  const recs = SEED_MAIN.filter(function (x) { return !known[x.name]; }).map(seedToRecFull);
+  const known = seedFinder();
+  const recs = SEED_MAIN.filter(function (x) { return !known(x); }).map(seedToRecFull);
   if (!recs.length) { alert('取り込む人がいません。'); return; }
   if (!confirm(recs.length + ' 名を共通名簿に取り込みます。よろしいですか？')) return;
   await sendImport(recs);
 }
 
 async function doImportStaff() {
-  const known = {};
-  STAFF.forEach(function (r) { known[r.name] = true; });
-  const recs = SEED_STAFF.filter(function (x) { return !known[x.name]; }).map(seedToRecFull);
+  const known = seedFinder();
+  const recs = SEED_STAFF.filter(function (x) { return !known(x); }).map(seedToRecFull);
   if (!recs.length) { alert('取り込む人がいません。'); return; }
   if (!confirm('社員 ' + recs.length + ' 名を共通名簿に取り込みます。\n\nよろしいですか？')) return;
   await sendImport(recs);
 }
 
 async function doImportOnly() {
-  const known = {};
-  STAFF.forEach(function (r) { known[r.name] = true; });
+  const known = seedFinder();
   const recs = SEED_SHIFT_ONLY
-    .filter(function (x) { return seedPick[x.name] && !known[x.name]; })
+    .filter(function (x) { return seedPick[x.name] && !known(x); })
     .map(seedToRecFull);
   if (!recs.length) { alert('取り込む人を選んでください。'); return; }
   await sendImport(recs);
@@ -2771,10 +2787,9 @@ async function fixLocs() {
 }
 
 async function doFill() {
-  const known = {};
-  STAFF.forEach(function (r) { known[r.name] = r; });
+  const known = seedFinder();
   const recs = SEED_MAIN
-    .filter(function (x) { const r = known[x.name]; return r && x.payRate && !(+r.payRate); })
+    .filter(function (x) { const r = known(x); return r && x.payRate && !(+r.payRate); })
     .map(function (x) {
       return { name: x.name, payKind: x.payKind, payRate: x.payRate,
                commute: x.commute || 0, commuteKind: x.commuteKind || 'none',
