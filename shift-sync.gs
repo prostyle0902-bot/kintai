@@ -85,7 +85,7 @@ var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてくだ
    「デプロイ → 新バージョン」を忘れていて、古いコードが動き続けている、
    というものだった。見分けがつかないのが困るので、番号を持たせて
    入社登録アプリの「つながるか確かめる」で見えるようにしてある。 */
-var GAS_VER = '2026-10-22a';
+var GAS_VER = '2026-10-23a';
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
 
@@ -3030,19 +3030,20 @@ function kihonAllowSync_(sheet, pos, want, ck, commute, phase, dryRun) {
 function kihonApply_(sheet, pos, want, phase, dryRun, allow, ck, commute) {
   var where = colLetter_(pos.moneyCol) + pos.row;
   if (pos.dup) {
-    return { status: 'skip', message: '「基本給」の行が ' + pos.dup.length + 'つあります（'
-      + pos.dup.join('行目・') + '行目）。どちらが本物か分からないので触っていません。'
-      + '出勤簿GASでこの期間を作り直してください' };
+    return { status: 'skip', kind: 'dup',
+      message: '「基本給」の行が ' + pos.dup.length + 'つあります（'
+      + pos.dup.join('行目・') + '行目）。どちらが本物か分からないので触っていません' };
   }
   var cur = kihonNum_(pos.value, pos.formula);
   if (cur === null) {
-    return { status: 'skip', message: '基本給のセル（' + where + '）が'
+    return { status: 'skip', kind: 'cell',
+      message: '基本給のセル（' + where + '）が'
       + (pos.formula ? 'ほかのセルを見て計算する式になっています：' + pos.formula
                      : '数値ではありません（' + String(pos.value) + '）')
       + '。中身が分からないので触っていません' };
   }
   if (!pos.baseSees) {
-    return { status: 'skip', message: pos.base
+    return { status: 'skip', kind: 'base', message: pos.base
       ? '算定基礎額（' + colLetter_(pos.base.col) + pos.base.row + '）が基本給のセル（' + where
         + '）を見ていません。基本給だけ直すと残業手当が合わなくなるので触っていません'
       : '算定基礎額の欄がありません（古い作りの出勤簿で、時間単価が数字で直に'
@@ -3131,6 +3132,16 @@ function kihonRateAll_(p) {
     out.left.push(nm + '：' + label + '：' + msg);
   }
 
+  /* 出勤簿そのものの作りがおかしいときは、人ごとに出さない。
+     その期間にいる人ぜんぶに同じことが起きるので、11人×期間ぶん並んでしまい、
+     毎朝のメールが読めなくなる。期間ごとに1行にまとめて、人数を添える。 */
+  var shape = {}, shapeOrder = [];
+  function shape_(label, kind, msg) {
+    var key = label + '｜' + kind;
+    if (!shape[key]) { shape[key] = { label: label, msg: msg, n: 0 }; shapeOrder.push(key); }
+    shape[key].n++;
+  }
+
   for (var k = startAt; k < people.length; k++) {
     // 時間が尽きそうなら、ここまでにして続きを頼む
     if (k > startAt && (new Date().getTime() - t0) > KIHON_BUDGET_MS) { out.nextAt = k; break; }
@@ -3163,7 +3174,12 @@ function kihonRateAll_(p) {
         var ap = kihonApply_(sheet, pos, pr.rate, pr.phase, dryRun,
           payrollAllowList_(rec.allowances), rec.commuteKind, rec.commute);
         for (var n2 = 0; n2 < (ap.notes || []).length; n2++) note_(nm, per.label, ap.notes[n2]);
-        if (ap.status === 'skip') { note_(nm, per.label, ap.message); continue; }
+        if (ap.status === 'skip') {
+          // 出勤簿の作りの話（dup / base）は期間ごと、それ以外は人ごとに出す
+          if (ap.kind === 'dup' || ap.kind === 'base') shape_(per.label, ap.kind, ap.message);
+          else note_(nm, per.label, ap.message);
+          continue;
+        }
         if (ap.status === 'same') { out.same++; continue; }
         out.changed.push(nm + '：' + per.label + '　' + ap.message);
       } catch (e) {
@@ -3175,6 +3191,11 @@ function kihonRateAll_(p) {
   for (var key2 in seen) {
     if (!seen.hasOwnProperty(key2) || seen[key2].n < 2) continue;
     out.left[seen[key2].at] += '（ほかの ' + (seen[key2].n - 1) + ' 期間も同じ）';
+  }
+  for (var k3 = 0; k3 < shapeOrder.length; k3++) {
+    var sp = shape[shapeOrder[k3]];
+    out.left.push(sp.label + ' の出勤簿：' + sp.msg + '（' + sp.n + '名ぶん）。'
+      + 'その月が来る前に、この期間のシートを作り直してください');
   }
   return out;
 }
