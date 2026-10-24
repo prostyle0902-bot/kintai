@@ -114,10 +114,16 @@
   </div>
 
   <div class="card">
+    <div class="alert warn" style="margin-bottom:.9rem">
+      <b>どのファイルをコピーするか、先に下から選んでください。</b>
+      選んだものがボタンに出ます。貼り先（どのGASか）も、その下の説明に書いてあります。
+      <b>別のコードを貼ると、打刻や同期が動かなくなることがあります。</b>
+    </div>
     <div class="files" id="files"></div>
 
     <div class="row-actions">
       <button class="btn primary big" id="copy" onclick="doCopy()">全部コピー</button>
+      <span class="muted" id="dest" style="font-size:12.5px"></span>
       <a class="btn" id="raw" href="#" target="_blank" rel="noopener">生ファイルを開く</a>
       <button class="btn ghost" onclick="reload()">読み直す</button>
     </div>
@@ -147,17 +153,17 @@
    path は、このページと同じ場所からの相対で書く。 */
 const FILES = [
   { path: 'shift-sync.gs', name: 'shift-sync.gs',
-    note: 'シフト作成・共通名簿・給与一覧（ふだん使うのはこれ）' },
+    note: 'シフト作成のスプレッドシートのGAS（拡張機能 → Apps Script）。シフト作成・共通名簿・給与一覧' },
   { path: 'kyuyo-list-fix.gs', name: 'kyuyo-list-fix.gs',
-    note: '給与一覧表の直し（必要なときだけ）' },
+    note: 'シフト作成のGAS。給与一覧表の直し（必要なときだけ）' },
   { path: 'kyuyo-fix-kaiji.gs', name: 'kyuyo-fix-kaiji.gs',
-    note: '海事の出勤簿の直し（必要なときだけ）' },
+    note: 'シフト作成のGAS。海事の出勤簿の直し（必要なときだけ）' },
   { path: 'kyuyo-roster-patch.gs', name: 'kyuyo-roster-patch.gs',
-    note: '名簿の直し（必要なときだけ）' },
+    note: 'シフト作成のGAS。名簿の直し（必要なときだけ）' },
   { path: 'zangyo-fix.gs', name: 'zangyo-fix.gs',
-    note: '★こちらは「出勤簿GAS」（kintai_年月 を作っているほう）に貼ります。残業手当の式の抜けを直す' },
+    note: '★出勤簿GAS（kintai_年月 を作っているプロジェクト）。残業手当の式の抜けを直す' },
   { path: 'kintai-staff-name.gs', name: 'kintai-staff-name.gs',
-    note: '★こちらは「打刻GAS（勤怠）」に貼ります。社員のタブ名を共通名簿からも引けるようにする（姓が変わった人・新しく入った社員が打刻できるように）' },
+    note: '★打刻GAS（社員の打刻アプリがつながっているプロジェクト）。姓が変わった人・新しく入った社員が打刻できるようにする' },
 ];
 
 let pick = 0;
@@ -189,7 +195,7 @@ async function load(force) {
   const btn = document.getElementById('copy');
   text = '';
   btn.disabled = true;
-  btn.textContent = '全部コピー';
+  btn.textContent = '全部コピー（' + f.name + '）';
   btn.classList.remove('done');
   code.textContent = '読み込んでいます…';
   document.getElementById('msg').innerHTML = '';
@@ -212,8 +218,9 @@ async function load(force) {
     const kb = Math.round(text.length / 1024);
     const when = res.headers.get('last-modified');
     document.getElementById('meta').textContent =
-      f.note + '　／　' + lines.toLocaleString() + ' 行・約 ' + kb + ' KB'
+      lines.toLocaleString() + ' 行・約 ' + kb + ' KB'
       + (when ? '　／　更新 ' + new Date(when).toLocaleString('ja-JP') : '');
+    document.getElementById('dest').textContent = '貼り先：' + f.note;
   } catch (e) {
     code.textContent = '';
     document.getElementById('msg').innerHTML =
@@ -238,10 +245,10 @@ async function doCopy() {
     ok = false;
   }
   if (ok) {
-    btn.textContent = 'コピーしました ✓';
+    btn.textContent = FILES[pick].name + ' をコピーしました ✓';
     btn.classList.add('done');
     setTimeout(function () {
-      btn.textContent = '全部コピー';
+      btn.textContent = '全部コピー（' + FILES[pick].name + '）';
       btn.classList.remove('done');
     }, 2500);
     return;
