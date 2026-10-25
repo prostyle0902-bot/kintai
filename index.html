@@ -95,7 +95,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">勤怠</span>
       </div>
-      <div class="logo-sub">Prostyle株式会社<span class="ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-23a</span></div>
+      <div class="logo-sub">Prostyle株式会社<span class="ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-26a</span></div>
     </div>
 
     <!-- PIN入力画面 -->
@@ -438,11 +438,35 @@
           setStatusMsg('');
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (currentEmp !== emp) return;
+        /* 何でだめだったのかを、そのまま出す。
+           「電波を確認して」だけだと、電波のせいなのか、向こうが
+           エラーを返しているのか分からず、原因にたどり着けないため。 */
         setStatusMsg('打刻の状況を確認できませんでした。電波を確認して<br>'
-          + '<button onclick="loadStatus()" style="margin-top:6px;padding:6px 14px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#fff;font-size:13px;cursor:pointer;">もう一度確認する</button>', true);
+          + '<button onclick="loadStatus()" style="margin-top:6px;padding:6px 14px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:#fff;font-size:13px;cursor:pointer;">もう一度確認する</button>'
+          + '<div style="margin-top:8px;font-size:11px;opacity:.8;word-break:break-all">'
+          + escHtml(errText(err)) + '</div>', true);
       });
+    }
+
+    /* エラーの中身を、人に見せられる一言にする */
+    function errText(err) {
+      if (!err) return '理由は分かりませんでした';
+      var m = String(err.message || err);
+      if (/Failed to fetch|NetworkError|Load failed/i.test(m)) {
+        return '通信そのものが届きませんでした（' + m + '）。'
+             + '電波のほか、GASの「アクセスできるユーザー」が全員になっていないときもこうなります。';
+      }
+      if (/JSON|Unexpected token/i.test(m)) {
+        return 'GASがJSON以外を返しました（' + m + '）。'
+             + 'デプロイのやり直しか、ログイン画面が返っている可能性があります。';
+      }
+      return 'GASからの返事：' + m;
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function setStatusMsg(html, warn) {
