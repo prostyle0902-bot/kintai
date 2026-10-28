@@ -231,6 +231,10 @@ def dropped_cogs(tab, period=None):
     if period != "21期" and tab in KASHIMA_LUMP:
         drop -= set(_KASHIMA_SPLIT)          # 22期は8%/10%を残す
         drop.add(KASHIMA_LUMP[tab])          # かわりに一括行を落とす
+    if period != "21期" and tab == "本部":
+        # 22期はカード明細を全部費目に振り分け、分からないものは保留にしている（fill22.post_cards）。
+        # 一括行は使わないので消す（利用者指示 2026-10-28）。21期は未分類を一括行に残しているので消さない
+        drop |= {"JCBカード", "三井住友カード"}
     return drop
 
 
