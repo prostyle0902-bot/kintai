@@ -351,6 +351,13 @@ def post_car(bk):
         bk.add(tab, plrow, m, val, "陸事総合", src, note)
 
 
+def post_shucchou(bk):
+    """本部の出張旅費（日当の月合計）。shucchou.DATA22"""
+    import shucchou
+    for tab, plrow, m, val, src, note in shucchou.rows22():
+        bk.add(tab, plrow, m, val, "出張記録", src, note)
+
+
 # ---------------------------------------------------------------- ⑧ かめや（焼きたて屋本部）
 # 3点セット（合計精算書・合計請求書・インフォマート請求書）を kameya.DATA22 に起こしてある。
 # 売上（税込）・消費税は post_airregi（FC月間売上集計一覧表）が入れるので、ここでは一致だけ確かめる。
@@ -459,6 +466,7 @@ def build():
     post_board(bk)
     post_yokocho(bk)
     post_car(bk)
+    post_shucchou(bk)
     post_tana(bk)
     post_sbpay(bk)
     post_kameya(bk)
