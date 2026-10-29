@@ -49,11 +49,7 @@ MONTHS22 = {"2609月": "9月", "2610月": "10月", "2611月": "11月", "2612月"
 # freeeカード明細（ファイル年月−1か月＝利用月）。届いたら1行足す
 STATEMENTS22 = [("csv/statement-2026-10.csv", 2026, 9)]
 
-# JCB・三井住友（支払月−1か月＝PL列）。届いたら1行足す
-CARDS22 = [("202610meisai.csv", "JCB", "9月"),
-           ("202610.csv", "三井住友", "9月"),
-           ("202611meisai.csv", "JCB", "10月"),
-           ("202611.csv", "三井住友", "10月")]
+# JCB・三井住友は cards.CARDS22（2026-10-29 から利用日ベース。cards.usage_ym）
 
 # ★十三里屋の固定費カード0538（ドコモ・USEN・ダスキン）は engine.py が「除外」にする。
 #   21期は既存PLの定額（fixed_costs.py）と二重にならないようにするためだった。
@@ -200,8 +196,11 @@ PERIOD22 = [(2026, m) for m in range(9, 13)] + [(2027, m) for m in range(1, 9)]
 
 # ---------------------------------------------------------------- ④ JCB・三井住友
 def post_cards(bk):
+    """★利用日の月に入れる（cards.usage_ym。利用者 2026-10-29「9月と10月に分けて」）。
+    利用日が21期（〜2026/08）のぶんは入れない（21期の cards.rows() が21期のその月へ入れる）。
+    利用日の無い行（年会費など）だけ、明細の支払月−1か月の列に入れる。"""
     import cards
-    for fname, issuer, m in CARDS22:
+    for fname, issuer, m0 in cards.CARDS22:
         path = os.path.join(cards.DIR, fname)
         if not os.path.exists(path):
             continue
@@ -214,16 +213,18 @@ def post_cards(bk):
                 f"{fname}: 明細合計 {total:,} ≠ 今回のお支払金額合計 {head:,}"
         per = {}
         for used, merchant, inc in det:
-            plrow = cards._classify(issuer, merchant)
-            ex = cards._ex(inc)
-            if plrow == "接待交際費" and ex <= cards.KAIGI_LIMIT and not cards.is_gift(merchant):
-                plrow = "会議費"
+            ym = cards.usage_ym(used, merchant)
+            if ym is not None and ym < (2026, 9):
+                continue                      # 21期ぶん
+            m = m0 if ym is None else f"{ym[1]}月"
+            assert ym is None or (2026, 9) <= ym <= (2027, 8), f"{fname}: {used} {merchant} が22期の外"
+            plrow, ex = cards.classify_row(issuer, merchant, inc)
             if plrow is None:
                 bk.hold.append((m, "本部", f"{issuer} {used} {merchant} {inc:,}",
                                 "cards.py の取引先マスタに無い。費目を決めてください"))
                 continue
-            per.setdefault(plrow, []).append((used, merchant, ex))
-        for plrow, items in per.items():
+            per.setdefault((plrow, m), []).append((used, merchant, ex))
+        for (plrow, m), items in per.items():
             bk.add("本部", plrow, m, sum(x[2] for x in items), issuer,
                    f"freeeカード明細/22期/{fname}",
                    " ／ ".join(f"{u} {mm} {e:,}" for u, mm, e in items))

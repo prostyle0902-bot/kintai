@@ -13,6 +13,11 @@ freeeカード（engine.py）とは別系統。置き場所は同じ
     （8/10支払分の利用日は 2026/05/31〜07/15）。利用日ベースで切ると毎月2枚必要になり、
     月次の確定が約1ヶ月遅れるため。既存本部スプシの年計とも一致する。
     明細ログには利用日をそのまま残すので、後から利用日ベースへ切り替えることは可能。
+    ★22期は【利用日ベース】に切り替えた（利用者 2026-10-29「9月と10月に分けて入れれない？」→
+      「カード代ぜんぶ」）。usage_ym() が利用日の月（「N月分」と書いてあればその月）を出す。
+      22期の最初の明細に入っていた 21期の利用ぶん（8/16〜8/31 など 487,086）は
+      21期8月へ足した（利用者「21期の8月に足す」。rows() の後半）。21期は支払日ベースのまま。
+      そのため22期のある月が出そろうのは、その月の後半が載る翌々月10日払いの明細が来たとき。
 
 【カード明細のルール】（利用者指示 2026-08-21）
     明細を読んだ月は、明細1行ずつを費目へ仕訳して入れる。
@@ -154,8 +159,17 @@ FILES = [
 ]
 
 
+# 22期のJCB・三井住友の明細。届いたら1行足す（fill22.post_cards が読む）
+# (ファイル, 発行会社, 支払月−1か月の列)。★3つめは利用日の無い行（年会費など）を入れる列にだけ使う。
+#   ほかは利用日の月に入る（usage_ym）。利用日が21期なら 21期の rows() が拾う。
+CARDS22 = [("202610meisai.csv", "JCB", "9月"),
+           ("202610.csv", "三井住友", "9月"),
+           ("202611meisai.csv", "JCB", "10月"),
+           ("202611.csv", "三井住友", "10月")]
+
+
 # ---------------------------------------------------------------- 読み取り
-import csv, io, os, unicodedata
+import csv, io, os, re, unicodedata
 from decimal import Decimal, ROUND_FLOOR
 
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
@@ -340,3 +354,51 @@ def rows():
                 plrow = "会議費"
             yield ("本部", merchant, plrow, ex, inc - ex,
                    f"freeeカード明細/21期/{fname}", month, used, issuer)
+    # ★22期の明細のうち、使った日が21期（〜2026/08）のぶん → 21期のその月へ
+    #   （利用者 2026-10-29「21期の8月に足す」。22期は利用日ベースにしたので、
+    #     22期の最初の明細に入っている 8/16〜8/31 利用ぶんがここに来る）
+    for fname, issuer, _m in CARDS22:
+        reader = _read_jcb if issuer == "JCB" else _read_smcc
+        for used, merchant, inc in reader(os.path.join(DIR, fname)):
+            ym = usage_ym(used, merchant)
+            if ym is None or ym >= (2026, 9):
+                continue
+            assert ym >= (2025, 9), f"{fname}: {used} {merchant} は21期より前"
+            plrow, ex = classify_row(issuer, merchant, inc)
+            yield ("本部", merchant, plrow, ex, inc - ex,
+                   f"freeeカード明細/22期/{fname}", f"{ym[1]}月", used, issuer)
+
+
+def classify_row(issuer, merchant, inc):
+    """(PL行 または None, 税抜)。5,000円以下の接待交際費は会議費（手土産は除く）"""
+    plrow = _classify(issuer, merchant)
+    ex = _ex(inc)
+    if plrow == "接待交際費" and ex <= KAIGI_LIMIT and not is_gift(merchant):
+        plrow = "会議費"
+    return plrow, ex
+
+
+_BUN = re.compile(r"(\d{1,2})月分")
+
+
+def usage_ym(used, merchant):
+    """22期のPL列を決める (年, 月)。利用日が無い行（年会費など）は None。
+
+    ★22期は【利用日ベース】（利用者 2026-10-29「9月と10月に分けて入れれない？」→「カード代ぜんぶ」）。
+      21期の支払日ベース（ファイル年月−1か月）はやめた。
+    ★「NTTファイナンス決済サービス 9月分」のように何月分と書いてある請求は、その月にする
+      （NTTは前月末の日付で翌月分が立つ。2026/08/31 の「9月分」は9月の通信費）。
+    """
+    m = re.match(r"(\d{4})/(\d{1,2})/", str(used or ""))
+    if not m:
+        return None
+    y, mo = int(m.group(1)), int(m.group(2))
+    b = _BUN.search(merchant)
+    if b:
+        n = int(b.group(1))
+        if n < mo - 6:
+            y += 1
+        elif n > mo + 6:
+            y -= 1
+        mo = n
+    return (y, mo)

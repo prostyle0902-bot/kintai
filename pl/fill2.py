@@ -751,8 +751,10 @@ def main(dst="損益計算書_21期テスト版.xlsx"):
     for tab, merch, plrow, ex, tax, src, m, used, iss in cards.rows():
         ws.append([used, tab, merch, f"{iss}カード", ex + tax, 10, ex, tax,
                    plrow or "（保留）", m, src, STAMP,
-                   "支払日ベースで計上（明細は利用日をそのまま記載）。"
-                   "カード明細に税額の記載がないため10%で逆算"])
+                   ("22期の明細のうち21期に使ったぶん。利用日の月で計上（利用者 2026-10-29）。"
+                    if "/22期/" in src else
+                    "支払日ベースで計上（明細は利用日をそのまま記載）。")
+                   + "カード明細に税額の記載がないため10%で逆算"])
     for tab, plrow, m, ex, tax, n, src, detail in board_rows:
         for d, cust, v in detail:
             ws.append([d, tab, cust, "board請求", "", 10, v, "", plrow, m, src, STAMP,
