@@ -119,14 +119,21 @@ def main():
     grid = svc.spreadsheets().values().get(spreadsheetId=sid, range=f"{T}!G1:J320",
                                            valueRenderOption="UNFORMATTED_VALUE").execute()["values"]
     shown = svc.spreadsheets().values().get(spreadsheetId=sid, range=f"{T}!G1:G320").execute()["values"]
-    pos, cur_day = {}, None
+    # ★1日のかたまりは G列に日付がある行から10行まで。その外は数えない。
+    #   最後の日のすぐ下に横丁の行（赤字。豚骨流星群・はな…タコハイ・りゅうちゃん・もも焼きJAPAN）があり、
+    #   G列が空なので前の日のつづきに見えてしまう。2026-10 は31日のタコハイ・りゅうちゃんが
+    #   そっちに入ってしまった（利用者 2026-11-01「赤い文字に入ってるが間違い？」）。
+    #   同じ店名が2回出ても最初の行を使う。
+    pos, cur_day, day_row = {}, None, None
     for i, r in enumerate(grid, start=1):
         r = list(r) + [""] * 4
         g = shown[i - 1][0].strip() if i - 1 < len(shown) and shown[i - 1] else ""
         if i >= 4 and g:
-            cur_day = g
+            cur_day, day_row = g, i
+        if day_row is not None and i >= day_row + 10:
+            cur_day = None
         if i >= 4 and cur_day and str(r[2]).strip():
-            pos[(str(r[2]).strip(), cur_day)] = (i, r[3])
+            pos.setdefault((str(r[2]).strip(), cur_day), (i, r[3]))
     missing = [k for k in vals if k not in pos]
     assert not missing, f"予測表に行が見つからない: {missing[:5]}"
     write, same, clash = [], 0, []
