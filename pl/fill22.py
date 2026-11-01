@@ -401,6 +401,14 @@ def post_payroll(bk):
             bk.hold.append((m, "（全タブ）", "人件費・法定福利費",
                             f"給料一覧表-{ym}.pdf がまだ無い（※プロスタイル給与※/プロスタイル給与R8年）"))
             break       # 先の月はまだ来ていない。いちばん早い未着の月だけ出す
+        if genba_split.days("22期", m) is None:
+            # ★現場カレンダーの日数（genba/days.json）が無いと、業務課・鳥害対策課の按分も
+            #   社長の日当の移しかえも黙って抜ける（2026-11-01 10月分で発生。利用者「カレンダー見て
+            #   按分するんじゃなかった？」）。給料一覧表があっても、日数を控えるまで入れない。
+            bk.hold.append((m, "（全タブ）", "人件費・法定福利費",
+                            f"現場カレンダーの{m}の日数がまだ控えていない。"
+                            "GOOGLE_SA_KEY_FILE=/tmp/sa.json python3 genba_split.py を先に回す"))
+            break
         split, _fb, _pool = kyuyo_split.split(ym, "22期")
         emp = kyuyo_parse.parse(ym)[0]
         nm = kyuyo_parse.names(ym)
