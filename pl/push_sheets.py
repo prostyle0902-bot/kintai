@@ -122,23 +122,28 @@ def _sync_tabs(svc, sid, names):
     for n in names:
         if n not in have:
             req.append({"addSheet": {"properties": {"title": n}}})
-    # 余分なタブは消す。ただし全部消すとエラーになるので、追加のあとに消す
-    extra = [t for t in have if t not in names]
+    # ★ローカルに無いタブは【消さない・触らない】（2026-11-02）。
+    #   もとは「余分なタブは消す」だった。利用者が別のスレッドで 22期 に
+    #   「月次目標」「人件費の配分」タブを足していて（全体サマリーの行25・行67〜77を参照）、
+    #   push のたびに消してしまうおそれがあった。利用者のタブは残し、場所もそのまま。
     if req:
         svc.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": req}).execute()
         meta = svc.spreadsheets().get(spreadsheetId=sid,
                                       fields="sheets.properties").execute()
         have = {s["properties"]["title"]: s["properties"]["sheetId"]
                 for s in meta["sheets"]}
+    extra = [t for t in have if t not in names]
     if extra:
-        svc.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": [
-            {"deleteSheet": {"sheetId": have[t]}} for t in extra]}).execute()
-        for t in extra:
-            have.pop(t)
-    # 並び順もローカルに合わせる
+        print(f"  ローカルに無いタブはそのまま残します: {'・'.join(extra)}")
+    # 並び順: いまの並びのうち、ローカルのタブが占めている場所にだけローカルの順で入れ直す
+    #   （利用者のタブの位置は動かさない）
+    cur = sorted(meta["sheets"], key=lambda s: s["properties"]["index"])
+    if [s["properties"]["title"] for s in cur if s["properties"]["title"] in names] == list(names):
+        return have          # もう正しい順。動かさない
+    slots = [s["properties"]["index"] for s in cur if s["properties"]["title"] in names]
     order = [{"updateSheetProperties": {
         "properties": {"sheetId": have[n], "index": i},
-        "fields": "index"}} for i, n in enumerate(names)]
+        "fields": "index"}} for i, n in zip(slots, names)]
     svc.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": order}).execute()
     return have
 
