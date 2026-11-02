@@ -47,8 +47,14 @@ MONTHS22 = {"2609月": "9月", "2610月": "10月", "2611月": "11月", "2612月"
             "2705月": "5月", "2706月": "6月", "2707月": "7月", "2708月": "8月"}
 
 # freeeカード明細（ファイル年月−1か月＝利用月）。届いたら1行足す
+#   4つ目に正規表現を書くと、利用店名がそれに当たる行だけ使う（先に一部だけ届いた明細用）。
 STATEMENTS22 = [("csv/statement-2026-10.csv", 2026, 9),
-                ("csv/statement-2026-11.csv", 2026, 10)]
+                ("csv/statement-2026-11.csv", 2026, 10),
+                # ★2026-11-02 りゅうちゃんのカードだけ先に届いた（11/1〜11/2の3件）。
+                #   利用者「やまなかだけ10月分に入れてほしい」→ やまなかの行だけ使う
+                #   （11/2 は「1〜5日は前月」で10月に入る）。ほかの2件は11月の明細全体が届いてから。
+                #   ★全カードの statement-2026-12.csv が届いたら上書きして、この絞り込みを外す。
+                ("csv/statement-2026-12.csv", 2026, 11, r"YAMANAKA|やまなか|ヤマナカ|ﾔﾏﾅｶ")]
 
 # JCB・三井住友は cards.CARDS22（2026-10-29 から利用日ベース。cards.usage_ym）
 
@@ -145,10 +151,12 @@ def post_freee(bk):
     import engine
     engine.PERIOD = [(2026, m) for m in range(9, 13)] + [(2027, m) for m in range(1, 9)]
     frames = []
-    for path, y, mo in STATEMENTS22:
+    for path, y, mo, *only in STATEMENTS22:
         if not os.path.exists(os.path.join(BASE, path)):
             continue
         d = engine.load(os.path.join(BASE, path), y, mo)
+        if only:
+            d = d[d["利用店名"].astype(str).str.contains(only[0], regex=True)]
         d["_srcfile"] = os.path.basename(path)
         frames.append(d)
     if not frames:

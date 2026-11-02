@@ -349,7 +349,8 @@ def classify(d):
         #   6〜8月は既存PLとの突き合わせでこの決め方を検証済み。
         year, month = day.year, day.month
         biko = ""
-        if "やまなか" in norm(kw) or "ヤマナカ" in norm(name):
+        # ★ローマ字表記（SAKAGURAYAMANAKA）も見る（2026-11-02 まで見ていなかった。1〜5日のローマ字表記は11/2の1件が最初）
+        if "やまなか" in norm(kw) or "ヤマナカ" in norm(name) or "YAMANAKA" in norm(name).upper():
             if (day.strftime("%Y-%m-%d"), tab, amt) in YAMANAKA_NO_SHIFT:
                 biko = "利用日の月のまま（利用者指示）"
             elif 1 <= day.day <= 5:
