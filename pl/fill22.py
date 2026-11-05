@@ -25,6 +25,7 @@ build22.py は「空の器＋inv22.py」だけだった。ここで元データ�
   各店の仕入先の請求書（鹿島食品・六角堂ほか。10月に届く）
 """
 import csv
+from decimal import Decimal
 import glob
 import os
 import sys
@@ -285,6 +286,35 @@ BANK_ALIAS = {
 }
 
 
+# ---------------------------------------------------------------- ⑤b PayPay銀行の振込手数料
+# 利用者指示 2026-11-05「はい、毎月入れて」→ 本部「ネットバンク手数料」に毎月入れる。
+#   PayPay銀行（bank/NBG*.csv）の摘要「振込手数料」の出金を【操作日の月】で足し、
+#   合計を ÷1.1 して円未満切り捨て（税込145円などの振込手数料。消費税10%込み）。
+#   同じ取引が2つのファイルに入っていても二重にならないよう、行の中身で重複を消す。
+def post_nbgfee(bk):
+    import glob as _glob
+    seen, by = set(), {}
+    for path in sorted(_glob.glob(os.path.join(BASE, "bank", "NBG*.csv"))):
+        for r in csv.DictReader(open(path, encoding="cp932")):
+            if r.get("摘要") != "振込手数料" or not r.get("お支払金額"):
+                continue
+            key = tuple(r.get(k, "") for k in ("操作日(年)", "操作日(月)", "操作日(日)", "操作時刻(時)",
+                                               "操作時刻(分)", "操作時刻(秒)", "取引順番号", "お支払金額"))
+            if key in seen:
+                continue
+            seen.add(key)
+            ym = (int(r["操作日(年)"]), int(r["操作日(月)"]))
+            if not ((2026, 9) <= ym <= (2027, 8)):
+                continue
+            n, tot = by.get(ym, (0, 0))
+            by[ym] = (n + 1, tot + int(r["お支払金額"]))
+    for (y, mo), (n, tot) in sorted(by.items()):
+        ex = int(Decimal(tot) / Decimal("1.1"))
+        bk.add("本部", "ネットバンク手数料", f"{mo}月", ex, "PayPay銀行",
+               "銀行明細/22期 PayPay銀行（bank/NBG*.csv）",
+               f"PayPay銀行の振込手数料 {n}件 税込{tot:,} → 税抜{ex:,}（÷1.1 円未満切り捨て）")
+
+
 # ---------------------------------------------------------------- ⑧ SBペイメント（十三里屋）
 # PayPay決済端末の収納明細書（半月ごと）の手数料。sbpay.py に読んだ数字がある。
 # 半月2枚がそろわない月は入れずに保留へ。
@@ -498,6 +528,7 @@ def build():
     post_freee(bk)
     post_cards(bk)
     post_bank(bk)
+    post_nbgfee(bk)
     post_payroll(bk)
     post_board(bk)
     post_yokocho(bk)
