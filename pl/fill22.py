@@ -267,13 +267,22 @@ def _same_vendor_in(bk, tab, plrow, m, note):
       取引先の名前（メモの先頭『。』まで）で見て、別の相手なら両方入れる。
     """
     who = note.split("。")[0].strip()
+    keys = [who] + BANK_ALIAS.get(who, [])
     for t, r, mm, _v, _k, _src, n in bk.cells:
         if (t, r, mm) != (tab, plrow, m):
             continue
         head = (n or "").split("。")[0].strip()
-        if who and head and (who in (n or "") or head in who):
+        if who and head and (any(k in (n or "") for k in keys) or head in who):
             return True
     return False
+
+
+# 銀行のメモの取引先名と、請求書のメモの書き方が違うもの（→ 同じ取引先とみなす言葉）
+# ★2026-11-05 10月の横丁口座の明細を入れたら、10/26 の水道引落（9月分 76,483）が
+#   請求書（inv22 の『神栖市 水道料金・下水道使用料…』）と別物扱いになり、9月の水道が2倍になった。
+BANK_ALIAS = {
+    "神栖市水道事業": ["水道料金・下水道", "神栖市水道課"],
+}
 
 
 # ---------------------------------------------------------------- ⑧ SBペイメント（十三里屋）
