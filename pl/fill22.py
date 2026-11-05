@@ -306,7 +306,11 @@ def post_sbpay(bk):
 #   グループ空欄は board.GROUP_BY_CUSTOMER（21期と同じ: PlusOne・シナネンアクシア・亀甲堂→業務課）。
 #   TAKEOUTPARK神栖横丁（グリスト清掃）も21期と同じく業務課の売上。
 # 主キーは 合計請求書No（この形式には請求書IDが無い）。請求日がその月でない行があれば止める。
-BOARD22 = [("board_2609.csv", "9月", "2026-09")]
+#   4つ目にグループの集合を書くと、その月はそのグループだけ入れる（まだそろっていないグループを入れないため）。
+BOARD22 = [("board_2609.csv", "9月", "2026-09"),
+           # ★2026-11-05 利用者「業務課と鳥害対策、boardのCSV入れた。飲食はまだなので反映しなくていい」
+           #   → 10月は業務課・鳥害対策課だけ。飲食事業部（いまは5件）は取り直したCSVが来てから外す。
+           ("board_2610.csv", "10月", "2026-10", {"業務課", "鳥害対策課"})]
 BOARD22_GROUPS = {"業務課", "鳥害対策課", "飲食事業部"}
 # ★2026-10-20 飲食事業部も入れる。利用者が9月分を取り直したCSVを置き（「請求書のCSV入れた」）、
 #   飲食事業部が16件→27件（テナント家賃の合計請求書11件が加わった）でそろった。
@@ -315,7 +319,8 @@ BOARD22_GROUPS = {"業務課", "鳥害対策課", "飲食事業部"}
 
 def post_board(bk):
     import board
-    for name, m, ym in BOARD22:
+    for name, m, ym, *only in BOARD22:
+        groups = only[0] if only else BOARD22_GROUPS
         path = os.path.join(BASE, "cards", name)
         if not os.path.exists(path):
             continue
@@ -324,7 +329,7 @@ def post_board(bk):
         for r in rows:
             assert r["請求日"][:7] == ym, f"{name}: 請求日 {r['請求日']} が {ym} でない"
             g = board._group(r)
-            if g not in BOARD22_GROUPS:
+            if g not in groups:
                 continue
             ex = int(float(r["請求金額（JPY・税抜）"]))
             by.setdefault(g, []).append((ex, r["顧客名"]))
