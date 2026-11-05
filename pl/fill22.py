@@ -310,7 +310,10 @@ def post_sbpay(bk):
 BOARD22 = [("board_2609.csv", "9月", "2026-09"),
            # ★2026-11-05 利用者「業務課と鳥害対策、boardのCSV入れた。飲食はまだなので反映しなくていい」
            #   → 10月は業務課・鳥害対策課だけ。飲食事業部（いまは5件）は取り直したCSVが来てから外す。
-           ("board_2610.csv", "10月", "2026-10", {"業務課", "鳥害対策課"})]
+           #   本部（顧客名「一般」1件141,818）は利用者 2026-11-05「入れていい」→ 本部「売上」
+           ("board_2610.csv", "10月", "2026-10", {"業務課", "鳥害対策課", "本部"})]
+# board.GROUP2PL に無いグループの行き先（22期だけ。21期の board.py は触らない）
+BOARD22_EXTRA = {"本部": ("本部", "売上")}
 BOARD22_GROUPS = {"業務課", "鳥害対策課", "飲食事業部"}
 # ★2026-10-20 飲食事業部も入れる。利用者が9月分を取り直したCSVを置き（「請求書のCSV入れた」）、
 #   飲食事業部が16件→27件（テナント家賃の合計請求書11件が加わった）でそろった。
@@ -336,7 +339,7 @@ def post_board(bk):
         for g, items in sorted(by.items()):
             items.sort(key=lambda x: -x[0])
             note = f"board {m}分 {len(items)}件: " + "／".join(f"{c} {e:,}" for e, c in items[:15])
-            tab, plrow = board.GROUP2PL[g]
+            tab, plrow = board.GROUP2PL.get(g) or BOARD22_EXTRA[g]
             bk.add(tab, plrow, m, sum(e for e, _c in items), "board",
                    f"★毎月ここに入れる/04_board売上（cards/{name}）", note)
 
