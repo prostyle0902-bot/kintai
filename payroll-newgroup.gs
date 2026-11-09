@@ -316,6 +316,10 @@ function ngOneFile_(f, group, name, rec, dryRun) {
     ss.setActiveSheet(sheet);
     ss.moveActiveSheet(tpl.getIndex() + 1);
     payrollFillSheet_(sheet, model.name, name, rec, null);
+    /* いまの掃除は「出勤・退勤・備考」しか消さないので、
+       休憩の数字・備考より右の文字・打刻日の色が複製元のまま残る。
+       作ったそばから片づけておく（ngTidyOne_ と同じ中身）。 */
+    try { ngTidyOne_(sheet, false); } catch (e) { /* 片づけに失敗しても作成は続ける */ }
     madeSheet = true;
   }
 
@@ -416,4 +420,305 @@ function checkTotals() {
     Logger.log('○には、その現場の見出し（▶）の下に並ぶ人の行を入れます。');
     Logger.log('その現場に人が1人もいないときは、=0 と入れておけば総合計は直ります。');
   }
+}
+
+
+/* =========================================================
+   複製したシートの後片づけ・見た目直し
+
+   出勤簿シートは、ほかの人のシートを複製して作っています。
+   いまの掃除（payrollClearPunches_）が消すのは
+   「出勤・退勤・備考」の3列だけなので、次のものが残ります。
+
+     ・休憩(分) の数字      … 実働時間が削られる。金額が変わります
+     ・備考より右の列の文字  … 「申請済」など
+     ・出勤・退勤セルの背景色 … 複製元が打刻した日が青いまま
+
+   また、給与明細の強調が「通勤手当」の行に付いていて、
+   いちばん見たい「差引支給額」が目立たない状態です。
+   （複製元のシートが元からそうなっています）
+
+   ここで、その4つをまとめて直します。
+
+   ■ 使い方
+     1. 下の TIDY を書き換える
+     2. previewTidy で下見（何も変えません）
+     3. tidySheets で実行
+   ========================================================= */
+
+var TIDY = {
+  // 直す人。空にすると、その期間の出勤簿すべてが対象になります
+  name: '奥田京子',
+
+  // この日より前に終わった期間は触りません。空にすると全期間
+  from: '2026-11-11',
+
+  /* 給与明細の強調を「通勤手当」から「差引支給額」に移すか。
+     false にすると、残りもの（休憩・文字・色）の掃除だけします。 */
+  payslipLook: true,
+
+  /* 打刻の入っている日も掃除するか。
+     ふつうは false。true にすると、本物の打刻まで消えてしまいます。 */
+  force: false,
+};
+
+
+function previewTidy() { ngTidy_(true); }
+function tidySheets()  { ngTidy_(false); }
+
+
+function ngTidy_(dryRun) {
+  var who = String(TIDY.name || '').trim();
+  var from = String(TIDY.from || '').trim();
+  Logger.log(dryRun ? '=== 下見（何も変えません）===' : '=== 直します ===');
+  Logger.log('対象：' + (who || 'その期間の全員') + (from ? '　' + from + ' 以降の期間' : '　全期間'));
+  Logger.log('');
+
+  var files = payrollFiles_().files;
+  var touched = 0, clean = 0, failed = 0;
+
+  for (var i = files.length - 1; i >= 0; i--) {
+    var f = files[i];
+    if (from && f.end < from) continue;
+
+    var r;
+    try { r = ngTidyFile_(f, who, dryRun); }
+    catch (e) { r = { status: 'error', message: String(e) }; }
+
+    if (r.status === 'error') { failed++; Logger.log('✗ ' + f.label + '：' + r.message); }
+    else if (!r.lines.length) { clean++; Logger.log('－ ' + f.label + '：直すところはありません'); }
+    else {
+      touched++;
+      Logger.log((dryRun ? '○ ' : '✓ ') + f.label);
+      for (var k = 0; k < r.lines.length; k++) Logger.log('    ' + r.lines[k]);
+    }
+  }
+
+  Logger.log('');
+  Logger.log((dryRun ? '直す予定：' : '直した：') + touched + '件／'
+    + 'そのまま：' + clean + '件／できなかった：' + failed + '件');
+  if (dryRun && touched) Logger.log('問題なければ tidySheets を実行してください。');
+}
+
+
+function ngTidyFile_(f, who, dryRun) {
+  var ss = SpreadsheetApp.openById(f.id);
+  var lines = [];
+
+  var targets = [];
+  if (who) {
+    var one = payrollStaffSheet_(ss, who);
+    if (!one) return { status: 'ok', lines: [] };     // この期間にはまだ無い
+    targets.push(one);
+  } else {
+    var all = ss.getSheets();
+    for (var i = 0; i < all.length; i++) {
+      // 出勤簿らしいシートだけ（B5に「日付」がある）
+      try {
+        if (String(all[i].getRange(5, 2).getValue() || '').trim() === '日付') targets.push(all[i]);
+      } catch (e) { /* 小さいシートは飛ばす */ }
+    }
+  }
+
+  for (var t = 0; t < targets.length; t++) {
+    var got = ngTidyOne_(targets[t], dryRun);
+    if (got.length) lines.push(targets[t].getName() + '：' + got.join('／'));
+  }
+  return { status: 'ok', lines: lines };
+}
+
+
+/* 出勤簿シート1枚を直す。直したところの一覧を返す */
+function ngTidyOne_(sheet, dryRun) {
+  var out = [];
+  var rows = Math.min(sheet.getLastRow(), 80);
+  var cols = Math.max(sheet.getLastColumn(), 10);
+  if (rows < 6) return out;
+
+  var vals = sheet.getRange(1, 1, rows, cols).getValues();
+  var fs = sheet.getRange(1, 1, rows, cols).getFormulas();
+
+  // 見出し行と、各列の位置を探す
+  var hr = -1, cIn = -1, cOut = -1, cRest = -1, cMemo = -1;
+  for (var r = 0; r < rows && hr < 0; r++) {
+    for (var c = 0; c < cols; c++) {
+      if (String(vals[r][c]).trim() !== '出勤') continue;
+      hr = r; cIn = c;
+      for (var c2 = 0; c2 < cols; c2++) {
+        var h = String(vals[r][c2]).trim();
+        if (h === '退勤') cOut = c2;
+        if (h === '休憩(分)' || h === '休憩（分）' || h === '休憩') cRest = c2;
+        if (h === '備考') cMemo = c2;
+      }
+      break;
+    }
+  }
+  if (hr < 0) return out;
+
+  // 日付の行の範囲（合計の行まで）
+  var first = hr + 1, last = -1;
+  for (var r2 = hr + 1; r2 < rows; r2++) {
+    if (String(vals[r2][1] || '').trim() === '合計') break;
+    last = r2;
+  }
+  if (last < first) return out;
+
+  var restCleared = 0, extraCleared = 0, colorCleared = 0;
+
+  for (var r3 = first; r3 <= last; r3++) {
+    // 打刻が入っている日は、ふつう触らない
+    var punched = (cIn >= 0 && String(vals[r3][cIn] || '').trim())
+               || (cOut >= 0 && String(vals[r3][cOut] || '').trim());
+    if (punched && !TIDY.force) continue;
+
+    // 1) 休憩(分)：打刻が無いのに数字が残っているものを 0 に戻す
+    if (cRest >= 0 && !fs[r3][cRest] && Number(vals[r3][cRest])) {
+      if (!dryRun) sheet.getRange(r3 + 1, cRest + 1).setValue(0);
+      restCleared++;
+    }
+
+    // 2) 備考より右に残っている文字（「申請済」など）を消す
+    if (cMemo >= 0) {
+      for (var c3 = cMemo + 1; c3 < cols; c3++) {
+        if (fs[r3][c3]) continue;                       // 計算式は残す
+        if (String(vals[r3][c3] || '').trim() === '') continue;
+        if (!dryRun) sheet.getRange(r3 + 1, c3 + 1).clearContent();
+        extraCleared++;
+      }
+    }
+
+    // 3) 出勤・退勤セルの背景色（複製元が打刻した日の青）を白に戻す
+    if (cIn >= 0 && cOut >= 0) {
+      var w = cOut - cIn + 1;
+      var bg = sheet.getRange(r3 + 1, cIn + 1, 1, w).getBackgrounds()[0];
+      var dirty = false;
+      for (var b = 0; b < bg.length; b++) {
+        var v = String(bg[b] || '').toLowerCase();
+        if (v && v !== '#ffffff' && v !== 'white') dirty = true;
+      }
+      if (dirty) {
+        if (!dryRun) sheet.getRange(r3 + 1, cIn + 1, 1, w).setBackground('#ffffff');
+        colorCleared++;
+      }
+    }
+  }
+
+  if (restCleared) out.push('休憩の数字 ' + restCleared + '日ぶんを0に');
+  if (extraCleared) out.push('備考より右の文字 ' + extraCleared + '個を削除');
+  if (colorCleared) out.push('色のついた日 ' + colorCleared + '日ぶんを白に');
+
+  // 4) 給与明細の強調を「差引支給額」に移す
+  if (TIDY.payslipLook) {
+    var moved = ngFixPayslipLook_(sheet, vals, rows, dryRun);
+    if (moved) out.push(moved);
+  }
+
+  return out;
+}
+
+
+/* 給与明細の強調を、通勤手当の行から差引支給額の行へ移す。
+   いちばん見たいのは差引支給額なので、そこを目立たせる。 */
+function ngFixPayslipLook_(sheet, vals, rows, dryRun) {
+  var rCommute = -1, rTotal = -1, cAmount = -1;
+  for (var r = 0; r < rows; r++) {
+    var b = String(vals[r][1] || '').trim();
+    if (b === '項目') {
+      for (var c = 2; c < vals[r].length; c++) {
+        if (String(vals[r][c] || '').indexOf('金額') >= 0) { cAmount = c; break; }
+      }
+    }
+    if (b.indexOf('通勤手当') === 0) rCommute = r;
+    if (b.indexOf('差引支給額') === 0) rTotal = r;
+  }
+  if (rCommute < 0 || rTotal < 0 || cAmount < 0) return '';
+
+  var LABEL_BG = '#1f4e79';     // 見出しと同じ濃い青
+  var AMOUNT_BG = '#2e75b6';
+  var WHITE = '#ffffff';
+
+  var nowLabel = String(sheet.getRange(rTotal + 1, 2).getBackground() || '').toLowerCase();
+  if (nowLabel === LABEL_BG) return '';                  // もう直っている
+
+  if (!dryRun) {
+    // 通勤手当の行を、ほかの項目と同じ見た目に戻す
+    sheet.getRange(rCommute + 1, 2).setBackground(WHITE).setFontColor('#000000').setFontWeight('normal');
+    sheet.getRange(rCommute + 1, cAmount + 1).setBackground('#ebf3fb').setFontColor('#000000').setFontWeight('normal');
+    // 差引支給額の行を目立たせる
+    sheet.getRange(rTotal + 1, 2).setBackground(LABEL_BG).setFontColor('#ffffff').setFontWeight('bold');
+    sheet.getRange(rTotal + 1, cAmount + 1).setBackground(AMOUNT_BG).setFontColor('#ffffff').setFontWeight('bold');
+  }
+  return '給与明細の強調を差引支給額に移動';
+}
+
+
+/* =========================================================
+   壊れた店舗別合計を直す
+
+   人の行を消すと =SUM(…) が =SUM(#REF!) になり、総合計まで #REF! に
+   なります。見出し（▶）の下に並ぶ人の行から範囲を組み直します。
+   その現場に人が1人もいないときは =0 を入れます。
+
+   previewFixTotals で下見、fixTotals で実行。
+   壊れている行（#REF!）だけ直します。正常な行には触りません。
+   ========================================================= */
+
+function previewFixTotals() { ngFixTotals_(true); }
+function fixTotals()        { ngFixTotals_(false); }
+
+function ngFixTotals_(dryRun) {
+  Logger.log(dryRun ? '=== 下見（何も変えません）===' : '=== 直します ===');
+  var files = payrollFiles_().files;
+  var fixed = 0, ok = 0, failed = 0;
+
+  for (var i = files.length - 1; i >= 0; i--) {
+    var f = files[i];
+    var lines = [];
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var list = payrollListSheet_(ss);
+      if (!list) { failed++; Logger.log('✗ ' + f.label + '：給与一覧表が見つかりません'); continue; }
+
+      var tot = ngTotalRow_(list);
+      if (tot.head < 0) { ok++; continue; }
+
+      var n = Math.max(list.getLastRow(), 1);
+      var colA = list.getRange(1, 1, n, 1).getValues();
+      var colF = list.getRange(1, 6, n, 1).getFormulas();
+      var showF = list.getRange(1, 6, n, 1).getDisplayValues();
+
+      for (var r = tot.head; r < n; r++) {
+        var label = String(colA[r][0] || '').trim();
+        if (!label || label.indexOf('総合計') >= 0) continue;
+        var broken = String(colF[r][0]).indexOf('#REF!') >= 0
+                  || String(showF[r][0]).indexOf('#REF!') >= 0;
+        if (!broken) continue;
+
+        var g = payrollGroup_(list, label);
+        var formula;
+        if (!g) { formula = null; }
+        else if (g.sample < 0) { formula = '=0'; }        // その現場に人がいない
+        else { formula = '=SUM(F' + g.sample + ':F' + g.last + ')'; }
+
+        if (!formula) {
+          lines.push((r + 1) + '行目 ' + label + '：見出し（▶ ' + label + '）が見つからず直せません');
+          continue;
+        }
+        lines.push((r + 1) + '行目 ' + label + '：' + (colF[r][0] || showF[r][0]) + ' → ' + formula);
+        if (!dryRun) list.getRange(r + 1, 6).setFormula(formula);
+      }
+    } catch (e) {
+      failed++; Logger.log('✗ ' + f.label + '：' + e); continue;
+    }
+
+    if (!lines.length) { ok++; continue; }
+    fixed++;
+    Logger.log((dryRun ? '○ ' : '✓ ') + f.label);
+    for (var k = 0; k < lines.length; k++) Logger.log('    ' + lines[k]);
+  }
+
+  Logger.log('');
+  Logger.log((dryRun ? '直す予定：' : '直した：') + fixed + '件／'
+    + '正常：' + ok + '件／できなかった：' + failed + '件');
+  if (dryRun && fixed) Logger.log('問題なければ fixTotals を実行してください。');
 }
