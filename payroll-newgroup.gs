@@ -653,72 +653,245 @@ function ngFixPayslipLook_(sheet, vals, rows, dryRun) {
 
 
 /* =========================================================
-   壊れた店舗別合計を直す
+   給与一覧表の計算式を点検して直す
 
-   人の行を消すと =SUM(…) が =SUM(#REF!) になり、総合計まで #REF! に
-   なります。見出し（▶）の下に並ぶ人の行から範囲を組み直します。
-   その現場に人が1人もいないときは =0 を入れます。
+   ■ なにが起きていたか
 
-   previewFixTotals で下見、fixTotals で実行。
-   壊れている行（#REF!）だけ直します。正常な行には触りません。
+   人の行は「同じ現場の人の行を複製」して作ります。複製すると
+   相対参照が1行ずれるので、作ったあとに式を入れ直しています。
+   そこが抜けた行がいくつかあり、自分のシートの「ちがう行」を
+   見たままになっていました。
+
+     正しい   ='鎌形房枝'!D37   （合計の行）
+     ずれた   ='鎌形房枝'!D39   （何もない行）
+
+   見た目は空欄になるだけなので気づきにくく、その人の給与が
+   給与一覧に1円も出ていない状態になります。
+
+   ■ 直し方
+
+   式に書かれているシート名はそのまま使い、「行」だけを直します。
+   行は、その人のシートを実際に見て決めます。
+
+     出勤日数 → D<合計の行>
+     実働     → G<合計の行>
+     深夜     → H<合計の行>
+     支給額   → G<差引支給額の行>
+
+   給与明細の行数は人によって違う（固定手当の有無など）ので、
+   決め打ちはせず1枚ずつ探します。
+
+   あわせて【 店舗別合計 】の =SUM(…) も、見出し（▶）の下に
+   並ぶ人の行から組み直します。人が1人もいない現場は =0。
+
+   ■ 使い方
+     previewFixList で下見（何も変えません）→ fixPayrollList で実行
    ========================================================= */
 
-function previewFixTotals() { ngFixTotals_(true); }
-function fixTotals()        { ngFixTotals_(false); }
+var FIX_LIST = {
+  // この日より前に終わった期間は触りません。空にすると全期間
+  from: '',
 
-function ngFixTotals_(dryRun) {
+  /* 現場の列を移したい人。給与一覧での表記で書きます。
+     例：{ '鎌形房枝': 'ゆう屋' } … 鎌形さんを「▶ ゆう屋」の下に移す */
+  move: { '鎌形房枝': 'ゆう屋' },
+};
+
+
+function previewFixList() { ngFixList_(true); }
+function fixPayrollList() { ngFixList_(false); }
+
+
+// '=\'名前\'!D37' を分解する
+function ngParseRef_(f) {
+  var m = /^=\s*'([^']+)'\s*!\s*\$?([A-Z]+)\$?(\d+)\s*$/.exec(String(f || ''));
+  if (!m) m = /^=\s*([^'!\s]+)\s*!\s*\$?([A-Z]+)\$?(\d+)\s*$/.exec(String(f || ''));
+  if (!m) return null;
+  return { sheet: m[1], col: m[2], row: Number(m[3]) };
+}
+
+// 出勤簿シートの「合計」の行と「差引支給額」の行を探す
+function ngSheetRows_(sheet) {
+  var n = Math.min(sheet.getLastRow(), 80);
+  if (n < 5) return null;
+  var b = sheet.getRange(1, 2, n, 1).getValues();
+  var total = -1, pay = -1;
+  for (var i = 0; i < b.length; i++) {
+    var t = String(b[i][0] || '').trim();
+    if (total < 0 && t === '合計') total = i + 1;
+    if (t.indexOf('差引支給額') === 0) pay = i + 1;
+  }
+  if (total < 0 || pay < 0) return null;
+  return { total: total, pay: pay };
+}
+
+
+function ngFixList_(dryRun) {
+  var from = String(FIX_LIST.from || '').trim();
   Logger.log(dryRun ? '=== 下見（何も変えません）===' : '=== 直します ===');
+  var mv = [];
+  for (var k in FIX_LIST.move) mv.push(k + ' → ▶ ' + FIX_LIST.move[k]);
+  Logger.log('移す人：' + (mv.length ? mv.join('、') : 'なし'));
+  Logger.log('');
+
   var files = payrollFiles_().files;
-  var fixed = 0, ok = 0, failed = 0;
+  var touched = 0, clean = 0, failed = 0;
 
   for (var i = files.length - 1; i >= 0; i--) {
     var f = files[i];
-    var lines = [];
-    try {
-      var ss = SpreadsheetApp.openById(f.id);
-      var list = payrollListSheet_(ss);
-      if (!list) { failed++; Logger.log('✗ ' + f.label + '：給与一覧表が見つかりません'); continue; }
+    if (from && f.end < from) continue;
+    var r;
+    try { r = ngFixListFile_(f, dryRun); }
+    catch (e) { r = { status: 'error', message: String(e) }; }
 
-      var tot = ngTotalRow_(list);
-      if (tot.head < 0) { ok++; continue; }
-
-      var n = Math.max(list.getLastRow(), 1);
-      var colA = list.getRange(1, 1, n, 1).getValues();
-      var colF = list.getRange(1, 6, n, 1).getFormulas();
-      var showF = list.getRange(1, 6, n, 1).getDisplayValues();
-
-      for (var r = tot.head; r < n; r++) {
-        var label = String(colA[r][0] || '').trim();
-        if (!label || label.indexOf('総合計') >= 0) continue;
-        var broken = String(colF[r][0]).indexOf('#REF!') >= 0
-                  || String(showF[r][0]).indexOf('#REF!') >= 0;
-        if (!broken) continue;
-
-        var g = payrollGroup_(list, label);
-        var formula;
-        if (!g) { formula = null; }
-        else if (g.sample < 0) { formula = '=0'; }        // その現場に人がいない
-        else { formula = '=SUM(F' + g.sample + ':F' + g.last + ')'; }
-
-        if (!formula) {
-          lines.push((r + 1) + '行目 ' + label + '：見出し（▶ ' + label + '）が見つからず直せません');
-          continue;
-        }
-        lines.push((r + 1) + '行目 ' + label + '：' + (colF[r][0] || showF[r][0]) + ' → ' + formula);
-        if (!dryRun) list.getRange(r + 1, 6).setFormula(formula);
-      }
-    } catch (e) {
-      failed++; Logger.log('✗ ' + f.label + '：' + e); continue;
+    if (r.status === 'error') { failed++; Logger.log('✗ ' + f.label + '：' + r.message); }
+    else if (!r.lines.length) { clean++; Logger.log('－ ' + f.label + '：直すところはありません'); }
+    else {
+      touched++;
+      Logger.log((dryRun ? '○ ' : '✓ ') + f.label);
+      for (var k2 = 0; k2 < r.lines.length; k2++) Logger.log('    ' + r.lines[k2]);
     }
+  }
+  Logger.log('');
+  Logger.log((dryRun ? '直す予定：' : '直した：') + touched + '件／'
+    + 'そのまま：' + clean + '件／できなかった：' + failed + '件');
+  if (dryRun && touched) Logger.log('問題なければ fixPayrollList を実行してください。');
+}
 
-    if (!lines.length) { ok++; continue; }
-    fixed++;
-    Logger.log((dryRun ? '○ ' : '✓ ') + f.label);
-    for (var k = 0; k < lines.length; k++) Logger.log('    ' + lines[k]);
+
+function ngFixListFile_(f, dryRun) {
+  var ss = SpreadsheetApp.openById(f.id);
+  var list = payrollListSheet_(ss);
+  if (!list) return { status: 'error', message: '給与一覧表が見つかりません' };
+  var lines = [];
+
+  /* --- 1. 現場の列を移す（先に入れてから消す） --- */
+  for (var who in FIX_LIST.move) {
+    var got = ngMoveOne_(ss, list, who, FIX_LIST.move[who], dryRun);
+    if (got) lines.push(got);
+    if (got && !dryRun) { /* 行が動いたので、このあとは読み直した値を使う */ }
   }
 
-  Logger.log('');
-  Logger.log((dryRun ? '直す予定：' : '直した：') + fixed + '件／'
-    + '正常：' + ok + '件／できなかった：' + failed + '件');
-  if (dryRun && fixed) Logger.log('問題なければ fixTotals を実行してください。');
+  /* --- 2. 計算式の行ずれを直す --- */
+  var vals = payrollListVals_(list);
+  var lastCol = Math.min(list.getLastColumn(), 6);
+  var rowsCache = {};
+
+  for (var r = 0; r < vals.length; r++) {
+    if (!/^\d+$/.test(String(vals[r][0] || '').trim())) continue;
+    var nm = String(vals[r][1] || '').trim();
+    if (!nm) continue;
+
+    var fs = list.getRange(r + 1, 1, 1, lastCol).getFormulas()[0];
+    // C・D・E・F（0起点で 2・3・4・5）がどの行を見るべきか
+    var want = { 2: 'D', 3: 'G', 4: 'H', 5: 'G' };
+    var changes = [];
+
+    for (var c in want) {
+      c = Number(c);
+      var ref = ngParseRef_(fs[c]);
+      if (!ref) continue;                         // 計算式でない欄は触らない
+
+      if (!rowsCache[ref.sheet]) {
+        var sh = ss.getSheetByName(ref.sheet);
+        if (!sh) { rowsCache[ref.sheet] = { miss: true }; }
+        else {
+          var got2 = ngSheetRows_(sh);
+          rowsCache[ref.sheet] = got2 || { miss: true };
+        }
+      }
+      var pos = rowsCache[ref.sheet];
+      if (pos.miss) continue;
+
+      var wantRow = (c === 5) ? pos.pay : pos.total;
+      var wantCol = want[c];
+      if (ref.col === wantCol && ref.row === wantRow) continue;
+
+      var nf = "='" + ref.sheet.split("'").join("''") + "'!" + wantCol + wantRow;
+      changes.push(fs[c] + ' → ' + nf);
+      if (!dryRun) list.getRange(r + 1, c + 1).setFormula(nf);
+    }
+    if (changes.length) lines.push(nm + '：' + changes.join('、'));
+  }
+
+  /* --- 3. 店舗別合計を組み直す --- */
+  var tot = ngTotalRow_(list);
+  if (tot.head > 0) {
+    var n = Math.max(list.getLastRow(), 1);
+    var colA = list.getRange(1, 1, n, 1).getValues();
+    var colF = list.getRange(1, 6, n, 1).getFormulas();
+    var showF = list.getRange(1, 6, n, 1).getDisplayValues();
+
+    for (var r2 = tot.head; r2 < n; r2++) {
+      var label = String(colA[r2][0] || '').trim();
+      if (!label || label.indexOf('総合計') >= 0) continue;
+
+      /* 読み直すと期間の数だけ時間がかかるので、上で読んだ vals を渡す。
+         ここまでで行は動いていないので、そのまま使える。 */
+      var g = payrollGroup_(list, label, vals);
+      if (!g) { lines.push(label + '：見出し（▶ ' + label + '）が無く、合計を直せません'); continue; }
+      var nf2 = (g.sample < 0) ? '=0' : '=SUM(F' + g.sample + ':F' + g.last + ')';
+      var now = String(colF[r2][0] || '');
+      if (now === nf2) continue;
+      lines.push('店舗別合計 ' + label + '：'
+        + (now || showF[r2][0] || '(空)') + ' → ' + nf2);
+      if (!dryRun) list.getRange(r2 + 1, 6).setFormula(nf2);
+    }
+  }
+
+  return { status: 'ok', lines: lines };
+}
+
+
+/* ひとりを別の現場の列に移す。
+   先に新しい場所へ入れてから、元の行を消す。
+   （先に消すと、その現場に1人しかいなかったとき合計が #REF! になる） */
+function ngMoveOne_(ss, list, who, group, dryRun) {
+  var vals = payrollListVals_(list);
+
+  // いまの行と、その人がいる現場
+  var cur = -1, curGroup = '';
+  var head = -1;
+  for (var r = 0; r < vals.length; r++) {
+    var joined = vals[r].join(' ');
+    if (joined.indexOf('▶') >= 0) { head = r; continue; }
+    if (!/^\d+$/.test(String(vals[r][0] || '').trim())) continue;
+    if (payrollNameKey_(vals[r][1]) !== payrollNameKey_(who)) continue;
+    cur = r + 1;
+    if (head >= 0) {
+      var t = vals[head].join(' ');
+      curGroup = t.slice(t.indexOf('▶') + 1).replace(/\s+/g, ' ').trim();
+    }
+    break;
+  }
+  if (cur < 0) return '';                              // この期間にはいない
+  if (curGroup === group) return '';                   // もう正しい場所
+
+  var g = payrollGroup_(list, group);
+  if (!g) return who + '：移す先の見出し（▶ ' + group + '）が見つかりません';
+
+  if (dryRun) {
+    return who + '：「▶ ' + (curGroup || '?') + '」から「▶ ' + group + '」へ移します（'
+      + cur + '行目 → ' + (g.head + 1) + '行目あたり）';
+  }
+
+  var lastCol = list.getLastColumn();
+  var srcFs = list.getRange(cur, 1, 1, lastCol).getFormulas()[0];
+
+  // 1) 見出しのすぐ下に入れる
+  list.insertRowsAfter(g.head, 1);
+  var newRow = g.head + 1;
+  var src = (cur >= newRow) ? cur + 1 : cur;           // 入れたぶん、元の行がずれる
+  list.getRange(src, 1, 1, lastCol).copyTo(list.getRange(newRow, 1));
+  for (var c = 0; c < lastCol; c++) {
+    if (!srcFs[c]) continue;
+    list.getRange(newRow, c + 1).setFormula(srcFs[c]);  // 参照は元のまま入れ直す
+  }
+  try { list.showRows(newRow); } catch (e) {}
+
+  // 2) 元の行を消す
+  list.deleteRow(src);
+  payrollRenumber_(list);
+
+  return who + '：「▶ ' + (curGroup || '?') + '」から「▶ ' + group + '」へ移しました';
 }
