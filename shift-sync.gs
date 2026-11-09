@@ -85,7 +85,7 @@ var TOKEN = 'prostyle-shift-2026';   // ★ 自社の合言葉に変えてくだ
    「デプロイ → 新バージョン」を忘れていて、古いコードが動き続けている、
    というものだった。見分けがつかないのが困るので、番号を持たせて
    入社登録アプリの「つながるか確かめる」で見えるようにしてある。 */
-var GAS_VER = '2026-10-23b';
+var GAS_VER = '2026-11-09a';
 var SHEET_NAME = 'shiftdata';
 var CHUNK = 40000;                   // 1セルに入れる文字数（上限5万字より少なめ）
 
@@ -129,7 +129,8 @@ function handle_(p, cb) {
     if (p.action === 'ping') {
       return json_({ status: 'ok', message: '動いています', at: nowStamp_(),
                      ver: GAS_VER,
-                     staffRev: staffRev_(), payrollFiles: PAYROLL_FILES.length }, cb);
+                     staffRev: staffRev_(), siteRev: siteRev_(),
+                     payrollFiles: PAYROLL_FILES.length }, cb);
     }
 
     // 版数を見るだけなら、待たされないように鍵を取らない
@@ -140,6 +141,8 @@ function handle_(p, cb) {
     if (p.action === 'staffPunch') return json_(staffPunch_(), cb);
     // シフト作成向けの名簿。住所や単価は渡さない
     if (p.action === 'staffShift') return json_(staffShift_(), cb);
+    // 現場マスタを読むだけなら、待たされないように鍵を取らない
+    if (p.action === 'siteList') return json_(siteList_(), cb);
 
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(20000)) {
@@ -153,6 +156,8 @@ function handle_(p, cb) {
       if (p.action === 'staffImport') return json_(staffImport_(p), cb);
       if (p.action === 'staffFill') return json_(staffFill_(p), cb);
       if (p.action === 'staffRetire') return json_(staffRetire_(p), cb);
+      // 現場マスタに1件足す・直す
+      if (p.action === 'siteSave') return json_(siteSave_(p), cb);
       if (p.action === 'paidTake') return json_(paidTake_(p), cb);
       if (p.action === 'contractMake') return json_(contractMake_(p), cb);
       if (p.action === 'staffDelete') return json_(staffDelete_(p), cb);
@@ -875,6 +880,251 @@ function payrollReinstate_(p) {
   var name = String((p && p.name) || '').trim();
   if (!name) return { status: 'error', message: '誰を戻すのかが分かりません' };
   return payrollUnretire_(name);
+}
+
+/* =========================================================
+   現場マスタ（"sites" シート）
+   入社登録の「配属する現場」に出る現場の一覧です。
+
+   アプリに直接書かれている現場（BASE_SITES）はそのまま残し、
+   ここに入れたものを id で重ねます。同じ id があればこちらが勝ち、
+   無いものは後ろに足されます。新しい現場をアプリの画面から
+   足せるようにするためのシートで、コードを直す必要はありません。
+
+   打刻できる場所は1現場につき1か所です。
+   2か所以上ある現場は、名簿の側で人ごとに足してください。
+   ========================================================= */
+var SITE_SHEET = 'sites';
+
+var SITE_COLS = [
+  'id',          // 現場ID（s_xxxx）。シフト作成・名簿の storeIds と同じものなので、あとから変えない
+  'grp',         // 事業部（飲食事業部 / 業務課 など）。画面の見出しの分かれ目になる
+  'name',        // 現場名（画面に出る名前）
+  'dept',        // 勤怠アプリの所属表示。空なら name と同じ
+  'kyuyoGroup',  // 給与一覧表でのグループ名。空なら dept と同じ
+  'locName',     // 打刻できる場所の名前。空なら場所の指定なし（どこからでも打刻）
+  'lat',         // 緯度
+  'lng',         // 経度
+  'radius',      // 半径（m）
+  'start',       // 平日の既定の始業
+  'end',         // 平日の既定の終業
+  'startW',      // 土日祝の既定の始業。空なら start と同じ
+  'endW',        // 土日祝の既定の終業。空なら end と同じ
+  'status',      // active（使う） / off（一覧に出さない）
+  'updatedAt',
+  'updatedBy',
+];
+
+var SITE_NUM_COLS = ['lat', 'lng', 'radius'];
+var SITE_TIME_COLS = ['start', 'end', 'startW', 'endW'];
+
+function getSiteSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SITE_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SITE_SHEET);
+    sh.getRange(1, 1, 1, SITE_COLS.length).setValues([SITE_COLS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+/* 見出し行を返す。まだ無い列は右端に足す（staff シートと同じやり方） */
+function siteHeader_(sh) {
+  var width = Math.max(sh.getLastColumn(), 1);
+  var head = sh.getRange(1, 1, 1, width).getValues()[0].map(function (v) { return String(v || ''); });
+  while (head.length && head[head.length - 1] === '') head.pop();
+  if (!head.length) {
+    sh.getRange(1, 1, 1, SITE_COLS.length).setValues([SITE_COLS]).setFontWeight('bold');
+    return SITE_COLS.slice();
+  }
+  var add = SITE_COLS.filter(function (c) { return head.indexOf(c) < 0; });
+  if (add.length) {
+    var need = head.length + add.length;
+    if (sh.getMaxColumns() < need) sh.insertColumnsAfter(sh.getMaxColumns(), need - sh.getMaxColumns());
+    sh.getRange(1, head.length + 1, 1, add.length).setValues([add]).setFontWeight('bold');
+    head = head.concat(add);
+  }
+  return head;
+}
+
+// 現場マスタが変わった回数。アプリはこれを見て、変わったときだけ読み直せる
+function siteRev_() {
+  return Number(PropertiesService.getScriptProperties().getProperty('siteRev') || 0);
+}
+function bumpSiteRev_() {
+  var n = siteRev_() + 1;
+  PropertiesService.getScriptProperties().setProperty('siteRev', String(n));
+  return n;
+}
+
+function siteRowToObj_(row, head) {
+  var o = {};
+  for (var i = 0; i < head.length; i++) {
+    var key = head[i];
+    if (!key) continue;
+    var v = row[i];
+    if (v === '' || v === null || v === undefined) { o[key] = ''; continue; }
+    if (SITE_TIME_COLS.indexOf(key) >= 0) { o[key] = timeText_(v); continue; }
+    if (SITE_NUM_COLS.indexOf(key) >= 0) { o[key] = Number(v) || 0; continue; }
+    if (v instanceof Date) {
+      o[key] = Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
+    } else {
+      o[key] = String(typeof v === 'number' ? v : v).trim();
+    }
+  }
+  return o;
+}
+
+function siteObjToRow_(o, head) {
+  var row = [];
+  for (var i = 0; i < head.length; i++) {
+    var key = head[i];
+    row.push(key && o[key] !== undefined ? o[key] : '');
+  }
+  return row;
+}
+
+function readSites_(sh, head) {
+  var last = sh.getLastRow();
+  if (last < 2) return [];
+  var rows = sh.getRange(2, 1, last - 1, head.length).getValues();
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    if (!String(rows[i][head.indexOf('id')] || '').trim()
+        && !String(rows[i][head.indexOf('name')] || '').trim()) continue;   // 空行は飛ばす
+    var o = siteRowToObj_(rows[i], head);
+    o._row = i + 2;
+    out.push(o);
+  }
+  return out;
+}
+
+/* アプリに渡す形にする。
+   打刻できる場所は locs（配列）にまとめて、アプリ側の作りと同じにする。 */
+function siteToApp_(o) {
+  var locs = [];
+  if (String(o.locName || '').trim() && Number(o.lat) && Number(o.lng)) {
+    locs.push({ name: String(o.locName).trim(), lat: Number(o.lat), lng: Number(o.lng),
+                radius: Number(o.radius) || 300 });
+  }
+  return {
+    id: o.id, grp: String(o.grp || '').trim() || 'その他',
+    name: o.name, dept: String(o.dept || '').trim() || o.name,
+    kyuyoGroup: String(o.kyuyoGroup || '').trim(),
+    locs: locs,
+    start: o.start || '09:00', end: o.end || '18:00',
+    startW: o.startW || '', endW: o.endW || '',
+    status: o.status === 'off' ? 'off' : 'active',
+  };
+}
+
+// 現場の一覧を返す（一覧に出さないものは除く）
+function siteList_() {
+  var sh = getSiteSheet_();
+  var head = siteHeader_(sh);
+  var list = readSites_(sh, head);
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var s = siteToApp_(list[i]);
+    if (s.status === 'off') continue;
+    out.push(s);
+  }
+  return { status: 'ok', sites: out, siteRev: siteRev_(), ver: GAS_VER };
+}
+
+// 次の現場IDを作る。アプリに書かれている現場の id とぶつからないようにする
+function nextSiteId_(list) {
+  var max = 0;
+  for (var i = 0; i < list.length; i++) {
+    var m = /^s_g(\d+)$/.exec(String(list[i].id || ''));
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return 's_g' + ('000' + (max + 1)).slice(-3);
+}
+
+/* 現場を1つ登録・更新する。
+   id があれば差し替え、無ければ新しく足す。
+   同じ名前の現場がすでにあるときは断る（シフト作成で2つに分かれてしまうため）。 */
+function siteSave_(p) {
+  var rec = p.site;
+  if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch (e) { rec = null; } }
+  if (!rec) return { status: 'error', message: '現場の内容が受け取れませんでした' };
+
+  var name = String(rec.name || '').trim();
+  if (!name) return { status: 'error', message: '現場名が入っていません' };
+
+  var sh = getSiteSheet_();
+  var head = siteHeader_(sh);
+  var list = readSites_(sh, head);
+
+  var target = null;
+  if (rec.id) {
+    for (var i = 0; i < list.length; i++) if (list[i].id === rec.id) { target = list[i]; break; }
+  }
+
+  // 名前のぶつかり。シートの中と、アプリに直接書かれている現場の両方を見る
+  for (var k = 0; k < list.length; k++) {
+    if (list[k].name === name && (!target || list[k].id !== target.id)) {
+      return { status: 'error', message: name + ' はすでに現場マスタにあります' };
+    }
+  }
+  var baseNames = String(p.baseNames || '');
+  if (!target && baseNames) {
+    var bn = baseNames.split('\n');
+    for (var b = 0; b < bn.length; b++) {
+      if (bn[b].trim() === name) {
+        return { status: 'error', message: name + ' はすでにアプリに登録されています' };
+      }
+    }
+  }
+
+  var out = {};
+  for (var c = 0; c < SITE_COLS.length; c++) {
+    var key = SITE_COLS[c];
+    if (rec[key] !== undefined) out[key] = rec[key];
+    else if (target && target[key] !== undefined) out[key] = target[key];
+    else out[key] = '';
+  }
+  out.id = target ? target.id : (String(rec.id || '').trim() || nextSiteId_(list));
+  out.name = name;
+  out.grp = String(out.grp || '').trim() || 'その他';
+  out.dept = String(out.dept || '').trim() || name;
+  out.status = (out.status === 'off') ? 'off' : 'active';
+  out.start = String(out.start || '').trim() || '09:00';
+  out.end = String(out.end || '').trim() || '18:00';
+  // 場所の名前が無ければ、座標も空にしておく（中途半端に残らないように）
+  if (!String(out.locName || '').trim()) { out.locName = ''; out.lat = ''; out.lng = ''; out.radius = ''; }
+  else if (!Number(out.radius)) out.radius = 300;
+  out.updatedAt = nowStamp_();
+  out.updatedBy = String(p.by || '');
+
+  if (target) {
+    sh.getRange(target._row, 1, 1, head.length).setValues([siteObjToRow_(out, head)]);
+  } else {
+    sh.getRange(sh.getLastRow() + 1, 1, 1, head.length).setValues([siteObjToRow_(out, head)]);
+  }
+
+  return { status: 'ok', siteRev: bumpSiteRev_(), site: siteToApp_(out), created: !target };
+}
+
+/* 現場マスタの様子を見る（読むだけ）。
+   エディタの関数の選択欄から checkSites を選んで「実行」すると、
+   実行ログに、いま入っている現場が出ます。 */
+function checkSites() {
+  var sh = getSiteSheet_();
+  var head = siteHeader_(sh);
+  var list = readSites_(sh, head);
+  Logger.log('シート「' + SITE_SHEET + '」：' + list.length + '件（siteRev=' + siteRev_() + '）');
+  for (var i = 0; i < list.length; i++) {
+    var s = siteToApp_(list[i]);
+    Logger.log('  ' + s.id + '  ' + s.grp + ' / ' + s.name
+      + '  所属=' + s.dept
+      + (s.kyuyoGroup ? '  給与=' + s.kyuyoGroup : '')
+      + '  ' + s.start + '〜' + s.end
+      + (s.locs.length ? '  場所=' + s.locs[0].name + '（半径' + s.locs[0].radius + 'm）' : '  場所なし')
+      + (s.status === 'off' ? '  ※一覧に出さない' : ''));
+  }
 }
 
 /* =========================================================

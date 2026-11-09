@@ -705,7 +705,7 @@ const GYOMU_SHEET = 'シフト';
    作り方は同じフォルダの shift-sync.gs を参照。 */
 /* この画面の版。ヘッダーにも転記の結果にも出す。
    「直したはずなのに直っていない」ときに、古い版が開かれていないかを確かめるため。 */
-const APP_VER = '2026-10-23a';
+const APP_VER = '2026-11-09a';
 
 const SYNC_API = 'https://script.google.com/macros/s/AKfycbxysDaJ_VU_ioCJnE856AGlgkC-zULkvCLLIMKACjNZbI8Gi5eCud4o6QhqgDFm73KP/exec';
 const SYNC_TOKEN = 'prostyle-shift-2026';   // shift-sync.gs の TOKEN と同じ文字列にする
@@ -1891,6 +1891,9 @@ function renderTransferInfo(st, sh) {
     // 名簿が読めていないと「出勤簿へ転記する」が効かない。まずそこを出す
     + (masterNotes.length
         ? '<br /><span style="color:#a32d2d"><b>' + masterNotes.map(esc).join('<br />') + '</b></span>'
+        : '')
+    + (siteNotes.length
+        ? '<br /><span style="color:#92650a"><b>' + siteNotes.map(esc).join('<br />') + '</b></span>'
         : '')
     + (masterState.loaded
         ? '<br /><span style="opacity:.6">名簿：' + masterState.n + '人を読み込み済み'
@@ -3696,6 +3699,90 @@ function applyMaster(list) {
   return changed;
 }
 
+/* 現場マスタからの知らせ。
+   masterNotes は名簿を読み直すたびに空にするので、入れ物を分けておく。 */
+let siteNotes = [];
+
+/* =========================================================
+   現場マスタの取り込み
+   入社登録アプリの「＋ 現場を追加」で足した現場を、この画面にも出す。
+   足した現場に配属された人は、現場のタブが無いと取り込めずに
+   そのまま消えてしまうため、名簿を当てる前にここを通す。
+   ========================================================= */
+
+// '14:00' → 14。終業が始業より小さければ翌日あつかい（14:00〜01:00 なら 25）
+function siteHour_(t, floorH) {
+  const h = parseInt(String(t || '').split(':')[0], 10);
+  if (!isFinite(h)) return null;
+  if (floorH !== undefined && floorH !== null && h <= floorH) return h + 24;
+  return h;
+}
+
+function storeFromSite(s) {
+  const oh = siteHour_(s.start);
+  const ch = siteHour_(s.end, oh);
+  const first = DB.stores[0];
+  const st = {
+    id: s.id, name: s.name,
+    dept: s.grp === '飲食事業部' ? 'food' : 'gyomu',
+    openHour: oh === null ? 9 : oh,
+    closeHour: ch === null ? 18 : ch,
+    startTime: s.start || '', endTime: s.end || '',
+    startTimeWeekend: s.startW || s.start || '', endTimeWeekend: s.endW || s.end || '',
+    closedDays: [], weekdayStaff: 1, weekendStaff: 2,
+    holidayAsWeekend: true, openOnClosedHoliday: false, maxConsecutive: 5,
+    periodStartDay: first ? first.periodStartDay : 16,
+    /* 定休日と必要人数は、この画面で決めてもらう。
+       仮の値のまま転記すると人数が合わないため、未設定のままにしておく。 */
+    configured: false, staff: [],
+  };
+  normalizeStore(st);
+  return st;
+}
+
+/* 現場マスタを当てる。足りない現場を作り、名前が変わっていれば直す。
+   すでにある現場の定休日・必要人数・スタッフには触らない。 */
+function applySiteMaster(list) {
+  let changed = false;
+  (list || []).forEach(function (s) {
+    if (!s || typeof s !== 'object') return;
+    const id = String(s.id || '').trim();
+    const name = String(s.name || '').trim();
+    if (!id || !name) return;
+
+    const st = DB.stores.find(function (x) { return x.id === id; });
+    if (!st) {
+      DB.stores.push(storeFromSite(s));
+      addMySite(id);
+      changed = true;
+      siteNotes.push(name + ' を現場に足しました。'
+        + '「店舗設定」タブで定休日と必要人数を決めると、シフトを作れるようになります。');
+      return;
+    }
+    if (st.name !== name) { st.name = name; changed = true; }   // 入社登録で名前を直したとき
+  });
+  return changed;
+}
+
+// 現場マスタを読みにいく。読めなくても、いまある現場でそのまま動く
+async function sitePull(pending) {
+  if (!syncOn()) return false;
+  siteNotes = [];
+  try {
+    const res = await (pending || syncGet({ action: 'siteList' }));
+    if (!res || res.status !== 'ok' || !Array.isArray(res.sites)) return false;
+    if (applySiteMaster(res.sites)) {
+      fixActiveStore();
+      saveDB();        // 共有にも送って、全員の画面に同じ現場が出るようにする
+      renderAll();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;      // 現場マスタが読めなくても、名簿の取り込みは続ける
+  }
+}
+
 // 名簿を読みにいく。版数が変わっていなければ何もしない
 /* pending に「もう投げてある staffShift の約束」を渡せる。
    開いたときの読み込みを速くするため、共有の読み込みと同時に投げておき、
@@ -4858,7 +4945,14 @@ function startApp(who) {
        Apps Script は1往復に数秒かかるので、順番に待つと倍かかっていた。
        名簿を画面に当てるのは、共有の読み込みが終わったあと。 */
     const master = syncGet({ action: 'staffShift' }).catch(function () { return null; });
-    syncPull().then(function () { return masterPull(true, master); }).then(renderWho);
+    const sites = syncGet({ action: 'siteList' }).catch(function () { return null; });
+    /* 現場マスタ → 名簿 の順に当てる。
+       入社登録で足した現場のタブが先に無いと、その現場に配属された人を
+       取り込めずに落としてしまうため。 */
+    syncPull()
+      .then(function () { return sitePull(sites); })
+      .then(function () { return masterPull(true, master); })
+      .then(renderWho);
   }
   // あとから共有を設定したときも動くよう、見張りはいつでも動かしておく
   startSyncWatch();

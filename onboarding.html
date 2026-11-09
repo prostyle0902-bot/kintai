@@ -218,7 +218,7 @@
         <span class="logo-div"></span>
         <span class="logo-title">入社登録</span>
       </div>
-      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-10-23a</span></div>
+      <div class="logo-sub">1回の登録で PA勤怠・勤怠・シフト作成にまとめて反映します<span class="ver" id="app-ver" onclick="reloadFresh()" title="この番号が新しくなっていなければ、ブラウザが古い画面を覚えています。押すと読み直します">版 2026-11-09a</span></div>
     </div>
     <div class="inline">
       <span class="who" id="who"></span>
@@ -271,11 +271,15 @@ const MASTER_TOKEN = 'prostyle-shift-2026';
 const LS_KEY = 'prostyle_onboarding_v1';
 const DOW = ['日','月','火','水','木','金','土'];
 
-/* ---------- 現場マスタ ----------
+/* ---------- 現場マスタ（アプリに入っている分） ----------
    現場を選ぶだけで、勤怠アプリの所属表示・打刻できる場所・既定の勤務時間が決まります。
    storeId / shiftName は shift.html の ROSTER と、dept は各勤怠アプリの表記と
-   まったく同じにしてあります。ここがずれると別の現場・別人として登録されます。 */
-const SITES = [
+   まったく同じにしてあります。ここがずれると別の現場・別人として登録されます。
+
+   ここに無い現場は、画面の「＋ 現場を追加」から足せます。
+   足した分はスプレッドシートの "sites" シートに入り、次からは
+   この一覧に重ねて出ます（コードを直す必要はありません）。 */
+const BASE_SITES = [
   // --- 飲食事業部 ---
   { id:'s_sawara13',    grp:'飲食事業部', name:'さわら十三里屋',     dept:'十三里屋',
     locs:[{name:'十三里屋',   lat:35.8891,    lng:140.4978,    radius:300}], start:'10:00', end:'16:30', startW:'10:00', endW:'17:30' },
@@ -320,6 +324,61 @@ const SITES = [
   { id:'s_honsha',      grp:'業務課', name:'本社',             dept:'本社',
     locs:[{name:'本社',       lat:35.8580, lng:140.5625, radius:300}], start:'07:00', end:'18:00' },
 ];
+
+/* 画面で使う現場の一覧。
+   上の BASE_SITES に、スプレッドシートの現場マスタを id で重ねたもの。
+   同じ id があればスプレッドシート側が勝ち、無いものは後ろに足します。 */
+let SITES = BASE_SITES.slice();
+
+/* 現場マスタの控え。開いてすぐ現場が出るように、前回読めた内容を端末に残す */
+const LS_SITES = LS_KEY + '_sites';
+
+function applySiteMaster(list) {
+  const out = BASE_SITES.map(function (s) { return Object.assign({}, s); });
+  (list || []).forEach(function (rec) {
+    if (!rec || typeof rec !== 'object') return;   // 控えが壊れていても画面が出なくならないように
+    const id = String(rec.id || '').trim();
+    const name = String(rec.name || '').trim();
+    if (!id || !name) return;
+    if (rec.status === 'off') {                       // 使わなくなった現場は一覧から外す
+      const j = out.findIndex(function (s) { return s.id === id; });
+      if (j >= 0) out.splice(j, 1);
+      return;
+    }
+    const s = {
+      id: id, grp: String(rec.grp || '').trim() || 'その他', name: name,
+      dept: String(rec.dept || '').trim() || name,
+      locs: Array.isArray(rec.locs) ? rec.locs : [],
+      start: rec.start || '09:00', end: rec.end || '18:00',
+    };
+    if (rec.kyuyoGroup) s.kyuyoGroup = rec.kyuyoGroup;
+    if (rec.startW) s.startW = rec.startW;
+    if (rec.endW) s.endW = rec.endW;
+    const i = out.findIndex(function (x) { return x.id === id; });
+    if (i >= 0) out[i] = s; else out.push(s);
+  });
+
+  /* 同じ事業部が離れて並ぶと、画面の見出しが二重に出てしまう。
+     事業部ごとにまとめ直す（並び順は、はじめに出てきた事業部の順）。 */
+  const order = [];
+  out.forEach(function (s) { if (order.indexOf(s.grp) < 0) order.push(s.grp); });
+  const sorted = [];
+  order.forEach(function (g) {
+    out.forEach(function (s) { if (s.grp === g) sorted.push(s); });
+  });
+  SITES = sorted;
+}
+
+function saveSiteCache(list) {
+  try { localStorage.setItem(LS_SITES, JSON.stringify(list || [])); } catch (e) {}
+}
+// 前に読めた現場マスタがあれば、通信を待たずに先に重ねる
+(function () {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_SITES) || 'null');
+    if (Array.isArray(v)) applySiteMaster(v);
+  } catch (e) { /* 控えが壊れていたらアプリの分だけで動く */ }
+})();
 
 /* 打刻アプリのURL。本人に渡す案内に載せる */
 const APP_URLS = {
@@ -549,12 +608,23 @@ async function reload(showAlert) {
     return;
   }
   setState('busy', '読込中…');
+  /* 現場マスタも一緒に読む。名簿の返事を待たずに並べて投げるので、
+     開くまでの時間は名簿だけのときと変わらない。
+     現場マスタが読めなくても名簿の読み込みは止めない（アプリに入っている分で動く）。 */
+  const sitesPending = apiGet({ action: 'siteList' }).then(function (r) {
+    if (r && r.status === 'ok' && Array.isArray(r.sites)) {
+      applySiteMaster(r.sites);
+      saveSiteCache(r.sites);
+    }
+  }).catch(function () { /* 読めなければ、アプリに入っている現場だけで動く */ });
+
   try {
     const res = await apiGet({ action: 'staffList' });
     if (res.status !== 'ok') throw new Error(res.message || '読み込めませんでした');
     STAFF = res.staff || [];
     staffIsCache = false;
     saveStaffCache(STAFF);
+    try { await sitesPending; } catch (e) {}
     setState('ok', '名簿 ' + STAFF.filter(isActive).length + '名');
     if (showAlert) alert('最新の名簿を読み込みました。');
   } catch (e) {
@@ -839,6 +909,10 @@ function renderNew() {
     const next = SITES[SITES.indexOf(s) + 1];
     if (!next || next.grp !== grp) h += '</div>';
   });
+  h += '<div class="inline" style="margin-top:.6rem">'
+    + '<button type="button" class="btn sm" onclick="openNewSite()">＋ 現場を追加</button>'
+    + '<span class="hint" style="margin:0">入る現場が上に無いときは、ここから足せます。</span>'
+    + '</div>';
   h += '<div class="field" style="margin-top:1rem"><label>所属の表示（勤怠アプリのバッジ）</label>'
     + '<input type="text" value="' + esc(F.dept) + '" placeholder="' + esc(first ? first.dept : '例：業務課')
     + '" onchange="setF(\'dept\',this.value)" list="dept-list" />'
@@ -1814,6 +1888,262 @@ function openSheet(html) {
   document.getElementById('overlay').classList.add('open');
 }
 function closeSheet() { document.getElementById('overlay').classList.remove('open'); }
+/* =========================================================
+   現場を追加する
+   パートさんが新しく入る現場が、まだ一覧に無いときに使います。
+   ここで足した現場はスプレッドシートの "sites" シートに入り、
+   入社登録・シフト作成の両方に出るようになります。
+   ========================================================= */
+let NS = blankSite();
+
+function blankSite() {
+  return {
+    id: '', name: '', grp: '', grpFree: false, dept: '', kyuyoGroup: '',
+    start: '09:00', end: '18:00',
+    useLoc: true, locName: '', lat: '', lng: '', radius: 300,
+    busy: false, msg: '', msgNg: false,
+  };
+}
+
+// いまある事業部の名前（重複なし）
+function siteGroups() {
+  const out = [];
+  SITES.forEach(function (s) { if (out.indexOf(s.grp) < 0) out.push(s.grp); });
+  return out;
+}
+
+function openNewSite() {
+  NS = blankSite();
+  NS.grp = siteGroups()[0] || '業務課';
+  renderNewSite();
+}
+
+function setNS(k, v) { NS[k] = v; NS.msg = ''; NS.msgNg = false; }
+// 画面に出す一言。ng が true なら注意の色にする
+function nsSay(text, ng) { NS.msg = text; NS.msgNg = !!ng; renderNewSite(); }
+function setNSRender(k, v) { setNS(k, v); renderNewSite(); }
+function setNSGrp(v) { NS.grp = v; NS.grpFree = false; NS.msg = ''; NS.msgNg = false; renderNewSite(); }
+
+/* 貼り付けた文字から緯度・経度を取り出す。
+   Googleマップの共有リンクでも、「35.8998, 140.6404」のような数字でも拾える。
+   マップのリンクには中心の座標（@…）と場所そのものの座標（!3d…!4d…）が
+   入っていることがあるので、場所のほうを先に探す。 */
+function parseLatLng(text) {
+  const t = String(text || '').trim();
+  if (!t) return null;
+  // 日本からかけ離れた値は取り違いとみなす
+  function okPair(lat, lng) {
+    return (lat >= 20 && lat <= 46 && lng >= 122 && lng <= 154) ? { lat: lat, lng: lng } : null;
+  }
+
+  /* まず !3d（緯度）と !4d（経度）を探す。これが場所そのものの座標。
+     URLの中の並び順はマップの作りで変わることがあるので、別々に探す。 */
+  const d3 = /!3d(-?\d+(?:\.\d+)?)/.exec(t);
+  const d4 = /!4d(-?\d+(?:\.\d+)?)/.exec(t);
+  if (d3 && d4) {
+    const hit = okPair(Number(d3[1]), Number(d4[1]));
+    if (hit) return hit;
+  }
+
+  const pats = [
+    /[?&]q=(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/,     // ?q=緯度,経度
+    /[?&]ll=(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/,
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,                // 地図の中心
+    /^(-?\d+\.\d+)\s*[,\s]\s*(-?\d+\.\d+)$/,     // 数字だけを貼ったとき
+  ];
+  for (let i = 0; i < pats.length; i++) {
+    const m = pats[i].exec(t);
+    if (!m) continue;
+    const hit = okPair(Number(m[1]), Number(m[2]));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function pasteLatLng(text) {
+  const p = parseLatLng(text);
+  if (!p) {
+    nsSay('座標が見つかりませんでした。'
+      + 'Googleマップで現場を長押しして出てくる「35.8998, 140.6404」のような数字か、'
+      + '住所バーのURLをそのまま貼ってください。'
+      + '（maps.app.goo.gl の短いリンクは、一度マップで開いてからURLを写してください）', true);
+    return;
+  }
+  NS.lat = p.lat; NS.lng = p.lng;
+  nsSay('座標を入れました。', false);
+}
+
+// いま端末がいる場所を使う（現場でスマホから押すと、そこが打刻の場所になる）
+function useHereForSite() {
+  if (!navigator.geolocation) { nsSay('この端末では現在地を取れません。座標を貼り付けてください。', true); return; }
+  nsSay('現在地を調べています…', false);
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    NS.lat = Math.round(pos.coords.latitude * 1e6) / 1e6;
+    NS.lng = Math.round(pos.coords.longitude * 1e6) / 1e6;
+    nsSay('現在地を入れました。'
+      + (pos.coords.accuracy ? '（誤差およそ' + Math.round(pos.coords.accuracy) + 'm）' : ''), false);
+  }, function (err) {
+    nsSay('現在地を取れませんでした（' + (err.message || '理由不明') + '）。座標を貼り付けてください。', true);
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function renderNewSite() {
+  const groups = siteGroups();
+  const nameTrim = NS.name.trim();
+  let h = '<div class="card-title">現場を追加</div>'
+    + '<div class="card-desc" style="margin-bottom:1rem">'
+    + 'パートさんが入る現場が一覧に無いときに使います。'
+    + '足した現場は、この画面とシフト作成アプリの両方に出るようになります。</div>';
+
+  h += '<div class="field"><label>現場名 <span style="color:var(--text-danger)">必須</span></label>'
+    + '<input type="text" value="' + esc(NS.name) + '" placeholder="例：はま寿司神栖店"'
+    + ' oninput="NS.name=this.value" onchange="setNSRender(\'name\',this.value)" />'
+    + '<div class="hint">シフト作成アプリのタブ名になります。あとから変えられます。</div></div>';
+
+  h += '<div class="field"><label>事業部</label><div class="chip-row">'
+    + groups.map(function (g) {
+        return '<span class="chip' + (!NS.grpFree && NS.grp === g ? ' on' : '') + '"'
+          + ' onclick="setNSGrp(' + JSON.stringify(g).replace(/"/g, '&quot;') + ')">' + esc(g) + '</span>';
+      }).join('')
+    + '<span class="chip' + (NS.grpFree ? ' on' : '') + '" onclick="NS.grpFree=true;NS.grp=\'\';renderNewSite()">その他…</span>'
+    + '</div>';
+  if (NS.grpFree) {
+    h += '<input type="text" style="margin-top:.5rem" value="' + esc(NS.grp) + '" placeholder="例：新規事業部"'
+      + ' oninput="NS.grp=this.value" />';
+  }
+  h += '<div class="hint">この画面で現場を並べるときの見出しです。</div></div>';
+
+  h += '<div class="grid2">'
+    + '<div class="field"><label>既定の始業</label>'
+    + '<input type="time" value="' + esc(NS.start) + '" onchange="setNS(\'start\',this.value)" /></div>'
+    + '<div class="field"><label>既定の終業</label>'
+    + '<input type="time" value="' + esc(NS.end) + '" onchange="setNS(\'end\',this.value)" /></div>'
+    + '</div>'
+    + '<div class="hint" style="margin:-.5rem 0 1rem">この現場を選んだ人に、はじめから入る勤務時間です。人ごとに変えられます。</div>';
+
+  h += '<div class="field"><label>打刻できる場所</label><div class="chip-row">'
+    + '<span class="chip' + (NS.useLoc ? ' on' : '') + '" onclick="setNSRender(\'useLoc\',true)">場所を決める</span>'
+    + '<span class="chip' + (!NS.useLoc ? ' on' : '') + '" onclick="setNSRender(\'useLoc\',false)">決めない（どこからでも打刻）</span>'
+    + '</div></div>';
+
+  if (NS.useLoc) {
+    h += '<div class="card" style="background:var(--bg);margin-bottom:1rem">'
+      + '<div class="field"><label>場所の名前</label>'
+      + '<input type="text" value="' + esc(NS.locName) + '" placeholder="' + esc(nameTrim || '例：はま寿司神栖') + '"'
+      + ' oninput="NS.locName=this.value" />'
+      + '<div class="hint">空欄なら現場名と同じにします。</div></div>'
+      + '<div class="inline" style="margin-bottom:.5rem">'
+      + '<button type="button" class="btn sm" onclick="useHereForSite()">今いる場所にする</button>'
+      + '<span class="hint" style="margin:0">現場でスマホから押すと、そこが打刻の場所になります。</span>'
+      + '</div>'
+      + '<div class="field"><label>Googleマップから入れる</label>'
+      + '<input type="text" placeholder="マップの座標かURLを貼り付け"'
+      + ' onchange="pasteLatLng(this.value)" /></div>'
+      + '<div class="grid2">'
+      + '<div class="field"><label>緯度</label>'
+      + '<input type="text" inputmode="decimal" value="' + esc(NS.lat) + '" placeholder="35.8998"'
+      + ' onchange="setNSRender(\'lat\',this.value.trim())" /></div>'
+      + '<div class="field"><label>経度</label>'
+      + '<input type="text" inputmode="decimal" value="' + esc(NS.lng) + '" placeholder="140.6404"'
+      + ' onchange="setNSRender(\'lng\',this.value.trim())" /></div>'
+      + '</div>'
+      + '<div class="field"><label>半径（m）</label>'
+      + '<input type="text" inputmode="numeric" style="width:120px" value="' + esc(NS.radius) + '"'
+      + ' onchange="setNS(\'radius\',this.value.trim())" />'
+      + '<div class="hint">この輪の中からだけ打刻できます。ふつうは300mで足ります。'
+      + '広い現場や移動がある現場は、大きめにしてください。</div></div>'
+      + '</div>';
+  }
+
+  // --- あまり触らない項目は、ふだんは畳んでおく
+  h += '<details style="margin-bottom:1rem"><summary class="hint" style="cursor:pointer">'
+    + '表示名をこまかく決める（ふつうは触らなくて大丈夫）</summary>'
+    + '<div class="field" style="margin-top:.75rem"><label>勤怠アプリの所属表示</label>'
+    + '<input type="text" value="' + esc(NS.dept) + '" placeholder="' + esc(nameTrim || '現場名と同じ') + '"'
+    + ' oninput="NS.dept=this.value" />'
+    + '<div class="hint">打刻アプリで名前の横に出るバッジです。空欄なら現場名と同じにします。</div></div>'
+    + '<div class="field"><label>給与一覧表でのグループ名</label>'
+    + '<input type="text" value="' + esc(NS.kyuyoGroup) + '" placeholder="所属表示と同じ"'
+    + ' oninput="NS.kyuyoGroup=this.value" />'
+    + '<div class="hint">給与一覧表で「▶○○」としてまとめたい名前が別にあるときだけ入れてください。</div></div>'
+    + '</details>';
+
+  if (NS.msg) {
+    h += '<div class="alert ' + (NS.msgNg ? 'warn' : 'info') + '" style="margin-bottom:1rem">'
+      + esc(NS.msg) + '</div>';
+  }
+
+  h += '<div class="inline">'
+    + '<button type="button" class="btn primary" ' + (NS.busy ? 'disabled' : '') + ' onclick="saveNewSite()">'
+    + (NS.busy ? '保存中…' : 'この現場を追加する') + '</button>'
+    + '<button type="button" class="btn ghost" onclick="closeSheet()">やめる</button>'
+    + '</div>';
+
+  openSheet(h);
+}
+
+async function saveNewSite() {
+  const name = NS.name.trim();
+  if (!name) { nsSay('現場名を入れてください。', true); return; }
+  if (SITES.some(function (s) { return s.name === name; })) {
+    nsSay(name + ' はすでに一覧にあります。', true); return;
+  }
+  if (NS.useLoc && (!Number(NS.lat) || !Number(NS.lng))) {
+    nsSay('打刻の場所を決めるには、緯度と経度が要ります。'
+      + '「今いる場所にする」を押すか、「決めない」に切り替えてください。', true);
+    return;
+  }
+  if (!apiOn()) {
+    nsSay('共有用のURLが未設定のため保存できません。「はじめの取り込み・設定」で入れてください。', true);
+    return;
+  }
+
+  const rec = {
+    name: name,
+    grp: NS.grp.trim() || 'その他',
+    dept: NS.dept.trim() || name,
+    kyuyoGroup: NS.kyuyoGroup.trim(),
+    start: NS.start, end: NS.end,
+    locName: NS.useLoc ? (NS.locName.trim() || name) : '',
+    lat: NS.useLoc ? Number(NS.lat) : '',
+    lng: NS.useLoc ? Number(NS.lng) : '',
+    radius: NS.useLoc ? (Number(NS.radius) || 300) : '',
+  };
+
+  NS.busy = true; nsSay('', false);
+  try {
+    const res = await apiPost({
+      action: 'siteSave', site: rec,
+      // アプリに直接書かれている現場と名前がぶつかっていないかを、向こう側でも見てもらう
+      baseNames: BASE_SITES.map(function (s) { return s.name; }).join('\n'),
+    });
+    if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
+
+    /* 画面にすぐ出す。控えにも足しておくので、次に開いたときも出る。
+       そのあと読み直して、スプレッドシートの内容と合わせる。 */
+    applySiteMaster([res.site]);
+    try {
+      const cached = JSON.parse(localStorage.getItem(LS_SITES) || '[]');
+      const arr = Array.isArray(cached) ? cached.filter(function (x) { return x.id !== res.site.id; }) : [];
+      arr.push(res.site);
+      saveSiteCache(arr);
+    } catch (e) { saveSiteCache([res.site]); }
+
+    // 追加した現場を、そのまま配属先として選んでおく
+    if (F.storeIds.indexOf(res.site.id) < 0) F.storeIds.push(res.site.id);
+    syncFromSites();
+
+    closeSheet();
+    NS = blankSite();
+    renderAll();
+    alert(name + ' を現場に追加しました。\n\n'
+      + 'この画面の「配属する現場」で選べるようになり、シフト作成アプリにもタブができます。'
+      + (rec.locName ? '' : '\n\n打刻の場所は決めていないので、この現場の人はどこからでも打刻できます。'));
+  } catch (e) {
+    NS.busy = false;
+    nsSay('保存できませんでした：' + e.message, true);
+  }
+}
 
 /* =========================================================
    はじめの取り込み
