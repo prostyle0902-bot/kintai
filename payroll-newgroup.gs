@@ -620,91 +620,123 @@ function ngTidyOne_(sheet, dryRun) {
 }
 
 
-/* 給与明細の見た目を直す。
+/* 給与明細の見た目を、見本のシートとそろえる。
 
-   ■ いまの状態
+   見本：給与一覧_2026_10_16-2026_11_15 の「コイララ・マダバ」
+   （社長が手で整えたもの）。そこから読み取った書式が下の NG_LOOK。
 
-   強調は、背景色だけでなく「セルの結合」と「文字の大きさ」で
-   できています。
+     給与明細      B〜I結合・濃紺・Noto Sans 12 太字 白 左
+     項目/金額     B〜F・G〜H結合・青・Noto Sans 9 太字 白 中央
+     明細の行      B〜F・G〜H結合・Noto Sans 10 黒 左／金額 Arial 10 右
+                   ラベルの背景は うすいグレー と 白 の交互
+                   金額の背景は うすい青（修正給与だけ白＝手入力欄）
+     差引支給額    B〜F・G〜I結合・濃紺／青・12/13ポイント 太字 白
 
-     通勤手当    B〜F を結合・Noto Sans 12 太字 白 中央
-                 金額 G〜I を結合・Arial 13 太字 白
-     修正給与    結合なし・Calibri 11（素のまま）
-     差引支給額  結合なし・Calibri 11（素のまま）
-
-   いちばん見たい差引支給額が素のままで、通勤手当だけが大きく
-   目立っています。背景色だけ入れ替えると、結合されていない
-   差引支給額の行は文字が隣のセルに切られて「差引支」になります。
-
-   ■ 直したあと
-
-     通勤手当・修正給与  ほかの項目と同じ（B〜F結合・10ポイント）
-     差引支給額          大きく濃く（B〜F結合・12/13ポイント 白）
+   強調は背景色だけでなく「セルの結合」と「文字の大きさ」でできている。
+   結合しないと、長い項目名が隣のセルに切られて「差引支」になる。
    ========================================================= */
 
-// 給与明細の1行を「ふつうの項目」の見た目にする
-function ngRowPlain_(sheet, row) {
-  ngRowMerge_(sheet, row);
+var NG_LOOK = {
+  navy: '#1f4e79',      // 給与明細の帯・差引支給額のラベル
+  blue: '#2e75b6',      // 項目の見出し・差引支給額の金額
+  stripe: '#f5f5f5',    // 明細の行のラベル（1行おき）
+  white: '#ffffff',
+  amount: '#ebf3fb',    // 明細の行の金額
+  note: '#888888',      // 備考の文字
+};
+
+/* 項目名を B〜F に、金額を G〜H（差引支給額だけ G〜I）に結合しなおす。
+   いったんほどいてから結合するので、もとの結合がどうなっていても
+   同じ形にそろう。 */
+function ngRowMerge_(sheet, row, wideAmount) {
+  try { sheet.getRange(row, 2, 1, 8).breakApart(); } catch (e) { /* 結合が無ければそのまま */ }
+  try { sheet.getRange(row, 2, 1, 5).mergeAcross(); } catch (e) {}
+  try { sheet.getRange(row, 7, 1, wideAmount ? 3 : 2).mergeAcross(); } catch (e) {}
+}
+
+// 明細の1行（基本賃金・深夜割増・手当・修正給与など）
+function ngRowPlain_(sheet, row, striped, manualInput) {
+  ngRowMerge_(sheet, row, false);
+  var bg = striped ? NG_LOOK.stripe : NG_LOOK.white;
   sheet.getRange(row, 2, 1, 5)
-    .setBackground('#ffffff').setFontColor('#000000')
+    .setBackground(bg).setFontColor('#000000')
     .setFontFamily('Noto Sans').setFontSize(10).setFontWeight('normal')
     .setHorizontalAlignment('left');
   sheet.getRange(row, 7, 1, 2)
-    .setBackground('#ebf3fb').setFontColor('#000000')
+    .setBackground(manualInput ? NG_LOOK.white : NG_LOOK.amount).setFontColor('#000000')
     .setFontFamily('Arial').setFontSize(10).setFontWeight('normal')
     .setHorizontalAlignment('right');
+  // 備考（I列）。計算の中身を小さいグレーで書いてある欄
+  sheet.getRange(row, 9)
+    .setBackground(bg).setFontColor(NG_LOOK.note)
+    .setFontSize(8).setFontWeight('normal').setHorizontalAlignment('left');
 }
 
-// 給与明細の1行を「いちばん大事な行」の見た目にする
+// いちばん大事な行（差引支給額）
 function ngRowStrong_(sheet, row) {
-  ngRowMerge_(sheet, row);
+  ngRowMerge_(sheet, row, true);
   sheet.getRange(row, 2, 1, 5)
-    .setBackground('#1f4e79').setFontColor('#ffffff')
+    .setBackground(NG_LOOK.navy).setFontColor(NG_LOOK.white)
     .setFontFamily('Noto Sans').setFontSize(12).setFontWeight('bold')
     .setHorizontalAlignment('center');
-  sheet.getRange(row, 7, 1, 2)
-    .setBackground('#2e75b6').setFontColor('#ffffff')
+  sheet.getRange(row, 7, 1, 3)
+    .setBackground(NG_LOOK.blue).setFontColor(NG_LOOK.white)
     .setFontFamily('Arial').setFontSize(13).setFontWeight('bold')
     .setHorizontalAlignment('right');
 }
 
-/* 項目名を B〜F、金額を G〜H に結合しなおす。
-   結合しないと、長い項目名が隣のセルに切られてしまう
-   （「差引支給額」が「差引支」になる）。
-   いったんほどいてから結合するので、G〜I のように広く結合されて
-   いた行もそろう。 */
-function ngRowMerge_(sheet, row) {
-  try { sheet.getRange(row, 2, 1, 8).breakApart(); } catch (e) { /* 結合が無ければそのまま */ }
-  try { sheet.getRange(row, 2, 1, 5).mergeAcross(); } catch (e) {}
-  try { sheet.getRange(row, 7, 1, 2).mergeAcross(); } catch (e) {}
+// 「給与明細」の帯
+function ngRowBand_(sheet, row) {
+  try { sheet.getRange(row, 2, 1, 8).breakApart(); } catch (e) {}
+  try { sheet.getRange(row, 2, 1, 8).mergeAcross(); } catch (e) {}
+  sheet.getRange(row, 2, 1, 8)
+    .setBackground(NG_LOOK.navy).setFontColor(NG_LOOK.white)
+    .setFontFamily('Noto Sans').setFontSize(12).setFontWeight('bold')
+    .setHorizontalAlignment('left');
+}
+
+// 「項目 / 金額（円） / 備考」の見出し
+function ngRowHead_(sheet, row) {
+  ngRowMerge_(sheet, row, false);
+  sheet.getRange(row, 2, 1, 8)
+    .setBackground(NG_LOOK.blue).setFontColor(NG_LOOK.white)
+    .setFontFamily('Noto Sans').setFontSize(9).setFontWeight('bold')
+    .setHorizontalAlignment('center');
 }
 
 function ngFixPayslipLook_(sheet, vals, rows, dryRun) {
-  var rCommute = -1, rAdjust = -1, rTotal = -1, cAmount = -1;
+  // 「給与明細」の帯 → 「項目」の見出し → 明細の行 … → 「差引支給額」
+  var rBand = -1, rHead = -1, rTotal = -1;
+  var items = [];
   for (var r = 0; r < rows; r++) {
     var b = String(vals[r][1] || '').trim();
-    if (b === '項目') {
-      for (var c = 2; c < vals[r].length; c++) {
-        if (String(vals[r][c] || '').indexOf('金額') >= 0) { cAmount = c; break; }
-      }
-    }
-    if (b.indexOf('通勤手当') === 0) rCommute = r;
-    if (b.indexOf('修正給与') === 0) rAdjust = r;
-    if (rTotal < 0 && b.indexOf('差引支給額') === 0) rTotal = r;
+    if (!b) continue;
+    if (rBand < 0) { if (b === '給与明細') rBand = r; continue; }
+    if (rHead < 0) { if (b === '項目') rHead = r; continue; }
+    if (b.indexOf('差引支給額') === 0) { rTotal = r; break; }
+    items.push({ row: r, manual: b.indexOf('修正給与') === 0 });
   }
-  if (rTotal < 0 || cAmount < 0) return '';
+  if (rBand < 0 || rHead < 0 || rTotal < 0) return '';
 
-  // もう直っていれば何もしない（文字の大きさで見分ける）
-  var nowSize = Number(sheet.getRange(rTotal + 1, 2).getFontSize() || 0);
-  var nowBg = String(sheet.getRange(rTotal + 1, 2).getBackground() || '').toLowerCase();
-  if (nowSize === 12 && nowBg === '#1f4e79') return '';
+  /* もう整っていれば何もしない。
+     社長が手で整えた見本のシートを、こちらで上書きしないため。 */
+  var lab = sheet.getRange(rTotal + 1, 2);
+  if (Number(lab.getFontSize() || 0) === 12
+      && String(lab.getBackground() || '').toLowerCase() === NG_LOOK.navy
+      && Number(sheet.getRange(rTotal + 1, 7).getFontSize() || 0) === 13) {
+    return '';
+  }
 
   if (!dryRun) {
-    if (rCommute >= 0) ngRowPlain_(sheet, rCommute + 1);
-    if (rAdjust >= 0) ngRowPlain_(sheet, rAdjust + 1);
+    ngRowBand_(sheet, rBand + 1);
+    ngRowHead_(sheet, rHead + 1);
+    for (var i = 0; i < items.length; i++) {
+      // ラベルの背景は1行おきにうすいグレー（見本と同じ並び）
+      ngRowPlain_(sheet, items[i].row + 1, i % 2 === 0, items[i].manual);
+    }
     ngRowStrong_(sheet, rTotal + 1);
   }
-  return '給与明細の強調を差引支給額に移動（結合と文字の大きさも）';
+  return '給与明細の見た目を見本にそろえた（明細 ' + items.length + '行）';
 }
 
 
@@ -719,8 +751,10 @@ function ngFixPayslipLook_(sheet, vals, rows, dryRun) {
    ========================================================= */
 
 var LOOK = {
-  // この日より前に終わった期間は触りません。空にすると全期間
-  from: '',
+  /* この日より前に終わった期間は触りません。空にすると全期間。
+     締めた過去の給与一覧は見た目も変えないほうがよいので、
+     いまの期間（2026/10/16〜）から先だけにしてあります。 */
+  from: '2026-10-16',
 };
 
 function previewLook() { ngLook_(true); }
