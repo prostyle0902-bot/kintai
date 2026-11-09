@@ -454,7 +454,10 @@ var TIDY = {
   from: '2026-11-11',
 
   /* 給与明細の強調を「通勤手当」から「差引支給額」に移すか。
-     false にすると、残りもの（休憩・文字・色）の掃除だけします。 */
+     false にすると、残りもの（休憩・文字・色）の掃除だけします。
+
+     ※ 見た目だけを全員ぶん直したいときは、この下の fixLook を
+        使ってください（こちらは name の人だけが対象です）。 */
   payslipLook: true,
 
   /* 打刻の入っている日も掃除するか。
@@ -617,10 +620,67 @@ function ngTidyOne_(sheet, dryRun) {
 }
 
 
-/* 給与明細の強調を、通勤手当の行から差引支給額の行へ移す。
-   いちばん見たいのは差引支給額なので、そこを目立たせる。 */
+/* 給与明細の見た目を直す。
+
+   ■ いまの状態
+
+   強調は、背景色だけでなく「セルの結合」と「文字の大きさ」で
+   できています。
+
+     通勤手当    B〜F を結合・Noto Sans 12 太字 白 中央
+                 金額 G〜I を結合・Arial 13 太字 白
+     修正給与    結合なし・Calibri 11（素のまま）
+     差引支給額  結合なし・Calibri 11（素のまま）
+
+   いちばん見たい差引支給額が素のままで、通勤手当だけが大きく
+   目立っています。背景色だけ入れ替えると、結合されていない
+   差引支給額の行は文字が隣のセルに切られて「差引支」になります。
+
+   ■ 直したあと
+
+     通勤手当・修正給与  ほかの項目と同じ（B〜F結合・10ポイント）
+     差引支給額          大きく濃く（B〜F結合・12/13ポイント 白）
+   ========================================================= */
+
+// 給与明細の1行を「ふつうの項目」の見た目にする
+function ngRowPlain_(sheet, row) {
+  ngRowMerge_(sheet, row);
+  sheet.getRange(row, 2, 1, 5)
+    .setBackground('#ffffff').setFontColor('#000000')
+    .setFontFamily('Noto Sans').setFontSize(10).setFontWeight('normal')
+    .setHorizontalAlignment('left');
+  sheet.getRange(row, 7, 1, 2)
+    .setBackground('#ebf3fb').setFontColor('#000000')
+    .setFontFamily('Arial').setFontSize(10).setFontWeight('normal')
+    .setHorizontalAlignment('right');
+}
+
+// 給与明細の1行を「いちばん大事な行」の見た目にする
+function ngRowStrong_(sheet, row) {
+  ngRowMerge_(sheet, row);
+  sheet.getRange(row, 2, 1, 5)
+    .setBackground('#1f4e79').setFontColor('#ffffff')
+    .setFontFamily('Noto Sans').setFontSize(12).setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  sheet.getRange(row, 7, 1, 2)
+    .setBackground('#2e75b6').setFontColor('#ffffff')
+    .setFontFamily('Arial').setFontSize(13).setFontWeight('bold')
+    .setHorizontalAlignment('right');
+}
+
+/* 項目名を B〜F、金額を G〜H に結合しなおす。
+   結合しないと、長い項目名が隣のセルに切られてしまう
+   （「差引支給額」が「差引支」になる）。
+   いったんほどいてから結合するので、G〜I のように広く結合されて
+   いた行もそろう。 */
+function ngRowMerge_(sheet, row) {
+  try { sheet.getRange(row, 2, 1, 8).breakApart(); } catch (e) { /* 結合が無ければそのまま */ }
+  try { sheet.getRange(row, 2, 1, 5).mergeAcross(); } catch (e) {}
+  try { sheet.getRange(row, 7, 1, 2).mergeAcross(); } catch (e) {}
+}
+
 function ngFixPayslipLook_(sheet, vals, rows, dryRun) {
-  var rCommute = -1, rTotal = -1, cAmount = -1;
+  var rCommute = -1, rAdjust = -1, rTotal = -1, cAmount = -1;
   for (var r = 0; r < rows; r++) {
     var b = String(vals[r][1] || '').trim();
     if (b === '項目') {
@@ -629,26 +689,92 @@ function ngFixPayslipLook_(sheet, vals, rows, dryRun) {
       }
     }
     if (b.indexOf('通勤手当') === 0) rCommute = r;
-    if (b.indexOf('差引支給額') === 0) rTotal = r;
+    if (b.indexOf('修正給与') === 0) rAdjust = r;
+    if (rTotal < 0 && b.indexOf('差引支給額') === 0) rTotal = r;
   }
-  if (rCommute < 0 || rTotal < 0 || cAmount < 0) return '';
+  if (rTotal < 0 || cAmount < 0) return '';
 
-  var LABEL_BG = '#1f4e79';     // 見出しと同じ濃い青
-  var AMOUNT_BG = '#2e75b6';
-  var WHITE = '#ffffff';
-
-  var nowLabel = String(sheet.getRange(rTotal + 1, 2).getBackground() || '').toLowerCase();
-  if (nowLabel === LABEL_BG) return '';                  // もう直っている
+  // もう直っていれば何もしない（文字の大きさで見分ける）
+  var nowSize = Number(sheet.getRange(rTotal + 1, 2).getFontSize() || 0);
+  var nowBg = String(sheet.getRange(rTotal + 1, 2).getBackground() || '').toLowerCase();
+  if (nowSize === 12 && nowBg === '#1f4e79') return '';
 
   if (!dryRun) {
-    // 通勤手当の行を、ほかの項目と同じ見た目に戻す
-    sheet.getRange(rCommute + 1, 2).setBackground(WHITE).setFontColor('#000000').setFontWeight('normal');
-    sheet.getRange(rCommute + 1, cAmount + 1).setBackground('#ebf3fb').setFontColor('#000000').setFontWeight('normal');
-    // 差引支給額の行を目立たせる
-    sheet.getRange(rTotal + 1, 2).setBackground(LABEL_BG).setFontColor('#ffffff').setFontWeight('bold');
-    sheet.getRange(rTotal + 1, cAmount + 1).setBackground(AMOUNT_BG).setFontColor('#ffffff').setFontWeight('bold');
+    if (rCommute >= 0) ngRowPlain_(sheet, rCommute + 1);
+    if (rAdjust >= 0) ngRowPlain_(sheet, rAdjust + 1);
+    ngRowStrong_(sheet, rTotal + 1);
   }
-  return '給与明細の強調を差引支給額に移動';
+  return '給与明細の強調を差引支給額に移動（結合と文字の大きさも）';
+}
+
+
+/* =========================================================
+   給与明細の見た目だけを、みんなのシートで直す
+
+   previewLook で下見（何も変えません）→ fixLook で実行。
+   すでに直っているシートは飛ばすので、何度実行しても大丈夫です。
+
+   シートの数が多く、途中で時間切れになることがあります。
+   その場合は「続きがあります」と出るので、もう一度実行してください。
+   ========================================================= */
+
+var LOOK = {
+  // この日より前に終わった期間は触りません。空にすると全期間
+  from: '',
+};
+
+function previewLook() { ngLook_(true); }
+function fixLook()     { ngLook_(false); }
+
+function ngLook_(dryRun) {
+  var started = new Date().getTime();
+  var LIMIT = 4.5 * 60 * 1000;          // 5分の実行上限に対して少し手前で止める
+  var from = String(LOOK.from || '').trim();
+
+  Logger.log(dryRun ? '=== 下見（何も変えません）===' : '=== 直します ===');
+  Logger.log('給与明細の強調を「通勤手当」から「差引支給額」に移します');
+  Logger.log('');
+
+  var files = payrollFiles_().files;
+  var done = 0, already = 0, failed = 0, stopped = false;
+
+  for (var i = files.length - 1; i >= 0 && !stopped; i--) {
+    var f = files[i];
+    if (from && f.end < from) continue;
+    var n = 0, skip = 0;
+    try {
+      var ss = SpreadsheetApp.openById(f.id);
+      var all = ss.getSheets();
+      for (var s = 0; s < all.length; s++) {
+        if (new Date().getTime() - started > LIMIT) { stopped = true; break; }
+        var sh = all[s];
+        try {
+          if (String(sh.getRange(5, 2).getValue() || '').trim() !== '日付') continue;
+        } catch (e) { continue; }
+        var rows = Math.min(sh.getLastRow(), 80);
+        var cols = Math.max(sh.getLastColumn(), 10);
+        if (rows < 6) continue;
+        var vals = sh.getRange(1, 1, rows, cols).getValues();
+        if (ngFixPayslipLook_(sh, vals, rows, dryRun)) n++; else skip++;
+      }
+    } catch (e) { failed++; Logger.log('✗ ' + f.label + '：' + e); continue; }
+
+    done += n; already += skip;
+    Logger.log((n ? (dryRun ? '○ ' : '✓ ') : '－ ') + f.label
+      + '：直す ' + n + '枚／そのまま ' + skip + '枚' + (stopped ? '（ここで時間切れ）' : ''));
+  }
+
+  Logger.log('');
+  Logger.log((dryRun ? '直す予定：' : '直した：') + done + '枚／そのまま：' + already + '枚'
+    + (failed ? '／できなかった：' + failed + '件' : ''));
+  if (stopped) {
+    Logger.log('');
+    Logger.log('★ 途中で時間切れになりました。続きがあります。');
+    Logger.log('  もう一度 ' + (dryRun ? 'previewLook' : 'fixLook') + ' を実行してください。');
+    Logger.log('  （直したシートは飛ばすので、同じところはやり直しません）');
+  } else if (dryRun && done) {
+    Logger.log('問題なければ fixLook を実行してください。');
+  }
 }
 
 
