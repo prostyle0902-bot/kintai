@@ -750,7 +750,10 @@ function ngSheetRows_(sheet) {
   for (var i = 0; i < b.length; i++) {
     var t = String(b[i][0] || '').trim();
     if (total < 0 && t === '合計') total = i + 1;
-    if (t.indexOf('差引支給額') === 0) pay = i + 1;
+    /* 「差引支給額（トータルステイ）」のように、掛け持ちの方は
+       差引支給額の行が2つあることがある。上にあるほう（その人の
+       このシートぶんの支給額）を使う。 */
+    if (pay < 0 && t.indexOf('差引支給額') === 0) pay = i + 1;
   }
   if (total < 0 || pay < 0) return null;
   return { total: total, pay: pay };
@@ -865,7 +868,13 @@ function ngFixListFile_(f, dryRun) {
          ここまでで行は動いていないので、そのまま使える。 */
       var g = ngGroupExact_(list, label, vals);
       if (!g) { lines.push(label + '：見出し（▶ ' + label + '）が無く、合計を直せません'); continue; }
-      var nf2 = (g.sample < 0) ? '=0' : '=SUM(F' + g.sample + ':F' + g.last + ')';
+      /* 1人だけの現場は =SUM(F10) と書かれている。
+         =SUM(F10:F10) と中身は同じなので、いまの書き方にそろえる。
+         そろえないと、中身が同じなのに全部書き換わってしまい、
+         ログが埋まって本当に直すところが見えなくなる。 */
+      var nf2 = (g.sample < 0) ? '=0'
+        : (g.sample === g.last) ? '=SUM(F' + g.sample + ')'
+        : '=SUM(F' + g.sample + ':F' + g.last + ')';
       var now = String(colF[r2][0] || '');
       if (now === nf2) continue;
       lines.push('店舗別合計 ' + label + '：'
