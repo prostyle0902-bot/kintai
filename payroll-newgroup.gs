@@ -47,8 +47,12 @@ var NEW_GROUP = {
   name: '奥田京子',
 
   /* 見本にする人。この人の出勤簿シートと、給与一覧表の行を複製します。
-     空にすると、固定手当の無いパートの方から自動で選びます。
-     ※ 固定手当のある人を見本にすると、その手当まで複製されてしまいます */
+     空にすると、自動で選びます。選ぶのは
+       ・作る人と給与の種類（時給／日給）が同じ
+       ・固定手当が無い
+       ・修正給与（手入力）が入っていない
+     方です。どれかが違う人を見本にすると、計算式や金額がそのまま
+     付いてきて、新しい人の給与が狂います。 */
   model: '',
 
   // この日より前の期間は作りません（その人の入社日を入れてください）
@@ -79,7 +83,7 @@ function ngHeadRow_(vals) {
    ・給与一覧表に行があること
    ・固定手当が入っていないこと（複製すると手当までついてくる）
    この3つを満たす人を、下から探します。 */
-function ngPickModel_(ss, list, vals, want) {
+function ngPickModel_(ss, list, vals, want, payKind) {
   if (want) {
     var row0 = -1;
     for (var i = 0; i < vals.length; i++) {
@@ -87,38 +91,95 @@ function ngPickModel_(ss, list, vals, want) {
       if (payrollNameKey_(vals[i][1]) === payrollNameKey_(want)) { row0 = i + 1; break; }
     }
     if (row0 < 0) return { ok: false, why: '見本にする ' + want + ' さんが給与一覧表にいません' };
-    if (!payrollStaffSheet_(ss, want)) {
-      return { ok: false, why: '見本にする ' + want + ' さんの出勤簿シートがありません' };
+    var shw = payrollStaffSheet_(ss, want);
+    if (!shw) return { ok: false, why: '見本にする ' + want + ' さんの出勤簿シートがありません' };
+    var ex = ngHasExtra_(shw);
+    if (ex) {
+      return { ok: false, why: '見本にする ' + want + ' さんは' + ex
+        + 'ため、複製すると新しい人にもその金額が付いてしまいます' };
     }
-    return { ok: true, name: String(vals[row0 - 1][1] || '').trim(), row: row0, why: '指定されたため' };
+    var kw = ngPayKind_(shw);
+    if (payKind && kw && kw !== payKind) {
+      return { ok: false, why: '見本にする ' + want + ' さんは' + ngKindLabel_(kw)
+        + 'の計算です。作る人は' + ngKindLabel_(payKind) + 'なので、給与の計算式が合いません' };
+    }
+    return { ok: true, name: String(vals[row0 - 1][1] || '').trim(), row: row0,
+             kind: kw, why: '指定されたため' };
   }
 
+  var otherKind = null;
   for (var r = vals.length - 1; r >= 0; r--) {
     if (!/^\d+$/.test(String(vals[r][0] || '').trim())) continue;
     var nm = String(vals[r][1] || '').trim();
     if (!nm) continue;
     var sh = payrollStaffSheet_(ss, nm);
     if (!sh) continue;
-    if (ngHasAllowance_(sh)) continue;
-    return { ok: true, name: nm, row: r + 1, why: '固定手当が無いため' };
+    if (ngHasExtra_(sh)) continue;
+    var k = ngPayKind_(sh);
+    /* 給与の種類が違う人は見本にできない。
+       基本賃金の計算式そのものが変わるため（時給×実働 ／ 日給×出勤日数）。 */
+    if (payKind && k && k !== payKind) { if (!otherKind) otherKind = nm + '（' + ngKindLabel_(k) + '）'; continue; }
+    return { ok: true, name: nm, row: r + 1, kind: k || payKind,
+             why: ngKindLabel_(k || payKind) + 'で、固定手当も修正給与も無いため' };
   }
-  return { ok: false, why: '見本にできる人が1人も見つかりませんでした' };
+  return { ok: false, why: '見本にできる人がいません。'
+    + ngKindLabel_(payKind) + 'で、固定手当も修正給与も無いパートの方が、この期間の給与一覧表にいません'
+    + (otherKind ? '（' + otherKind + ' はいますが、給与の種類が違います）' : '') };
 }
 
-/* その人の出勤簿に、固定手当の行があるか。
-   給与明細の項目名（B列）に「手当」が入っていて、
-   通勤手当・深夜割増でないものを探します。 */
-function ngHasAllowance_(sheet) {
+/* その出勤簿が、時給・日給・月給のどれで計算しているかを見る。
+
+   給与明細の「基本賃金（時給×実働時間）」「基本賃金（日給×出勤日数）」
+   という項目名で見分けます。計算式そのものがここで変わるので、
+   種類の違う人を見本にすると、給与が丸ごと間違います。
+   （日給の人を見本にして時給の人を作ると、時給×出勤日数になる） */
+function ngPayKind_(sheet) {
   var last = Math.min(sheet.getLastRow(), 70);
-  if (last < 2) return false;
+  if (last < 2) return '';
   var col = sheet.getRange(1, 2, last, 1).getValues();
   for (var i = 0; i < col.length; i++) {
     var t = String(col[i][0] || '');
+    if (t.indexOf('基本賃金') < 0) continue;
+    if (t.indexOf('時給') >= 0) return 'hourly';
+    if (t.indexOf('日給') >= 0) return 'daily';
+    if (t.indexOf('月給') >= 0) return 'monthly';
+  }
+  // 項目名で分からないときは、見出し（B3あたり）の書き出しで見る
+  var head = String(sheet.getRange(3, 2).getValue() || '');
+  if (head.indexOf('時給') === 0) return 'hourly';
+  if (head.indexOf('日給') === 0) return 'daily';
+  if (head.indexOf('月給') === 0) return 'monthly';
+  return '';
+}
+
+function ngKindLabel_(k) {
+  return k === 'daily' ? '日給' : k === 'monthly' ? '月給' : k === 'hourly' ? '時給' : '不明';
+}
+
+/* 見本にすると、その人のお金がそのまま付いてきてしまうものがあるか。
+
+   1) 固定手当の行
+      給与明細の項目名（B列）に「手当」が入っていて、通勤手当・深夜割増
+      でないもの（例「シングル手当」）。複製すると手当ごと複製されます。
+
+   2) 修正給与（手入力）に数字が入っている
+      ここは計算式ではなく手で入れた金額なので、複製したときに消えません。
+      前の人の調整額が、新しい人の給与に乗ってしまいます。
+
+   どちらかがあれば、その人は見本にしません。 */
+function ngHasExtra_(sheet) {
+  var last = Math.min(sheet.getLastRow(), 70);
+  if (last < 2) return '';
+  var b = sheet.getRange(1, 2, last, 1).getValues();
+  var g = sheet.getRange(1, 7, last, 1).getValues();   // G列＝給与明細の金額
+  for (var i = 0; i < b.length; i++) {
+    var t = String(b[i][0] || '');
+    if (t.indexOf('修正給与') >= 0 && Number(g[i][0])) return '修正給与が入っている';
     if (t.indexOf('手当') < 0) continue;
     if (t.indexOf('通勤') >= 0 || t.indexOf('深夜') >= 0) continue;
-    return true;
+    return t + 'がある';
   }
-  return false;
+  return '';
 }
 
 // 【 店舗別合計 】の、いちばん下の現場の行を探す
@@ -227,7 +288,9 @@ function ngOneFile_(f, group, name, rec, dryRun) {
   var headSample = ngHeadRow_(vals);
   if (headSample < 0) return { status: 'error', message: '「▶」の見出しが1つも見つかりません' };
 
-  var model = ngPickModel_(ss, list, vals, NEW_GROUP.model);
+  var payKind = (rec.payKind === 'daily') ? 'daily'
+              : (rec.payKind === 'monthly') ? 'monthly' : 'hourly';
+  var model = ngPickModel_(ss, list, vals, NEW_GROUP.model, payKind);
   if (!model.ok) return { status: 'error', message: model.why };
 
   var tot = ngTotalRow_(list);
