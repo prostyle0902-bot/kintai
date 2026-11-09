@@ -709,6 +709,30 @@ function previewFixList() { ngFixList_(true); }
 function fixPayrollList() { ngFixList_(false); }
 
 
+/* 見出し（▶）を「ぴったり同じ名前」で探す。
+
+   shift-sync 側の payrollGroup_ は部分一致で探す作りになっている。
+   アプリの現場名と給与一覧の見出しの書き方が違っても拾えるように
+   そうしてあるのだが、ここでは困る。
+
+     「ゆう屋」が「▶ 神宮・亀甲堂・ゆう屋」にも当たってしまう
+
+   行を移したり合計を組み直したりするときに取り違えるので、
+   こちらでは空白の有無だけ無視して、ぴったり同じものだけを探す。 */
+function ngGroupExact_(list, group, vals) {
+  if (!group) return null;
+  vals = vals || payrollListVals_(list);
+  var want = String(group).replace(/[\s　]+/g, '');
+  for (var r = 0; r < vals.length; r++) {
+    var j = vals[r].join(' ');
+    var i = j.indexOf('▶');
+    if (i < 0) continue;
+    if (j.slice(i + 1).replace(/[\s　]+/g, '') === want) return payrollGroupRows_(vals, r + 1);
+  }
+  return null;
+}
+
+
 // '=\'名前\'!D37' を分解する
 function ngParseRef_(f) {
   var m = /^=\s*'([^']+)'\s*!\s*\$?([A-Z]+)\$?(\d+)\s*$/.exec(String(f || ''));
@@ -739,6 +763,10 @@ function ngFixList_(dryRun) {
   var mv = [];
   for (var k in FIX_LIST.move) mv.push(k + ' → ▶ ' + FIX_LIST.move[k]);
   Logger.log('移す人：' + (mv.length ? mv.join('、') : 'なし'));
+  if (dryRun && mv.length) {
+    Logger.log('※ 下見では行を動かさないので、店舗別合計の「→」のあとは');
+    Logger.log('   移動前の並びで出ます。実行すると移動後の並びで組み直します。');
+  }
   Logger.log('');
 
   var files = payrollFiles_().files;
@@ -835,7 +863,7 @@ function ngFixListFile_(f, dryRun) {
 
       /* 読み直すと期間の数だけ時間がかかるので、上で読んだ vals を渡す。
          ここまでで行は動いていないので、そのまま使える。 */
-      var g = payrollGroup_(list, label, vals);
+      var g = ngGroupExact_(list, label, vals);
       if (!g) { lines.push(label + '：見出し（▶ ' + label + '）が無く、合計を直せません'); continue; }
       var nf2 = (g.sample < 0) ? '=0' : '=SUM(F' + g.sample + ':F' + g.last + ')';
       var now = String(colF[r2][0] || '');
@@ -874,8 +902,15 @@ function ngMoveOne_(ss, list, who, group, dryRun) {
   if (cur < 0) return '';                              // この期間にはいない
   if (curGroup === group) return '';                   // もう正しい場所
 
-  var g = payrollGroup_(list, group);
-  if (!g) return who + '：移す先の見出し（▶ ' + group + '）が見つかりません';
+  var g = ngGroupExact_(list, group, vals);
+  if (!g) {
+    /* その期間には、その見出しが無い。
+       例：いまは「▶ ゆう屋」と「▶ 神宮・亀甲堂」に分かれているが、
+       ほかの期間は「▶ 神宮・亀甲堂・ゆう屋」で1つにまとまっている。
+       勝手に作らず、そのままにして知らせる。 */
+    return who + '：この期間には「▶ ' + group + '」が無いので、そのままにしました'
+      + '（いまは「▶ ' + (curGroup || '?') + '」の下にいます）';
+  }
 
   if (dryRun) {
     return who + '：「▶ ' + (curGroup || '?') + '」から「▶ ' + group + '」へ移します（'
