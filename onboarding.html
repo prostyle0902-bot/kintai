@@ -876,7 +876,7 @@ function renderNew() {
     + '<div class="chip-row">'
     + [5,4,3,2,1].map(function (n) {
         return '<span class="chip' + (Number(F.weekDays) === n ? ' on' : '') + '"'
-          + ' onclick="setF(\'weekDays\',' + n + ')">週' + n + '日</span>';
+          + ' onclick="setFRender(\'weekDays\',' + n + ')">週' + n + '日</span>';
       }).join('')
     + '</div>'
     + '<div class="hint">有給の日数がこれで決まります（労基法39条）。'
@@ -911,7 +911,9 @@ function renderNew() {
   });
   h += '<div class="inline" style="margin-top:.6rem">'
     + '<button type="button" class="btn sm" onclick="openNewSite()">＋ 現場を追加</button>'
-    + '<span class="hint" style="margin:0">入る現場が上に無いときは、ここから足せます。</span>'
+    + '<button type="button" class="btn sm ghost" onclick="openSiteList()">現場を直す</button>'
+    + '<span class="hint" style="margin:0">入る現場が上に無いときは追加、'
+    + '事業部などを間違えたときは「直す」から。</span>'
     + '</div>';
   h += '<div class="field" style="margin-top:1rem"><label>所属の表示（勤怠アプリのバッジ）</label>'
     + '<input type="text" value="' + esc(F.dept) + '" placeholder="' + esc(first ? first.dept : '例：業務課')
@@ -1918,6 +1920,109 @@ function openNewSite() {
   renderNewSite();
 }
 
+/* 現場の一覧。直したい現場を選ぶ画面。
+   事業部を間違えて登録したときなど、ここから直せます。 */
+function openSiteList() {
+  let h = '<div class="card-title">現場を直す</div>'
+    + '<div class="card-desc" style="margin-bottom:1rem">'
+    + '直したい現場を選んでください。事業部・名前・勤務時間・打刻の場所を変えられます。'
+    + '<br /><b>事業部はシフトの転記先（飲食事業部シフト／業務課シフト）を決めます。</b>'
+    + 'ここが違うと、転記先も違ってしまいます。</div>';
+  let grp = '';
+  SITES.forEach(function (s) {
+    if (s.grp !== grp) {
+      if (grp) h += '</div>';
+      grp = s.grp;
+      h += '<div class="site-grp">' + esc(grp) + '</div><div class="site-grid">';
+    }
+    const n = STAFF.filter(function (r) {
+      return isActive(r) && storeIdsOf(r).indexOf(s.id) >= 0;
+    }).length;
+    h += '<button type="button" class="site-btn" onclick="openEditSite(\'' + s.id + '\')">'
+      + esc(s.name) + '<small>' + (n ? n + '名' : 'まだ誰もいません') + '</small></button>';
+  });
+  if (grp) h += '</div>';
+  h += '<div class="inline" style="margin-top:1rem">'
+    + '<button type="button" class="btn ghost" onclick="closeSheet()">やめる</button></div>';
+  openSheet(h);
+}
+
+// 現場をひとつ、直す画面に出す
+function openEditSite(id) {
+  const s = site(id);
+  if (!s) { alert('その現場が見つかりません。'); return; }
+  const loc = (s.locs && s.locs[0]) || null;
+  const groups = siteGroups();
+  NS = Object.assign(blankSite(), {
+    id: s.id, name: s.name,
+    grp: s.grp, grpFree: groups.indexOf(s.grp) < 0,
+    dept: s.dept === s.name ? '' : (s.dept || ''),
+    kyuyoGroup: s.kyuyoGroup || '',
+    start: s.start || '09:00', end: s.end || '18:00',
+    useLoc: !!loc,
+    locName: loc ? (loc.name === s.name ? '' : loc.name) : '',
+    lat: loc ? loc.lat : '', lng: loc ? loc.lng : '',
+    radius: loc ? (loc.radius || 300) : 300,
+  });
+  renderNewSite();
+}
+
+// この現場に配属されている在籍者（外すときの確かめに使う）
+function siteStaffNames(id) {
+  return STAFF.filter(function (r) {
+    return isActive(r) && storeIdsOf(r).indexOf(id) >= 0;
+  }).map(function (r) { return r.name; });
+}
+
+/* 現場を一覧から外す。
+   行は消さずに status を off にするだけなので、これまでのシフトや
+   給与の記録はそのまま残ります。 */
+async function hideSite() {
+  if (!NS.id) return;
+  const names = siteStaffNames(NS.id);
+  if (names.length) {
+    nsSay(NS.name + ' には ' + names.length + '名（' + names.slice(0, 5).join('・')
+      + (names.length > 5 ? ' ほか' : '') + '）が配属されています。'
+      + '先にその方の配属を変えてから外してください。', true);
+    return;
+  }
+  if (!confirm(NS.name + ' を現場の一覧から外します。\n\n'
+    + 'これまでのシフトや給与の記録は残ります。\n'
+    + 'あとで戻したいときは、スプレッドシートの sites シートで status を空にしてください。\n\n'
+    + 'よろしいですか？')) return;
+
+  NS.busy = true; nsSay('', false);
+  try {
+    const res = await apiPost({ action: 'siteSave', site: {
+      id: NS.id, name: NS.name, grp: NS.grp, status: 'off' } });
+    if (res.status !== 'ok') throw new Error(res.message || '外せませんでした');
+    applySiteMaster([{ id: NS.id, name: NS.name, status: 'off' }]);
+    cacheSite({ id: NS.id, name: NS.name, status: 'off' });
+    F.storeIds = F.storeIds.filter(function (x) { return x !== NS.id; });
+    syncFromSites();
+    closeSheet();
+    const gone = NS.name;
+    NS = blankSite();
+    renderAll();
+    alert(gone + ' を一覧から外しました。');
+  } catch (e) {
+    NS.busy = false;
+    nsSay('外せませんでした：' + e.message, true);
+  }
+}
+
+// 端末の控えに1件ぶん入れ直す
+function cacheSite(rec) {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_SITES) || '[]');
+    const arr = (Array.isArray(v) ? v : []).filter(function (x) {
+      return x && x.id !== rec.id;
+    });
+    arr.push(rec);
+    saveSiteCache(arr);
+  } catch (e) { saveSiteCache([rec]); }
+}
+
 function setNS(k, v) { NS[k] = v; NS.msg = ''; NS.msgNg = false; }
 // 画面に出す一言。ng が true なら注意の色にする
 function nsSay(text, ng) { NS.msg = text; NS.msgNg = !!ng; renderNewSite(); }
@@ -1990,10 +2095,19 @@ function useHereForSite() {
 function renderNewSite() {
   const groups = siteGroups();
   const nameTrim = NS.name.trim();
-  let h = '<div class="card-title">現場を追加</div>'
+  const editing = !!NS.id;
+  const isBuiltIn = editing && BASE_SITES.some(function (b) { return b.id === NS.id; });
+
+  let h = '<div class="card-title">' + (editing ? '現場を直す' : '現場を追加') + '</div>'
     + '<div class="card-desc" style="margin-bottom:1rem">'
-    + 'パートさんが入る現場が一覧に無いときに使います。'
-    + '足した現場は、この画面とシフト作成アプリの両方に出るようになります。</div>';
+    + (editing
+        ? '直した内容は、この画面とシフト作成アプリの両方に反映されます。'
+          + (isBuiltIn
+              ? '<br />この現場はアプリに最初から入っているものです。直した内容はスプレッドシートに記録され、そちらが優先されます。'
+              : '')
+        : 'パートさんが入る現場が一覧に無いときに使います。'
+          + '足した現場は、この画面とシフト作成アプリの両方に出るようになります。')
+    + '</div>';
 
   h += '<div class="field"><label>現場名 <span style="color:var(--text-danger)">必須</span></label>'
     + '<input type="text" value="' + esc(NS.name) + '" placeholder="例：はま寿司神栖店"'
@@ -2011,7 +2125,8 @@ function renderNewSite() {
     h += '<input type="text" style="margin-top:.5rem" value="' + esc(NS.grp) + '" placeholder="例：新規事業部"'
       + ' oninput="NS.grp=this.value" />';
   }
-  h += '<div class="hint">この画面で現場を並べるときの見出しです。</div></div>';
+  h += '<div class="hint">この画面で現場を並べるときの見出しです。'
+    + '<b>シフトの転記先もここで決まります</b>（飲食事業部シフト／業務課シフト）。</div></div>';
 
   h += '<div class="grid2">'
     + '<div class="field"><label>既定の始業</label>'
@@ -2075,17 +2190,23 @@ function renderNewSite() {
 
   h += '<div class="inline">'
     + '<button type="button" class="btn primary" ' + (NS.busy ? 'disabled' : '') + ' onclick="saveNewSite()">'
-    + (NS.busy ? '保存中…' : 'この現場を追加する') + '</button>'
+    + (NS.busy ? '保存中…' : (editing ? 'この内容で直す' : 'この現場を追加する')) + '</button>'
     + '<button type="button" class="btn ghost" onclick="closeSheet()">やめる</button>'
+    + (editing
+        ? '<button type="button" class="btn danger" style="margin-left:auto" '
+          + (NS.busy ? 'disabled' : '') + ' onclick="hideSite()">一覧から外す</button>'
+        : '')
     + '</div>';
 
   openSheet(h);
 }
 
 async function saveNewSite() {
+  const editing = !!NS.id;
   const name = NS.name.trim();
   if (!name) { nsSay('現場名を入れてください。', true); return; }
-  if (SITES.some(function (s) { return s.name === name; })) {
+  // 同じ名前の現場。直しているときは、自分自身は数えない
+  if (SITES.some(function (s) { return s.name === name && s.id !== NS.id; })) {
     nsSay(name + ' はすでに一覧にあります。', true); return;
   }
   if (NS.useLoc && (!Number(NS.lat) || !Number(NS.lng))) {
@@ -2099,6 +2220,7 @@ async function saveNewSite() {
   }
 
   const rec = {
+    id: NS.id || '',
     name: name,
     grp: NS.grp.trim() || 'その他',
     dept: NS.dept.trim() || name,
@@ -2114,31 +2236,42 @@ async function saveNewSite() {
   try {
     const res = await apiPost({
       action: 'siteSave', site: rec,
-      // アプリに直接書かれている現場と名前がぶつかっていないかを、向こう側でも見てもらう
-      baseNames: BASE_SITES.map(function (s) { return s.name; }).join('\n'),
+      /* アプリに直接書かれている現場と名前がぶつかっていないかを、向こう側でも見てもらう。
+         いま直している現場そのものは外す（自分の名前とぶつかったことにならないように）。 */
+      baseNames: BASE_SITES
+        .filter(function (s) { return s.id !== NS.id; })
+        .map(function (s) { return s.name; }).join('\n'),
     });
     if (res.status !== 'ok') throw new Error(res.message || '保存できませんでした');
 
     /* 画面にすぐ出す。控えにも足しておくので、次に開いたときも出る。
        そのあと読み直して、スプレッドシートの内容と合わせる。 */
     applySiteMaster([res.site]);
-    try {
-      const cached = JSON.parse(localStorage.getItem(LS_SITES) || '[]');
-      const arr = Array.isArray(cached) ? cached.filter(function (x) { return x.id !== res.site.id; }) : [];
-      arr.push(res.site);
-      saveSiteCache(arr);
-    } catch (e) { saveSiteCache([res.site]); }
+    cacheSite(res.site);
 
-    // 追加した現場を、そのまま配属先として選んでおく
-    if (F.storeIds.indexOf(res.site.id) < 0) F.storeIds.push(res.site.id);
+    // 追加したときは、そのまま配属先として選んでおく
+    if (!editing && F.storeIds.indexOf(res.site.id) < 0) F.storeIds.push(res.site.id);
     syncFromSites();
 
     closeSheet();
     NS = blankSite();
     renderAll();
-    alert(name + ' を現場に追加しました。\n\n'
-      + 'この画面の「配属する現場」で選べるようになり、シフト作成アプリにもタブができます。'
-      + (rec.locName ? '' : '\n\n打刻の場所は決めていないので、この現場の人はどこからでも打刻できます。'));
+    if (editing) {
+      alert(name + ' を直しました。\n\n'
+        + '事業部：' + res.site.grp + '（シフトの転記先は'
+        + (res.site.grp === '飲食事業部' ? '飲食事業部シフト' : '業務課シフト') + '）\n'
+        + '勤務時間：' + res.site.start + '〜' + res.site.end + '\n'
+        + '打刻の場所：' + (res.site.locs.length
+            ? res.site.locs[0].name + '（半径' + res.site.locs[0].radius + 'm）'
+            : '決めていない（どこからでも打刻）') + '\n\n'
+        + 'シフト作成アプリは、次に開いたときに反映されます。\n'
+        + 'すでにこの現場に配属されている方の打刻できる場所は、'
+        + 'その方を「編集」から保存し直すと新しい場所になります。');
+    } else {
+      alert(name + ' を現場に追加しました。\n\n'
+        + 'この画面の「配属する現場」で選べるようになり、シフト作成アプリにもタブができます。'
+        + (rec.locName ? '' : '\n\n打刻の場所は決めていないので、この現場の人はどこからでも打刻できます。'));
+    }
   } catch (e) {
     NS.busy = false;
     nsSay('保存できませんでした：' + e.message, true);

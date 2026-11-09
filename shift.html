@@ -3760,6 +3760,20 @@ function applySiteMaster(list) {
       return;
     }
     if (st.name !== name) { st.name = name; changed = true; }   // 入社登録で名前を直したとき
+
+    /* 事業部を直したら、転記先も直す。
+       事業部を間違えて登録すると、飲食事業部シフトと業務課シフトの
+       どちらに送るかを取り違えてしまうため。
+       定休日・必要人数・勤務時間はこの画面で決めるものなので触らない。 */
+    if (s.grp === '飲食事業部' || s.grp === '業務課') {
+      const want = s.grp === '飲食事業部' ? 'food' : 'gyomu';
+      if (st.dept !== want) {
+        st.dept = want;
+        changed = true;
+        siteNotes.push(name + ' の事業部が ' + s.grp + ' に変わったので、'
+          + '転記先を「' + (want === 'gyomu' ? '業務課シフト' : '飲食事業部シフト') + '」にしました。');
+      }
+    }
   });
   return changed;
 }

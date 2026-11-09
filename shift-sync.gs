@@ -1069,8 +1069,12 @@ function siteSave_(p) {
       return { status: 'error', message: name + ' はすでに現場マスタにあります' };
     }
   }
+  /* アプリに直接書かれている現場との名前のぶつかり。
+     IDを指定してきたときは、その現場を直しているところなので見ない。
+     （アプリに最初から入っている現場を直すと、シートにはまだ行が無いので
+       target が空になる。ここで弾くと自分の名前で断られてしまう） */
   var baseNames = String(p.baseNames || '');
-  if (!target && baseNames) {
+  if (!target && !String(rec.id || '').trim() && baseNames) {
     var bn = baseNames.split('\n');
     for (var b = 0; b < bn.length; b++) {
       if (bn[b].trim() === name) {
