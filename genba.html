@@ -136,7 +136,13 @@
   .yen::after { content: '円'; position: absolute; right: 10px; bottom: 9px; font-size: 13px; color: var(--text-secondary); pointer-events: none; }
 
   .wage-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
-  .wage-row .nm { font-weight: 500; }
+  .wage-row .nm, .car-row .nm { font-weight: 500; }
+  .car-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px 100px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .car-row select, .car-row input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-md); border-radius: var(--radius-md); background: var(--surface); font-size: 16px; }
+  .car-row .eff { position: relative; }
+  .car-row .eff input { padding-right: 44px; text-align: right; }
+  .car-row .eff::after { content: 'km/L'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-secondary); pointer-events: none; }
+  .car-row .nm small, .wage-row .nm small { color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
   .wage-row .nm small { color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -197,7 +203,7 @@
   <div class="tabs">
     <button class="tab on" data-tab="sites" onclick="showTab('sites')">現場ごとの収支</button>
     <button class="tab" data-tab="sim" onclick="showTab('sim')">見積もり試算</button>
-    <button class="tab" data-tab="wages" onclick="showTab('wages')">日当の設定</button>
+    <button class="tab" data-tab="wages" onclick="showTab('wages')">日当・車の設定</button>
   </div>
 
   <!-- ===== 現場ごとの収支 ===== -->
@@ -246,7 +252,11 @@
         <div><label>日数</label><input type="number" inputmode="decimal" id="sim-days" value="1" min="0" step="0.5" oninput="renderSim()" /></div>
         <div class="yen"><label>材料費</label><input type="number" inputmode="numeric" id="sim-mat" placeholder="0" oninput="renderSim()" /></div>
         <div class="yen"><label>外注費</label><input type="number" inputmode="numeric" id="sim-out" placeholder="0" oninput="renderSim()" /></div>
-        <div class="yen"><label>その他（車両・燃料など）</label><input type="number" inputmode="numeric" id="sim-other" placeholder="0" oninput="renderSim()" /></div>
+        <div><label>本社からの片道の距離（km）</label><input type="number" inputmode="decimal" id="sim-km" placeholder="0" oninput="renderSim()" /></div>
+        <div><label>使う車</label><select id="sim-car" onchange="renderSim()"></select></div>
+        <div><label>車の台数（1日あたり）</label><input type="number" inputmode="numeric" id="sim-cars" value="1" min="0" oninput="renderSim()" /></div>
+        <div class="yen"><label>高速代（1台・往復）</label><input type="number" inputmode="numeric" id="sim-toll" placeholder="0" oninput="renderSim()" /></div>
+        <div class="yen"><label>その他（駐車場代など）</label><input type="number" inputmode="numeric" id="sim-other" placeholder="0" oninput="renderSim()" /></div>
       </div>
       <div style="margin-top:14px">
         <label class="muted">行くスタッフ（タップで選ぶ）</label>
@@ -281,6 +291,11 @@
     <div class="card">
       <h3>自社スタッフ</h3>
       <div id="wage-own"></div>
+    </div>
+    <div class="card">
+      <h3>車と燃料</h3>
+      <div class="muted" style="margin-bottom:6px">燃料代の見込みに使います。燃費は、1リットルで走れるおおよその距離です（空のときは、めやすの値を使います）。</div>
+      <div id="car-settings"></div>
     </div>
     <div class="card">
       <h3>外注</h3>
@@ -319,7 +334,26 @@ const STAFF_OWN = ['平野健雄','安藤正樹','伏田幸枝','小林俊樹','
 const STAFF_OUT = ['SUN-X','SIBS','One by One','増田（伸和洗浄）','ロープワーク','RISE','ミノアカ','小池','サンクトラスト','Green Field'];
 
 const TYPE_LABEL = { daily:'日常清掃', regular:'定期清掃', spot:'スポット清掃', bird:'鳥害対策', outsource:'外注', pending:'未定', delivery:'納品' };
-const COST_KINDS = ['材料費', '外注費', '車両・燃料', 'その他'];
+const COST_KINDS = ['材料費', '外注費', '燃料代', '高速代', '駐車場代', 'その他'];
+
+/* ---------- 移動費（燃料代・高速代）の見込み ----------
+   現場ごとに「本社からの片道の距離」と「高速代（1台・往復）」を1回入れておくと、
+   カレンダーの予定1回ごとに、使った車の台数ぶんを見込みで足す。
+     燃料代 ＝ 片道km × 2 ÷ 車の燃費 × 燃料の単価（車ごとに足す。NV350は軽油、ほかはガソリン）
+     高速代     ＝ 1台・往復の高速代 × 台数
+   その現場のその月（期間）に、実際の「燃料代」「高速代」を入れたら、
+   見込みは使わずに実際の金額を使う。 */
+// カレンダーの車（prostyle-calendar/index.html の CARS）と、燃費のめやす（km/L）
+const CARS = ['ロング', 'ショート', 'N-VAN', 'ハイゼット', 'エブリー'];
+const CAR_EFF_DEFAULT = { 'ロング': 9, 'ショート': 10, 'N-VAN': 16, 'ハイゼット': 14, 'エブリー': 13, '': 10 };
+// 燃料の種類。ロング・ショートは NV350 なので軽油、ほかはガソリン
+const CAR_FUEL_DEFAULT = { 'ロング': 'diesel', 'ショート': 'diesel' };
+const FUEL_LABEL = { gas: 'ガソリン', diesel: '軽油' };
+const FUEL_PRICE_DEFAULT = { gas: 170, diesel: 150 };
+const HQ = '35.858,140.5625';   // 本社の場所（勤怠アプリの「本社」と同じ）
+// 実際の金額が入っていたら、見込みの代わりに使う種類（「車両・燃料」は前の版の名前）
+const ACTUAL_FUEL = ['燃料代', 'ガソリン代', '車両・燃料'];
+const ACTUAL_TOLL = ['高速代'];
 
 const LS_STORE = 'prostyle_genba_store_v1';   // 日当・経費の控え
 const LS_CAL   = 'prostyle_genba_cal_v1';     // カレンダーの控え
@@ -330,8 +364,10 @@ const CAL_CACHE_OF_CALENDAR = 'genba_cache_v2'; // カレンダー自身が残�
    costs     : { 現場名: [{ id, date, kind, item, amount }] }
    skipSales : { カレンダーの予定id: true }  … 売上に数えない日
    splitMonthly : { 現場名: true }           … 月をまたいでも、作業した月ごとに分けて数える現場
+   travel    : { price: ガソリン単価, dieselPrice: 軽油単価, eff: { 車: 燃費 }, fuel: { 車: 'gas'|'diesel' },
+                 sites: { 現場名: { km: 片道km, toll: 1台往復の高速代 } } }
    deleted   : { 消した経費のid: true }       … 2台で同時に触ったときに消したものが戻らないように */
-let STORE = { wages: {}, costs: {}, skipSales: {}, deleted: {}, splitMonthly: {} };
+let STORE = { wages: {}, costs: {}, skipSales: {}, deleted: {}, splitMonthly: {}, travel: { eff: {}, fuel: {}, sites: {} } };
 let storeRev = 0;
 let localDirty = false;    // 保存先につながらないあいだに、この端末で変えたものがある
 let cloudOk = null;        // null=確認中 / true=Apps Script に保存 / false=この端末だけ
@@ -475,6 +511,35 @@ function dupKey(runs, key, r) {
   return (run ? run.first : r.date) + '|' + r.amount;
 }
 
+function fuelPriceOf(kind) {
+  const v = kind === 'diesel' ? STORE.travel.dieselPrice : STORE.travel.price;
+  return v != null && v !== '' ? +v : FUEL_PRICE_DEFAULT[kind];
+}
+function carFuel(car) { return STORE.travel.fuel[car || ''] || CAR_FUEL_DEFAULT[car] || 'gas'; }
+// 燃料1リットルの値段。車を渡すと、その車の燃料（ガソリンか軽油）の値段
+function fuelPrice(car) {
+  return fuelPriceOf(carFuel(car));
+}
+function carEff(car) {
+  const v = STORE.travel.eff[car || ''];
+  if (v != null && +v > 0) return +v;
+  return CAR_EFF_DEFAULT[car] || CAR_EFF_DEFAULT[''];
+}
+function siteTravel(key) { return STORE.travel.sites[key] || {}; }
+// その予定で動いた車。車の指定が無くても、自社スタッフが行っていれば1台とみなす
+function carsOf(ev) {
+  if ((ev.cars || []).length) return ev.cars;
+  return (ev.staff || []).some(function (n) { return !isOut(n); }) ? [''] : [];
+}
+// 予定1回ぶんの移動費の見込み
+function travelOf(key, ev) {
+  const t = siteTravel(key), cars = carsOf(ev);
+  const km = num(t.km), toll = num(t.toll);
+  let fuel = 0;
+  if (km > 0) cars.forEach(function (c) { fuel += km * 2 / carEff(c) * fuelPrice(c); });
+  return { cars: cars, fuel: fuel, toll: toll * cars.length };
+}
+
 /* ================= 計算 ================= */
 /* 期間内の予定を現場ごとにまとめ、人件費・売上・経費を出す。
 
@@ -547,6 +612,13 @@ function computeSites() {
         if (!isOut(name)) s.manDays += share;
       });
       s.labor += row.labor;
+      const tv = travelOf(key, ev);
+      row.cars = tv.cars;
+      row.fuel = tv.fuel;
+      row.toll = tv.toll;
+      s.carDays = (s.carDays || 0) + tv.cars.length;
+      s.predFuel = (s.predFuel || 0) + tv.fuel;
+      s.predToll = (s.predToll || 0) + tv.toll;
       s.days.push(row);
     });
   });
@@ -566,6 +638,17 @@ function computeSites() {
       s.cost += a;
       s.costByKind[c.kind] = (s.costByKind[c.kind] || 0) + a;
     });
+    // 移動費の見込み。実際の金額が入っていれば、そちらを使う
+    const sumKinds = function (ks) { return ks.reduce(function (a, k) { return a + (s.costByKind[k] || 0); }, 0); };
+    s.fuelActual = sumKinds(ACTUAL_FUEL) > 0;
+    s.tollActual = sumKinds(ACTUAL_TOLL) > 0;
+    s.predUsed = 0;
+    if (!s.fuelActual && s.predFuel > 0) { s.costByKind['燃料代（見込み）'] = s.predFuel; s.predUsed += s.predFuel; }
+    if (!s.tollActual && s.predToll > 0) { s.costByKind['高速代（見込み）'] = s.predToll; s.predUsed += s.predToll; }
+    s.cost += s.predUsed;
+    const tset = siteTravel(key);
+    s.travelSet = tset.km != null || tset.toll != null;
+    s.needsTravel = s.carDays > 0 && !s.travelSet;
     s.profit = s.sales - s.labor - s.cost;
     s.rate = s.sales > 0 ? s.profit / s.sales * 100 : NaN;
     const cl = Object.keys(s.clients).sort(function (a, b) { return s.clients[b] - s.clients[a]; });
@@ -591,7 +674,7 @@ function computeSites() {
     items.forEach(function (c) { byKind[c.kind] = (byKind[c.kind] || 0) + num(c.amount); });
     sites[key] = { name: key, client: '', clients: {}, days: [], sales: 0, labor: 0, manDays: 0, staff: {},
                    first: items[0].date, last: items[0].date, hasPlan: false, sameAmount: false, noSales: true,
-                   costItems: items, costByKind: byKind, cost: cost, profit: -cost, rate: NaN };
+                   costItems: items, costByKind: byKind, cost: cost, profit: -cost, rate: NaN, predUsed: 0 };
   });
 
   Object.keys(moved).forEach(function (k) { if (sites[k]) delete moved[k]; });
@@ -617,14 +700,15 @@ function renderSites() {
 
   // 合計
   const t = all.reduce(function (a, s) {
-    a.sales += s.sales; a.labor += s.labor; a.cost += s.cost; a.profit += s.profit; a.manDays += s.manDays; return a;
-  }, { sales: 0, labor: 0, cost: 0, profit: 0, manDays: 0 });
+    a.sales += s.sales; a.labor += s.labor; a.cost += s.cost; a.profit += s.profit; a.manDays += s.manDays;
+    a.pred += s.predUsed || 0; return a;
+  }, { sales: 0, labor: 0, cost: 0, profit: 0, manDays: 0, pred: 0 });
   const rate = t.sales > 0 ? t.profit / t.sales * 100 : NaN;
   const planNote = b[1] > today() ? '<div class="s">これからの予定も含む</div>' : '';
   document.getElementById('kpis').innerHTML =
     kpi('売上', man(t.sales), all.length + '現場' ) +
     kpi('人件費', man(t.labor), days1(t.manDays) + '人工') +
-    kpi('材料費・外注費など', man(t.cost), '') +
+    kpi('材料費・外注費など', man(t.cost), t.pred ? 'うち移動費の見込み ' + man(t.pred) : '') +
     '<div class="kpi"><div class="l">儲け（粗利）</div><div class="v ' + (t.profit >= 0 ? 'plus' : 'minus') + '">' + man(t.profit)
       + '</div><div class="s">利益率 ' + pct(rate) + '</div>' + planNote + '</div>';
 
@@ -665,6 +749,7 @@ function siteCard(s) {
   const flags = [];
   if (s.carried) flags.push('<span class="tag plan">' + monthLabel(monthOf(s.first)) + 'からの工事をまとめて計算</span>');
   if (s.hasPlan) flags.push('<span class="tag plan">予定あり</span>');
+  if (s.needsTravel) flags.push('<span class="tag">距離・高速代が未設定</span>');
   if (s.noSales && s.days.length) flags.push('<span class="tag warn">請負金額が未入力</span>');
   if (s.sameAmount) flags.push('<span class="tag warn">同じ金額が複数日</span>');
   if (Object.keys(s.staff).some(function (k) { return !s.staff[k].hasWage && !s.staff[k].out; })) flags.push('<span class="tag warn">日当未設定の人あり</span>');
@@ -720,8 +805,10 @@ function renderDetail() {
   h += '<div class="card calc"><h3>儲けの計算</h3>'
     + '<div class="row"><span>売上（請負金額）</span><span>' + yen(s.sales) + '</span></div>'
     + '<div class="row"><span>− 人件費（' + days1(s.manDays) + '人工）</span><span>' + yen(s.labor) + '</span></div>';
-  COST_KINDS.forEach(function (k) {
-    if (s.costByKind[k]) h += '<div class="row"><span>− ' + k + '</span><span>' + yen(s.costByKind[k]) + '</span></div>';
+  const kinds = COST_KINDS.concat(['燃料代（見込み）', '高速代（見込み）']);
+  Object.keys(s.costByKind).forEach(function (k) { if (kinds.indexOf(k) < 0) kinds.push(k); });
+  kinds.forEach(function (k) {
+    if (s.costByKind[k]) h += '<div class="row"><span>− ' + esc(k) + '</span><span>' + yen(s.costByKind[k]) + '</span></div>';
   });
   h += '<div class="row big"><span>儲け（粗利）</span><span class="' + (s.profit >= 0 ? 'plus' : 'minus') + '">' + yen(s.profit)
     + '</span></div><div class="muted" style="text-align:right">利益率 ' + pct(s.rate) + '</div></div>';
@@ -747,6 +834,8 @@ function renderDetail() {
         + (ev.start && ev.end ? '・' + esc(ev.start) + '〜' + esc(ev.end) + (hrs ? '（' + days1(hrs) + '時間）' : '') : '') + '</span></div>'
         + '<div class="day-staff">' + ppl + '</div>'
         + '<div class="day-nums"><span>人件費 <b>' + yen(r.labor) + '</b></span>'
+        + (r.cars && r.cars.length ? '<span>車 ' + r.cars.map(function (c) { return c ? esc(c) : '指定なし'; }).join('・')
+          + (r.fuel + r.toll > 0 ? '　移動費の見込み <b>' + yen(r.fuel + r.toll) + '</b>' : '') + '</span>' : '')
         + '<span class="amt">請負金額 <b>' + (r.amount ? yen(r.amount) : '―') + '</b></span>'
         + (r.amount ? '<label class="cnt"><input type="checkbox" ' + (r.counted ? 'checked' : '') + ' onchange="toggleSales(' + esc(JSON.stringify(ev.id)) + ', this.checked)" />売上に数える</label>' : '')
         + '</div></div>';
@@ -766,6 +855,27 @@ function renderDetail() {
     });
     h += '<tr class="total"><td>合計</td><td class="n">' + days1(s.manDays) + '</td><td></td><td class="n">' + yen(s.labor) + '</td></tr>';
     h += '</tbody></table></div></div>';
+  }
+
+  // 移動費
+  if (s.days.length) {
+    const t = siteTravel(s.name);
+    const nm = esc(JSON.stringify(s.name));
+    const map = 'https://www.google.com/maps/dir/?api=1&origin=' + HQ + '&destination=' + encodeURIComponent(s.name) + '&travelmode=driving';
+    h += '<div class="card"><h3>燃料代・高速代（見込み）</h3>'
+      + '<div class="muted" style="margin-bottom:8px">この現場の数字を1回入れておくと、カレンダーの予定から毎回自動で見込みます。車の欄が空の日は1台で数えます。</div>'
+      + '<div class="form">'
+      + '<div><label>本社からの片道の距離（km）</label><input type="number" inputmode="decimal" value="' + esc(t.km != null ? t.km : '') + '" placeholder="例：35" onchange="setSiteTravel(' + nm + ', \'km\', this.value)" /></div>'
+      + '<div class="yen"><label>高速代（1台・往復）</label><input type="number" inputmode="numeric" value="' + esc(t.toll != null ? t.toll : '') + '" placeholder="使わなければ 0" onchange="setSiteTravel(' + nm + ', \'toll\', this.value)" /></div>'
+      + '<div><a class="btn" style="display:block;text-align:center;text-decoration:none" href="' + esc(map) + '" target="_blank" rel="noopener">Googleマップで距離を見る</a></div>'
+      + '</div>';
+    h += '<div class="calc" style="margin-top:10px">'
+      + '<div class="row"><span>車で行った回数</span><span>' + s.carDays + '台・日</span></div>'
+      + '<div class="row"><span>燃料代の見込み' + (num(t.km) > 0 ? '<br><span class="muted">往復' + days1(num(t.km) * 2) + 'km ÷ 車ごとの燃費 × ガソリン' + fuelPriceOf('gas') + '円・軽油' + fuelPriceOf('diesel') + '円/L</span>' : '') + '</span><span>'
+        + (s.fuelActual ? '<span class="muted">実際の金額を使用</span>' : num(t.km) > 0 ? yen(s.predFuel) : '<span class="muted">距離が未設定</span>') + '</span></div>'
+      + '<div class="row"><span>高速代の見込み</span><span>'
+        + (s.tollActual ? '<span class="muted">実際の金額を使用</span>' : t.toll != null && t.toll !== '' ? yen(s.predToll) : '<span class="muted">未設定</span>') + '</span></div>'
+      + '</div><div class="muted" style="margin-top:6px">レシートなどで実際の金額が分かったら、下の「材料費・外注費など」に種類「燃料代」「高速代」で入れてください。その月（期間）は見込みの代わりに実際の金額を使います。車の燃費・燃料（NV350のロング・ショートは軽油、ほかはガソリン）・単価は「日当・車の設定」で変えられます。</div></div>';
   }
 
   // 経費
@@ -792,6 +902,14 @@ function renderDetail() {
   el.innerHTML = h;
 }
 
+function setSiteTravel(name, field, v) {
+  const t = Object.assign({}, STORE.travel.sites[name] || {});
+  const sv = String(v).trim();
+  if (sv === '') delete t[field]; else t[field] = num(sv);
+  if (Object.keys(t).length) STORE.travel.sites[name] = t; else delete STORE.travel.sites[name];
+  saveStore();
+  renderSites();
+}
 function setSplit(name, split) {
   if (split) STORE.splitMonthly[name] = true; else delete STORE.splitMonthly[name];
   saveStore();
@@ -862,6 +980,46 @@ function renderWages() {
   };
   document.getElementById('wage-own').innerHTML = k.own.map(function (n) { return row(n, false); }).join('');
   document.getElementById('wage-out').innerHTML = k.out.map(function (n) { return row(n, true); }).join('');
+  renderCars();
+}
+function renderCars() {
+  const cars = CARS.slice();
+  Object.keys(EVENTS).forEach(function (d) {
+    (EVENTS[d] || []).forEach(function (ev) { (ev.cars || []).forEach(function (c) { if (c && cars.indexOf(c) < 0) cars.push(c); }); });
+  });
+  let h = '';
+  [['gas', 'price'], ['diesel', 'dieselPrice']].forEach(function (x) {
+    const pv = STORE.travel[x[1]];
+    h += '<div class="wage-row"><div class="nm">' + FUEL_LABEL[x[0]] + 'の単価<small>1リットル</small></div><div class="yen"><input type="number" inputmode="numeric" value="'
+      + (pv != null ? esc(pv) : '') + '" placeholder="' + FUEL_PRICE_DEFAULT[x[0]] + '" onchange="setFuel(\'' + x[0] + '\', this.value)" /></div></div>';
+  });
+  cars.concat(['']).forEach(function (c) {
+    const v = STORE.travel.eff[c];
+    const f = carFuel(c);
+    h += '<div class="car-row"><div class="nm">' + (c ? esc(c) : '車の指定がない日') + (CAR_FUEL_DEFAULT[c] === 'diesel' ? '<small>NV350</small>' : '') + '</div>'
+      + '<select onchange="setCarFuel(' + esc(JSON.stringify(c)) + ', this.value)">'
+      + '<option value="gas"' + (f === 'gas' ? ' selected' : '') + '>ガソリン</option>'
+      + '<option value="diesel"' + (f === 'diesel' ? ' selected' : '') + '>軽油</option></select>'
+      + '<div class="eff"><input type="number" inputmode="decimal" value="' + (v != null ? esc(v) : '') + '" placeholder="' + (CAR_EFF_DEFAULT[c] || CAR_EFF_DEFAULT['']) + '"'
+      + ' onchange="setEff(' + esc(JSON.stringify(c)) + ', this.value)" /></div></div>';
+  });
+  document.getElementById('car-settings').innerHTML = h;
+}
+function setFuel(kind, v) {
+  const key = kind === 'diesel' ? 'dieselPrice' : 'price';
+  const sv = String(v).trim();
+  if (sv === '') delete STORE.travel[key]; else STORE.travel[key] = num(sv);
+  saveStore(); renderSites(); renderSim();
+}
+function setCarFuel(car, kind) {
+  // めやすと同じなら覚えない（あとで、めやすを変えたときに付いていけるように）
+  if (kind === (CAR_FUEL_DEFAULT[car] || 'gas')) delete STORE.travel.fuel[car]; else STORE.travel.fuel[car] = kind;
+  saveStore(); renderSites(); renderSim();
+}
+function setEff(car, v) {
+  const sv = String(v).trim();
+  if (sv === '' || !(num(sv) > 0)) delete STORE.travel.eff[car]; else STORE.travel.eff[car] = num(sv);
+  saveStore(); renderSites(); renderSim();
 }
 function setWage(name, v) {
   const s = String(v).trim();
@@ -899,6 +1057,18 @@ function renderSim() {
   const mat = num(document.getElementById('sim-mat').value);
   const out = num(document.getElementById('sim-out').value);
   const other = num(document.getElementById('sim-other').value);
+  const km = num(document.getElementById('sim-km').value);
+  const cars = num(document.getElementById('sim-cars').value);
+  const tollRt = num(document.getElementById('sim-toll').value);
+  const carSel = document.getElementById('sim-car');
+  if (!carSel.options.length) {
+    carSel.innerHTML = CARS.concat(['']).map(function (c) {
+      return '<option value="' + esc(c) + '">' + (c ? esc(c) : '決めていない') + '</option>';
+    }).join('');
+  }
+  const car = carSel.value;
+  const fuel = km * 2 / carEff(car) * fuelPrice(car) * cars * days;
+  const toll = tollRt * cars * days;
   let daily = 0;
   const missing = [];
   simStaff.forEach(function (n) {
@@ -906,7 +1076,7 @@ function renderSim() {
     if (w == null) missing.push(n); else daily += +w;
   });
   const labor = daily * days;
-  const cost = labor + mat + out + other;
+  const cost = labor + mat + out + fuel + toll + other;
   const profit = amount - cost;
   const rate = amount > 0 ? profit / amount * 100 : NaN;
   let h = '<div class="calc">'
@@ -914,6 +1084,8 @@ function renderSim() {
     + '<div class="row"><span>− 人件費（' + simStaff.length + '人 × ' + days1(days) + '日 ＝ ' + days1(simStaff.length * days) + '人工）</span><span>' + yen(labor) + '</span></div>'
     + (mat ? '<div class="row"><span>− 材料費</span><span>' + yen(mat) + '</span></div>' : '')
     + (out ? '<div class="row"><span>− 外注費</span><span>' + yen(out) + '</span></div>' : '')
+    + (fuel ? '<div class="row"><span>− 燃料代（見込み）<br><span class="muted">往復' + days1(km * 2) + 'km × ' + days1(cars) + '台 × ' + days1(days) + '日 ÷ 燃費' + carEff(car) + 'km/L × ' + FUEL_LABEL[carFuel(car)] + fuelPrice(car) + '円/L</span></span><span>' + yen(fuel) + '</span></div>' : '')
+    + (toll ? '<div class="row"><span>− 高速代（' + days1(cars) + '台 × ' + days1(days) + '日）</span><span>' + yen(toll) + '</span></div>' : '')
     + (other ? '<div class="row"><span>− その他</span><span>' + yen(other) + '</span></div>' : '')
     + '<div class="row big"><span>儲け（粗利）</span><span class="' + (profit >= 0 ? 'plus' : 'minus') + '">' + yen(profit) + '</span></div>'
     + '<div class="muted" style="text-align:right">利益率 ' + pct(rate) + '</div></div>';
@@ -999,8 +1171,10 @@ async function loadCalendar() {
 // --- 日当・経費 ---
 function normalizeStore(o) {
   o = o || {};
+  const t = o.travel || {};
   return { wages: o.wages || {}, costs: o.costs || {}, skipSales: o.skipSales || {}, deleted: o.deleted || {},
-           splitMonthly: o.splitMonthly || {} };
+           splitMonthly: o.splitMonthly || {},
+           travel: { price: t.price, dieselPrice: t.dieselPrice, eff: t.eff || {}, fuel: t.fuel || {}, sites: t.sites || {} } };
 }
 function loadStoreCache() {
   try {
@@ -1018,6 +1192,11 @@ function mergeStore(server, local) {
   const m = normalizeStore(JSON.parse(JSON.stringify(server)));
   Object.assign(m.wages, local.wages);
   Object.assign(m.splitMonthly, local.splitMonthly);
+  if (local.travel.price != null) m.travel.price = local.travel.price;
+  if (local.travel.dieselPrice != null) m.travel.dieselPrice = local.travel.dieselPrice;
+  Object.assign(m.travel.fuel, local.travel.fuel);
+  Object.assign(m.travel.eff, local.travel.eff);
+  Object.assign(m.travel.sites, local.travel.sites);
   Object.assign(m.deleted, local.deleted);
   Object.keys(local.skipSales).forEach(function (k) { m.skipSales[k] = true; });
   Object.keys(local.costs).forEach(function (site) {
