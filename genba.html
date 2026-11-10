@@ -298,7 +298,7 @@
     </div>
     <div class="card">
       <h3>車と燃料・高速代</h3>
-      <div class="muted" style="margin-bottom:6px">車ごとに、燃料・高速の車種（普通車か軽自動車か）・燃費を決めます。燃費は、1リットルで走れるおおよその距離です（空のときは、めやすの値を使います）。</div>
+      <div class="muted" style="margin-bottom:6px">車ごとに、燃料・高速の車種（中型車・普通車・軽自動車）・燃費を決めます。燃費は、1リットルで走れるおおよその距離です（空のときは、めやすの値を使います）。</div>
       <div id="car-settings"></div>
     </div>
     <div class="card">
@@ -359,10 +359,10 @@ const CAR_EFF_DEFAULT = { 'ロング': 9, 'ショート': 10, 'N-VAN': 16, 'ハ�
 const CAR_FUEL_DEFAULT = { 'ロング': 'diesel', 'ショート': 'diesel' };
 const FUEL_LABEL = { gas: 'ガソリン', diesel: '軽油' };
 const FUEL_PRICE_DEFAULT = { gas: 170, diesel: 150 };
-// 高速の車種。NV350 は普通車、ほかは軽自動車
-const CAR_CLASS_DEFAULT = { 'ロング': 'normal', 'ショート': 'normal', 'N-VAN': 'kei', 'ハイゼット': 'kei', 'エブリー': 'kei' };
-const CLASS_LABEL = { normal: '普通車', kei: '軽' };
-const CLASS_RATIO = { normal: 1, kei: 0.8 };   // 軽自動車は普通車の0.8倍
+// 高速の車種。NV350 は中型車、ほかは軽自動車。車の指定がない日は普通車
+const CAR_CLASS_DEFAULT = { 'ロング': 'medium', 'ショート': 'medium', 'N-VAN': 'kei', 'ハイゼット': 'kei', 'エブリー': 'kei' };
+const CLASS_LABEL = { medium: '中型車', normal: '普通車', kei: '軽自動車' };
+const CLASS_RATIO = { medium: 1.2, normal: 1, kei: 0.8 };   // NEXCOの車種の倍率（普通車を1として）
 /* 距離からの高速代の目安（NEXCOの普通区間）
    1回の料金 ＝ （150円 ＋ 24.6円 × 高速を走るkm）× 車種の倍率 × 消費税1.1（10円単位）
    高速を走るkm ＝ 片道の距離 − 高速に乗るまでと降りてからの下道
@@ -385,7 +385,7 @@ const CAL_CACHE_OF_CALENDAR = 'genba_cache_v2'; // カレンダー自身が残�
    skipSales : { カレンダーの予定id: true }  … 売上に数えない日
    splitMonthly : { 現場名: true }           … 月をまたいでも、作業した月ごとに分けて数える現場
    travel    : { price: ガソリン単価, dieselPrice: 軽油単価, eff: { 車: 燃費 }, fuel: { 車: 'gas'|'diesel' },
-                 cls: { 車: 'normal'|'kei' }, hwMin: 高速を使う距離, hwAccess: 下道のkm,
+                 cls: { 車: 'medium'|'normal'|'kei' }, hwMin: 高速を使う距離, hwAccess: 下道のkm,
                  sites: { 現場名: { km: 片道km, toll: 1台往復の高速代 } } }
    deleted   : { 消した経費のid: true }       … 2台で同時に触ったときに消したものが戻らないように */
 let STORE = { wages: {}, costs: {}, skipSales: {}, deleted: {}, splitMonthly: {}, travel: { eff: {}, fuel: {}, cls: {}, sites: {} } };
@@ -975,8 +975,8 @@ function tollNote(s, t) {
   if (s.tollSrc === 'auto') {
     const km = num(t.km), min = hwSetting('hwMin', HW_MIN_DEFAULT);
     if (km < min) return '片道' + days1(km) + 'km（' + min + 'km未満）なので高速は使わない見込み';
-    return '距離からの目安：高速' + days1(Math.max(0, km - hwSetting('hwAccess', HW_ACCESS_DEFAULT))) + 'km・普通車 1台・往復 ' + yen(autoTollFor(km, 'normal'))
-      + '（軽は ' + yen(autoTollFor(km, 'kei')) + '）';
+    return '距離からの目安：高速' + days1(Math.max(0, km - hwSetting('hwAccess', HW_ACCESS_DEFAULT))) + 'km・1台・往復 '
+      + ['medium', 'normal', 'kei'].map(function (c) { return CLASS_LABEL[c] + ' ' + yen(autoTollFor(km, c)); }).join('・');
   }
   return '';
 }
@@ -1085,8 +1085,9 @@ function renderCars() {
       + '<option value="gas"' + (f === 'gas' ? ' selected' : '') + '>ガソリン</option>'
       + '<option value="diesel"' + (f === 'diesel' ? ' selected' : '') + '>軽油</option></select>'
       + '<select onchange="setCarClass(' + esc(JSON.stringify(c)) + ', this.value)">'
-      + '<option value="normal"' + (cl === 'normal' ? ' selected' : '') + '>普通車</option>'
-      + '<option value="kei"' + (cl === 'kei' ? ' selected' : '') + '>軽自動車</option></select>'
+      + ['medium', 'normal', 'kei'].map(function (k) {
+          return '<option value="' + k + '"' + (cl === k ? ' selected' : '') + '>' + CLASS_LABEL[k] + '</option>';
+        }).join('') + '</select>'
       + '<div class="eff"><input type="number" inputmode="decimal" value="' + (v != null ? esc(v) : '') + '" placeholder="' + (CAR_EFF_DEFAULT[c] || CAR_EFF_DEFAULT['']) + '"'
       + ' onchange="setEff(' + esc(JSON.stringify(c)) + ', this.value)" /></div></div>';
   });
