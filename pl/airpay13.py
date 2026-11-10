@@ -56,6 +56,8 @@ DATA = [
     ("2026-07", 50990, 1648, 49342, "2026-06-20〜2026-07-19"),
     ("2026-08", 49440, 1598, 47842, "2026-07-20〜2026-08-16"),
     ("2026-09", 61240, 1980, 59260, "2026-08-21〜2026-09-19"),
+    # 2026-11-10 利用者が保管先に直接置いた（新しい形式。課税分の手数料と消費税が別に出る）
+    ("2026-10", 68700, 2160, 66479, "2026-09-20〜2026-10-18", 61),
 ]
 
 PERIODS = {"21期": ("2025-09", "2026-08"), "22期": ("2026-09", "2027-08")}
@@ -70,13 +72,15 @@ def period_of(ym):
 
 def rows(period="21期"):
     """(タブ, PL行, 月, 税抜, 消費税, 取引先, 出どころ, メモ)。21期・22期とも振込月ベース。"""
-    for ym, sales, fee, pay, used in DATA:
+    for ym, sales, fee, pay, used, *tx in DATA:
         if period_of(ym) != period:
             continue
-        assert sales - fee == pay, f"{ym}: 売上{sales:,}−手数料{fee:,}≠振込{pay:,}"
-        yield (TAB, ROW, f"{int(ym[5:])}月", fee, 0, "Airペイ（リクルート）",
+        tax = tx[0] if tx else 0                       # 2026-10振込から課税分（交通系など）がある
+        assert sales - fee - tax == pay, f"{ym}: 売上{sales:,}−手数料{fee:,}−税{tax:,}≠振込{pay:,}"
+        yield (TAB, ROW, f"{int(ym[5:])}月", fee, tax, "Airペイ（リクルート）",
                SRC.format(period=period, ym=ym.replace("-", "")),
-               f"振込明細の売上手数料（非課税）。振込{ym}（月3回）・利用{used}・売上{sales:,}")
+               f"振込明細の売上手数料（非課税＋課税分の税抜）。振込{ym}（月3回）・利用{used}・売上{sales:,}"
+               + (f"・課税分の消費税{tax:,}" if tax else ""))
 
 
 def hold_rows(period="22期"):
@@ -92,6 +96,8 @@ def parse(path):
     except UnicodeDecodeError:
         text = raw.decode("utf-8-sig")
     rs = list(csv.reader(io.StringIO(text)))
+    if rs and rs[0] and rs[0][0] == "振込日":
+        return _parse_invoice(rs, path)
     i = next(k for k, r in enumerate(rs) if r and r[0].startswith("売上合計"))
     body = [r for r in rs[1:i] if r]
     day = lambda v: "-".join(f"{int(x):0{2 if i else 4}d}" for i, x in enumerate(v.split("/")))
@@ -101,6 +107,32 @@ def parse(path):
     sales, fee, _tr, pay = (int(x) for x in rs[i + 1][:4])
     assert sum(int(r[5]) for r in body) == sales, f"{path}: 明細の合計が売上合計と合わない"
     return (pays[0], sales, fee, pay, f"{uses[0]}〜{uses[-1]}")
+
+
+def _parse_invoice(rs, path):
+    """2026-11 から届いた形式（明細1件ずつ＋振込日ごとのインボイス）。
+    先頭の明細のすぐ下にある最初の集計（売上合計金額〜振込確定金額）が月の合計。
+    売上手数料が「課税10%対象（税込）／うち消費税額／非課税」に分かれている。
+    返す行: (振込月, 売上, 手数料の税抜＝非課税＋課税−税, 振込金額, 利用範囲, 消費税)"""
+    import re
+    cells = [[c for c in r if c != ""] for r in rs]     # 集計行はラベルが途中の列にある
+    i = next(k for k, c in enumerate(cells) if c and c[0] == "売上合計金額")
+    # 明細は最初の集計より上だけ（下のインボイス欄に振込日ごとの明細がもう一度出る）
+    body = [r for r in rs[1:i] if r and re.match(r"\d{4}-\d\d-\d\d$", r[0])]
+    kv = {}
+    for c in cells[i:i + 8]:
+        if len(c) >= 2:
+            kv[c[0]] = int(c[1].replace(",", ""))
+    pays = sorted({r[0][:7] for r in body})
+    assert len(pays) == 1, f"{path}: 振込月が {pays}（1ファイル1か月のはず）"
+    uses = sorted(r[4] for r in body)
+    sales = kv["売上合計金額"]
+    assert sum(int(r[8]) for r in body) == sales, f"{path}: 明細の合計が売上合計と合わない"
+    tax = kv["うち消費税額"]
+    fee = kv["売上手数料（非課税）"] + kv["売上手数料（課税10%対象）"] - tax
+    pay = kv["振込確定金額"]
+    assert sales - fee - tax - kv["振込手数料"] == pay
+    return (pays[0], sales, fee, pay, f"{uses[0]}〜{uses[-1]}", tax)
 
 
 if __name__ == "__main__":
