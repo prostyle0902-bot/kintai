@@ -234,6 +234,11 @@ def _paid():
                 out[frag][YM[ov]] += amount
                 break
             y, m, d = (int(x) for x in date.split("/"))
+            if f"{y}{m:02d}" not in _ORDER:
+                # ★2026-11-24 銀行明細に 2026-10 の支払いが入ってきて index で落ちた。
+                #   21期の外の支払いは拾わない（これまでの21期の値を変えない）。
+                #   2026/10/09 マルゼン 6,435 は一般則だと21期8月ぶんになるが、未確認なので入れていない。
+                break
             i = _ORDER.index(f"{y}{m:02d}") - _lag(d)
             if 0 <= i < len(_ORDER):
                 out[frag][_ORDER[i]] += amount
