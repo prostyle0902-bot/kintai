@@ -229,6 +229,11 @@ def post_cards(bk):
                 continue                      # 21期ぶん
             m = m0 if ym is None else f"{ym[1]}月"
             assert ym is None or (2026, 9) <= ym <= (2027, 8), f"{fname}: {used} {merchant} が22期の外"
+            parts = cards.split_row(issuer, merchant, inc)
+            if parts:
+                for prow, pex in parts:
+                    per.setdefault((prow, m), []).append((used, merchant, pex))
+                continue
             plrow, ex = cards.classify_row(issuer, merchant, inc)
             if plrow is None:
                 bk.hold.append((m, "本部", f"{issuer} {used} {merchant} {inc:,}",

@@ -212,6 +212,39 @@ for _k, _ws in _ADD_2611.items():
     JCB_MASTER.setdefault(_k, [])
     JCB_MASTER[_k] = JCB_MASTER[_k] + _ws
 
+# ★2026-11-27 追加。202612meisai.csv（JCB 12月払い・10/16〜11/15）で利用者に決めてもらったもの。
+#   案を見せて「違うものだけ教えて」→ ？の4件に答え、ほかは案のまま。
+_ADD_2612 = {
+    "接待交際費": ["ゼビオスポーツ", "GP 成田店",       # 利用者「ゴルフコンペで使った景品代」
+              "ミスタ-エックス",                    # 楽天ペイ ミスタ-エックス 30,000。利用者「焼肉屋の前売りチケット」
+              "Hallelujah", "TATSU SUSHI", "まるそば", "海のちんぼらぁ",   # 沖縄 10/22〜23 の飲食（案のまま）
+              "JAL PLAZA", "エキマルシェ"],          # 那覇・新大阪の手土産（案のまま）→ GIFT_KEYS
+    "旅費・交通費": ["スマイルホテル", "ジェットスター", "ユアー・パーキング",
+               "ニッポンレンタカー"],              # 案のまま
+    "ソフトウェア利用料": ["ユ-ネクスト"],               # U-NEXT（案のまま）
+    "福利厚生費": ["ユニバーサル・スタジオ"],             # USJ（案のまま）
+}
+GIFT_KEYS += ["ゼビオスポーツ", "GP 成田店", "JAL PLAZA", "エキマルシェ"]
+
+for _k, _ws in _ADD_2612.items():
+    JCB_MASTER.setdefault(_k, [])
+    JCB_MASTER[_k] = JCB_MASTER[_k] + _ws
+
+# 1件を複数の費目に分けるもの {取引先のキーワード: [(PL行, 税込), ...]}。税込の合計が明細の額と一致するときだけ分ける。
+# ★2026-11-27 シクミネット 10/29 18,000。利用者「セミナー、懇親会8000円 参加費」
+#   → セミナー参加費10,000は諸会費（研修費の行が無いので）、懇親会8,000は接待交際費。
+SPLIT_ROWS = {
+    "シクミネット": [("諸会費", 10000), ("接待交際費", 8000)],
+}
+
+
+def split_row(issuer, merchant, inc):
+    """SPLIT_ROWS に当たれば [(PL行, 税抜), ...]、当たらなければ None。"""
+    for k, parts in SPLIT_ROWS.items():
+        if k in merchant and sum(v for _, v in parts) == inc:
+            return [(row, _ex(v)) for row, v in parts]
+    return None
+
 
 def _ex(tax_inc, rate=10):
     """税込 → 税抜（円未満切り捨て）"""
